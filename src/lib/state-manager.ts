@@ -287,7 +287,9 @@ export function updateConversationState(
     'cheaper', 'budget', 'spend', 'more', 'less', 'warmer', 'stronger', 'lighter', 'fresher',
     'another', 'different', 'else', 'alternative', 'avoid', "don't like", "dont like", "hate",
     'actually', 'remove', 'higher', 'lower', 'under', 'below', 'within', 'bucks', 'rs',
-    'option', 'options', 'alternatives', 'choices', 'instead', 'rather', 'forget', 'switch', 'change'
+    'option', 'options', 'alternatives', 'choices', 'instead', 'rather', 'forget', 'switch', 'change',
+    'make it', 'make', 'give me', 'show me', 'woody', 'floral', 'fresh', 'citrus', 'aquatic', 'spicy',
+    'musky', 'oud', 'warm', 'sweet', 'how about', 'what about', 'prefer'
   ];
   const hasRefinementKeyword = refinementKeywords.some((kw) => rawUserText.includes(kw));
   const hasActive = hasActiveConsultation(base);
@@ -301,9 +303,10 @@ export function updateConversationState(
     stage1.intent === 'SHOW_ALTERNATIVES' ||
     (hasActive && hasRefinementKeyword);
 
-  const isNewConsultation =
-    (!isExplicitRefinement && !hasActive) ||
-    (!isExplicitRefinement && stage1.is_new_request === true && !hasRefinementKeyword && (stage1.occasion !== null || (stage1.fragrance_families && stage1.fragrance_families.length > 0)));
+  const isExplicitReset =
+    /\b(forget\s+(?:everything|my\s+preferences|all\s+preferences)|start\s+over|reset|new\s+search|start\s+(?:a\s+)?new\s+search|start\s+fresh|let'?s\s+start\s+fresh)\b/i.test(rawUserText);
+
+  const isNewConsultation = isExplicitReset || (!isExplicitRefinement && !hasActive);
 
   if (isNewConsultation) {
     // ── NEW REQUEST: WIPE OLD ACTIVE SHOPPING REQUEST ──────────────────────────
@@ -338,9 +341,41 @@ export function updateConversationState(
   } else {
     // ── REFINEMENT / FOLLOW-UP: PRESERVE CONSTRAINTS & APPLY ATOMIC UPDATES ───
     // Check if user language indicates replacement vs combination:
-    const hasCombinationMarker = /\b(keep|still|remain|stay|both|while|fresh\s+but|warm\s+but|fresh\s+and|warm\s+and|and\s+also)\b/i.test(rawUserText);
-    const hasReplacementMarker = /\b(actually|instead|rather|forget|ignore|nevermind|scratch\s+that|switch\s+(it\s+)?to|change\s+(it\s+)?to|swap\s+(it\s+)?to|prefer\s+.*instead|make\s+it\s+.*instead|no,\s*|no\s+i\s+want)\b/i.test(rawUserText);
+    const hasCombinationMarker = /\b(keep|still|remain|stay|both|while|fresh\s+but|warm\s+but|fresh\s+and|warm\s+and|and\s+also|too|also)\b/i.test(rawUserText);
+    const hasReplacementMarker = /\b(actually|instead|rather|forget|ignore|nevermind|scratch\s+that|switch\s+(?:it\s+)?to|change\s+(?:it\s+)?to|swap\s+(?:it\s+)?to|prefer\s+.*instead|make\s+it\s+.*instead|make\s+it|switch\s+to|change\s+to|move\s+to|replace\s+.*with|go\s+with|no,\s*|no\s+i\s+want)\b/i.test(rawUserText);
     const isReplacement = hasReplacementMarker && !hasCombinationMarker;
+
+    // Reference cleanup on explicit reference drop or new direction
+    const isReferenceDropped = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference|remove\s+(?:that|the)?\s*reference|ignore\s+(?:that|the)?\s*reference)\b/i.test(rawUserText);
+    if (isReferenceDropped) {
+      activeRequest.isSimilarityRequest = false;
+      activeRequest.relativePrice = null;
+      backgroundContext.referencePerfume = null;
+    } else if (stage1.fragrance_families && stage1.fragrance_families.length > 0 && !/\b(reference|like|similar|clone|dupe|cheaper)\b/i.test(rawUserText)) {
+      if (activeRequest.isSimilarityRequest) {
+        activeRequest.isSimilarityRequest = false;
+        activeRequest.relativePrice = null;
+        backgroundContext.referencePerfume = null;
+      }
+    }
+
+    // Explicit "forget X" removals
+    if (/\bforget\s+fresh\b/i.test(rawUserText)) {
+      activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'fresh');
+      activeRequest.freshness = null;
+    }
+    if (/\bforget\s+warm\b/i.test(rawUserText)) {
+      activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'warm');
+      activeRequest.warmth = null;
+      activeRequest.warmthMax = null;
+    }
+    if (/\bforget\s+woody\b/i.test(rawUserText)) {
+      activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'woody');
+    }
+    if (/\bforget\s+sweet\b/i.test(rawUserText)) {
+      activeRequest.families = activeRequest.families.filter((f) => !['sweet', 'gourmand'].includes(f.toLowerCase()));
+      activeRequest.sweetness = null;
+    }
 
     // Direct field deltas ensure state updates succeed even if stage1.updates array was omitted:
     if (stage1.budget?.max !== null && stage1.budget?.max !== undefined) {
@@ -411,7 +446,7 @@ export function updateConversationState(
             activeRequest.relativePrice = update.value || 'cheaper';
             break;
           case 'fragrance_families':
-            if (update.operation === 'REPLACE') {
+            if (update.operation === 'REPLACE' || update.operation === 'SET') {
               activeRequest.families = Array.isArray(update.value) ? update.value : [update.value];
             } else if (update.operation === 'ADD') {
               const toAdd = Array.isArray(update.value) ? update.value : [update.value];
@@ -615,7 +650,12 @@ export function updateConversationState(
     }
 
     if (stage1.fragrance_families && stage1.fragrance_families.length > 0) {
-      const isReplacement = stage1.requested_changes?.includes('replace_family');
+      const isReplacement =
+        stage1.requested_changes?.includes('replace_family') ||
+        (!hasCombinationMarker && (
+          hasReplacementMarker ||
+          stage1.updates?.some((u) => u.field === 'fragrance_families' && (u.operation === 'SET' || u.operation === 'REPLACE'))
+        ));
       if (isReplacement) {
         activeRequest.families = [...stage1.fragrance_families];
       } else {

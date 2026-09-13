@@ -171,7 +171,26 @@ export function extractBudgetUpdate(lower: string): {
     lower.includes('without a budget') ||
     lower.includes('any budget') ||
     lower.includes('budget is not an issue') ||
-    lower.includes('unlimited budget')
+    lower.includes('unlimited budget') ||
+    lower.includes('forget the budget') ||
+    lower.includes('forget my budget') ||
+    lower.includes('ignore the budget') ||
+    lower.includes('ignore my budget') ||
+    lower.includes("price doesn't matter") ||
+    lower.includes('price does not matter') ||
+    lower.includes("don't worry about price") ||
+    lower.includes("don't worry about the price") ||
+    lower.includes("dont worry about price") ||
+    lower.includes("dont worry about the price") ||
+    lower.includes('forget my price limit') ||
+    lower.includes('forget the price limit') ||
+    lower.includes('remove the price limit') ||
+    lower.includes('remove my price limit') ||
+    lower.includes('drop the budget constraint') ||
+    lower.includes('drop the budget') ||
+    lower.includes('drop my budget') ||
+    lower.includes('drop the price limit') ||
+    lower.includes('no price limit')
   ) {
     return { isBudgetPhrase: true, max: null, min: null, remove: true };
   }
@@ -280,6 +299,21 @@ export const ATTRIBUTE_KEYWORDS = {
   aquatic: ['aquatic', 'marine', 'ocean'],
   floral: ['floral', 'rose', 'jasmine'],
   warm: ['warm', 'warmer', 'cozy', 'warmth', 'ambery'],
+  musk: ['musk', 'musky', 'musk-based', 'musky fragrance', 'clean musk', 'white musk'],
+  leather: ['leather', 'leathery', 'suede'],
+  smoke: ['smoke', 'smoky', 'birch tar', 'incense'],
+  resin: ['resin', 'resinous', 'resins', 'myrrh', 'frankincense', 'benzoin', 'cistus', 'labdanum'],
+  vanilla: ['vanilla', 'vanillic'],
+  sugar: ['sugar', 'sugary'],
+  caramel: ['caramel'],
+  tonka: ['tonka', 'tonka bean'],
+  rose: ['rose', 'roses'],
+  cedar: ['cedar', 'cedarwood'],
+  saffron: ['saffron'],
+  cinnamon: ['cinnamon'],
+  pepper: ['pepper', 'peppery', 'black pepper', 'pink pepper'],
+  coffee: ['coffee'],
+  chocolate: ['chocolate', 'cacao'],
 };
 
 /**
@@ -330,7 +364,7 @@ export function analyzePolarity(rawText: string, attrKey: keyof typeof ATTRIBUTE
   }
 
   // 3. Check for negation / exclusion patterns
-  const negPfx = `\\b(no|not|dont|don't|do\\s+not|never|without|stop|avoid|avoiding|hate|hates|dislike|dislikes|detest|cant\\s+stand|can't\\s+stand|cannot\\s+stand|don't\\s+want|dont\\s+want|do\\s+not\\s+want|doesn't\\s+want|doesnt\\s+want|does\\s+not\\s+want|don't\\s+show|dont\\s+show|do\\s+not\\s+show|anything\\s+but|nothing|except|other\\s+than|apart\\s+from|zero|isn't|isnt|doesn't|doesnt)\\b`;
+  const negPfx = `\\b(no|not|dont|don't|do\\s+not|never|without|stop|avoid|avoiding|hate|hates|dislike|dislikes|detest|cant\\s+stand|can't\\s+stand|cannot\\s+stand|don't\\s+want|dont\\s+want|do\\s+not\\s+want|doesn't\\s+want|doesnt\\s+want|does\\s+not\\s+want|don't\\s+show|dont\\s+show|do\\s+not\\s+show|anything\\s+but|nothing\\s+with|nothing|except|other\\s+than|apart\\s+from|zero|isn't|isnt|doesn't|doesnt|forget|forgetting|drop|dropping|skip|skipping|remove|removing|instead\\s+of)\\b`;
   
   const kwPattern = `(${keywords.join('|')})`;
 
@@ -407,10 +441,47 @@ export function validateAndEnforcePolarity(
   }
   if (woodyPol.isNegated) mustExcludeFamilies.push('woody');
   if (spicyPol.isNegated) mustExcludeFamilies.push('spicy');
-  if (freshPol.isNegated) mustExcludeFamilies.push('fresh');
+  if (freshPol.isNegated) {
+    mustExcludeFamilies.push('fresh');
+    res.freshness = null;
+    res.updates = (res.updates || []).filter(u => u.field !== 'freshness');
+  }
   if (citrusPol.isNegated) mustExcludeFamilies.push('citrus');
   if (aquaticPol.isNegated) mustExcludeFamilies.push('aquatic');
   if (floralPol.isNegated) mustExcludeFamilies.push('floral');
+
+  const muskPol = analyzePolarity(lower, 'musk');
+  if (muskPol.isNegated) {
+    mustExcludeFamilies.push('musky');
+    mustExcludeNotes.push('musk');
+  }
+
+  // Note-level negative preference extraction
+  const noteKeys: (keyof typeof ATTRIBUTE_KEYWORDS)[] = [
+    'leather', 'smoke', 'resin', 'vanilla', 'sugar', 'caramel', 'tonka', 'rose',
+    'cedar', 'saffron', 'cinnamon', 'pepper', 'coffee', 'chocolate'
+  ];
+  for (const nKey of noteKeys) {
+    const pol = analyzePolarity(lower, nKey);
+    if (pol.isNegated && !mustExcludeNotes.includes(nKey)) {
+      mustExcludeNotes.push(nKey);
+    }
+  }
+
+  const warmPol = analyzePolarity(lower, 'warm');
+  if (warmPol.isNegated) {
+    res.warmth = null;
+    res.warmthMax = null;
+    res.updates = (res.updates || []).filter(u => u.field !== 'warmth' && u.field !== 'warmthMax');
+  }
+
+  const hasReplacementMarker = /\b(switch\s+(?:it\s+)?to|change\s+(?:it\s+)?to|move\s+to|instead|rather|go\s+with\s+.*instead|replace\s+.*with|let'?s\s+go\s+with\s+.*instead|forget\s+.*(?:i\s+want|give\s+me|make\s+it|use))\b/i.test(lower);
+  if (hasReplacementMarker) {
+    if (!res.requested_changes) res.requested_changes = [];
+    if (!res.requested_changes.includes('replace_family')) {
+      res.requested_changes.push('replace_family');
+    }
+  }
 
   // Warmth processing (Bounded vs Strengthened vs Cooler)
   const isBoundedWarm = isBoundedExpression(lower, 'warm') || /\b(not\s+(too\s+|overly\s+|super\s+)?warm|keep\s+it\s+(moderate|balanced)|only\s+slightly\s+warm|slightly\s+warm|warm\s+without\s+being\s+heavy|not\s+overly\s+warm)\b/i.test(lower);
@@ -1112,7 +1183,20 @@ export function fallbackIntentClassifier(
   }
 
   // 2. RESET CONSULTATION
-  if (lower.includes('forget everything') || lower.includes('start over') || lower === 'reset') {
+  const isResetPhrase =
+    lower.includes('forget everything') ||
+    lower.includes('forget my preferences') ||
+    lower.includes('forget all preferences') ||
+    lower.includes('clear my preferences') ||
+    lower.includes('clear preferences') ||
+    lower.includes('reset preferences') ||
+    lower.includes('start over') ||
+    lower === 'reset' ||
+    lower === 'reset.' ||
+    /^(new\s+search|start\s+a\s+new\s+search|i\s+want\s+a\s+new\s+search)\b/i.test(lower) ||
+    /\b(start\s+(?:completely\s+)?fresh|let'?s\s+start\s+fresh|want\s+to\s+start\s+fresh)\b/i.test(lower);
+
+  if (isResetPhrase) {
     return {
       intent: 'RESET_CONSULTATION',
       request_type: 'other',
@@ -1215,8 +1299,15 @@ export function fallbackIntentClassifier(
     }
   }
 
-  // 7. PRODUCT INFO (TEST 26)
-  if (lower.includes('tell me about') || lower.includes('what is ') || lower.includes('describe ')) {
+  // 7. PRODUCT INFO (TEST 26 & ADDITIONAL ISSUE 8)
+  const isSimilarity = /\b(like|similar\s+to|alternative\s+to|clone\s+of|dupe\s+of|reminds\s+me\s+of|give\s+me\s+something\s+like|show\s+me\s+something\s+like)\b/i.test(lower);
+  const isProductQuestion =
+    lower.includes('tell me about') ||
+    lower.includes('what is ') ||
+    lower.includes('describe ') ||
+    /\b(how\s+long\s+does\b.*last|what\s+(?:are\s+the\s+)?notes\b|does\b.*contain|what\s+is\s+the\s+projection\b|how\s+strong\s+is\b|how\s+much\s+(?:does\b.*cost|is\b)|what\s+size\s+is\b|longevity\s+of\b|ingredients\s+of\b|notes\s+in\b|price\s+of\b)/i.test(lower);
+
+  if (!isSimilarity && (isProductQuestion || lower.includes('tell me about') || lower.includes('what is ') || lower.includes('describe '))) {
     for (const p of products) {
       if (lower.includes(p.name.toLowerCase())) {
         return {
@@ -1443,12 +1534,30 @@ export function fallbackIntentClassifier(
   if (aquaticPol.isNegated) mustExcludeFamilies.push('aquatic');
   if (floralPol.isNegated) mustExcludeFamilies.push('floral');
 
+  const muskPol = analyzePolarity(lower, 'musk');
+  if (muskPol.isNegated) {
+    mustExcludeFamilies.push('musky');
+    mustExcludeNotes.push('musk');
+  }
+
+  // Note-level negative preference extraction
+  const noteKeys: (keyof typeof ATTRIBUTE_KEYWORDS)[] = [
+    'leather', 'smoke', 'resin', 'vanilla', 'sugar', 'caramel', 'tonka', 'rose',
+    'cedar', 'saffron', 'cinnamon', 'pepper', 'coffee', 'chocolate'
+  ];
+  for (const nKey of noteKeys) {
+    const pol = analyzePolarity(lower, nKey);
+    if (pol.isNegated && !mustExcludeNotes.includes(nKey)) {
+      mustExcludeNotes.push(nKey);
+    }
+  }
+
   // Sillage / Loudness Semantics (Separated from Intensity!)
   const loudPol = analyzePolarity(lower, 'loud');
   const isLoudNegated =
     loudPol.isNegated ||
     isBoundedExpression(lower, 'loud') ||
-    /\b(not\s+(too\s+)?loud|not\s+overpowering|without\s+filling\s+the\s+room|doesn'?t\s+fill\s+the\s+room|dont\s+fill\s+the\s+room|moderate\s+projection|not\s+beast\s+mode|controlled\s+sillage|subtle\s+projection|close\s+to\s+skin)\b/i.test(lower);
+    /\b(not\s+(?:too\s+)?loud|not\s+overpowering|without\s+filling\s+the\s+room|doesn'?t\s+fill\s+the\s+room|dont\s+fill\s+the\s+room|moderate\s+projection|not\s+beast\s+mode|controlled\s+sillage|subtle\s+projection|close\s+to\s+skin)\b/i.test(lower);
   const isLoudPositive =
     (loudPol.isPositive || /\b(beast\s+mode|huge\s+projection|massive\s+sillage|room\s+filler|fills\s+the\s+room|louder|make\s+it\s+louder|more\s+projection|more\s+sillage)\b/i.test(lower)) && !isLoudNegated;
 
@@ -1507,6 +1616,21 @@ export function fallbackIntentClassifier(
     };
   }
 
+  // Multi-preference dimension counter to prevent early-return shortcut hijacking
+  function hasMultiplePreferenceDimensions(text: string): boolean {
+    let count = 0;
+    if (/\b(summer|winter|monsoon|spring|fall|autumn)\b/i.test(text)) count++;
+    if (/\b(office|work|daily|date|night|evening|party|club|wedding|gym|sport|casual|formal)\b/i.test(text)) count++;
+    if (/\b(\d+\s*(?:rs|rupees|bucks|₹)|under|below|within|budget|affordable|cheap|cheaper|expensive|spend)\b/i.test(text)) count++;
+    if (/\b(not\s+(?:too\s+)?sweet|no\s+sweet|sweet|sugary|gourmand|vanilla)\b/i.test(text)) count++;
+    if (/\b(strong|intense|subtle|light|long\s*lasting|longevity|loud|projection|sillage|beast)\b/i.test(text)) count++;
+    if (/\b(woody|floral|fresh|citrus|aquatic|spicy|oud|musk|musky|leather)\b/i.test(text)) count++;
+    if (/\b(warm|warmer|cozy|cool|cooler)\b/i.test(text)) count++;
+    return count > 1;
+  }
+
+  const isMultiPref = hasMultiplePreferenceDimensions(lower);
+
   // 14. REFINEMENTS: WARMTH, INTENSITY, LIGHTER, FRESHER, WOODY
   const isFreshNegated = /\b(forget\s+.*fresh|no\s+fresh|not\s+fresh|drop\s+fresh|instead\s+of\s+fresh)\b/i.test(lower);
   const isFreshnessRequested =
@@ -1515,7 +1639,7 @@ export function fallbackIntentClassifier(
     /\b(woody|more\s+woody|woods|woody\s+character|less\s+floral,\s*more\s+woody)\b/i.test(lower);
 
   // Standalone Bounded Warmth Refinement ("not too warm", "keep it moderate")
-  if (isBoundedWarm && (activeConsultationExists || lower.includes('not too warm') || lower.includes('moderate')) && !lower.includes('office') && !lower.includes('date') && !lower.includes('recommend') && !lower.includes('give me')) {
+  if (!isMultiPref && isBoundedWarm && (activeConsultationExists || lower.includes('not too warm') || lower.includes('moderate')) && !lower.includes('office') && !lower.includes('date') && !lower.includes('recommend') && !lower.includes('give me')) {
     const fams: string[] = [];
     const updates: PreferenceUpdateItem[] = [
       { field: 'warmth', operation: 'SET', value: 'moderate-warm' },
@@ -1549,7 +1673,7 @@ export function fallbackIntentClassifier(
   }
 
   // Standalone Strengthened Warmth Refinement ("warmer", "make it warmer", "actually warmer")
-  if (isStrengthenWarm && (activeConsultationExists || lower.includes('make it') || lower.includes('something') || lower.startsWith('warmer') || lower.includes('actually')) && !lower.includes('office') && !lower.includes('date') && !lower.includes('recommend') && !lower.includes('give me')) {
+  if (!isMultiPref && isStrengthenWarm && (activeConsultationExists || lower.startsWith('warmer') || lower.includes('make it warm') || lower.includes('actually warmer')) && !lower.includes('office') && !lower.includes('date') && !lower.includes('recommend') && !lower.includes('give me')) {
     return {
       intent: 'REFINE_RECOMMENDATION',
       request_type: 'refinement',
@@ -1568,7 +1692,7 @@ export function fallbackIntentClassifier(
   }
 
   // Standalone Freshness Refinement
-  if (isFreshnessRequested && (activeConsultationExists || lower.includes('make it') || lower.includes('something') || lower.startsWith('fresher')) && !lower.includes('office') && !lower.includes('date') && !lower.includes('recommend') && !lower.includes('give me')) {
+  if (!isMultiPref && isFreshnessRequested && (activeConsultationExists || lower.startsWith('fresher') || lower.includes('make it fresh') || lower.includes('keep it fresh') || lower === 'fresh' || lower === 'fresher') && !lower.includes('office') && !lower.includes('date') && !lower.includes('recommend') && !lower.includes('give me')) {
     return {
       intent: 'REFINE_RECOMMENDATION',
       request_type: 'refinement',
@@ -1602,7 +1726,7 @@ export function fallbackIntentClassifier(
     lower.includes('winter');
 
   // Standalone Not Loud / Sillage Cap Refinement ("not loud", "but not loud", "not too loud")
-  if (isLoudNegated && !hasComplexMultiPrefs && (activeConsultationExists || lower.includes('not loud') || lower.includes('not too loud')) && !lower.includes('recommend') && !lower.includes('give me')) {
+  if (!isMultiPref && isLoudNegated && !hasComplexMultiPrefs && (activeConsultationExists || lower.includes('not loud') || lower.includes('not too loud')) && !lower.includes('recommend') && !lower.includes('give me')) {
     const updates: PreferenceUpdateItem[] = [
       { field: 'sillage', operation: 'SET', value: 'moderate' },
       { field: 'sillageMax', operation: 'SET', value: 'moderate' }
@@ -1636,7 +1760,7 @@ export function fallbackIntentClassifier(
   }
 
   // Standalone Louder Refinement ("make it louder", "louder", "actually, make it louder", "more projection")
-  if (isLoudPositive && !hasComplexMultiPrefs && (activeConsultationExists || lower.includes('louder')) && !lower.includes('recommend') && !lower.includes('give me')) {
+  if (!isMultiPref && isLoudPositive && !hasComplexMultiPrefs && (activeConsultationExists || lower.includes('louder')) && !lower.includes('recommend') && !lower.includes('give me')) {
     return {
       intent: 'REFINE_RECOMMENDATION',
       request_type: 'refinement',
@@ -1819,6 +1943,7 @@ export function fallbackIntentClassifier(
   if (floralPol.isPositive) families.push('floral');
   if (sweetPol.isPositive) families.push('sweet');
   if (oudPol.isPositive) families.push('oud');
+  if (muskPol.isPositive) families.push('musky');
 
   let occasion: string | null = null;
   if (/\b(going\s+out\s+with\s+someone|going\s+out|date|date\s+night|romantic)\b/i.test(lower)) occasion = 'date-night';
@@ -1914,6 +2039,7 @@ export function fallbackIntentClassifier(
   }
 
   // 18. STANDARD RECOMMENDATION INTENT
+  const hasReplacementMarker = /\b(switch\s+(?:it\s+)?to|change\s+(?:it\s+)?to|move\s+to|instead|rather|go\s+with\s+.*instead|replace\s+.*with|let'?s\s+go\s+with\s+.*instead|forget\s+.*(?:i\s+want|give\s+me|make\s+it|use))\b/i.test(lower);
   const updates: PreferenceUpdateItem[] = [];
   if (bMax !== null) updates.push({ field: 'budget.max', operation: 'SET', value: bMax });
   if (mustExcludeFamilies.length > 0) {
@@ -1932,19 +2058,25 @@ export function fallbackIntentClassifier(
   if (longevity) updates.push({ field: 'longevity', operation: 'SET', value: longevity });
   if (occasion) updates.push({ field: 'occasion', operation: 'SET', value: occasion });
   if (season) updates.push({ field: 'season', operation: 'SET', value: season });
-  if (families.length > 0) updates.push({ field: 'fragrance_families', operation: 'SET', value: families });
+  if (families.length > 0) {
+    const famOp = hasReplacementMarker ? 'REPLACE' : 'SET';
+    updates.push({ field: 'fragrance_families', operation: famOp, value: families });
+  }
   if (style) updates.push({ field: 'style', operation: 'SET', value: style });
   if (warmth) updates.push({ field: 'warmth', operation: 'SET', value: warmth });
   if (warmthMax) updates.push({ field: 'warmthMax', operation: 'SET', value: warmthMax });
   if (freshness) updates.push({ field: 'freshness', operation: 'SET', value: freshness });
 
-  const isNew = Boolean(occasion || season || families.length > 0 || longevity);
+  const isNew = !activeConsultationExists;
+  const requestedChanges: string[] = [];
+  if (hasReplacementMarker) requestedChanges.push('replace_family');
 
   return {
     intent: 'RECOMMENDATION',
-    request_type: isNew ? 'new_consultation' : (activeConsultationExists ? 'refinement' : 'new_consultation'),
-    is_new_request: isNew || !activeConsultationExists,
-    is_refinement: !isNew && activeConsultationExists,
+    request_type: isNew ? 'new_consultation' : 'refinement',
+    is_new_request: isNew,
+    is_refinement: !isNew,
+    requested_changes: requestedChanges.length > 0 ? requestedChanges : undefined,
     updates,
     occasion,
     season,

@@ -24,7 +24,9 @@ export function enrichProduct(product: Product): Product {
   // 1. Sillage & Projection
   // Decoupled from intensity: a product may be strong intensity with moderate sillage, or vice-versa.
   if (!p.sillage) {
-    if (p.projection) {
+    if (p.intensity === 'projection-beast') {
+      p.sillage = 'enormous';
+    } else if (p.projection) {
       p.sillage = p.projection;
     } else if (
       hasToken(['room filler', 'enormous projection', 'fill the room', 'beast mode projection'])

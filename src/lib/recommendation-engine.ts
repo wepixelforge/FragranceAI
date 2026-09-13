@@ -187,8 +187,14 @@ export function isValidCandidate(
     exclusions.sillage?.includes('enormous') ||
     exclusions.sillage?.includes('strong')
   ) {
-    const effectiveSillage = product.sillage || product.projection || 'moderate';
-    const effectiveProjection = product.projection || product.sillage || 'moderate';
+    const beastProxy =
+      (product.intensity === 'projection-beast')
+        ? 'enormous'
+        : (product.intensity === 'strong' && product.longevity === 'beast-mode')
+        ? 'strong'
+        : 'moderate';
+    const effectiveSillage = product.sillage || product.projection || beastProxy;
+    const effectiveProjection = product.projection || product.sillage || beastProxy;
 
     if (
       preferences.sillageMax === 'moderate' ||
