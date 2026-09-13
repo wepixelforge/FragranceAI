@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand-overridable tokens (defaults) */
+  --brand-primary: #1a1a1a;
+  --brand-primary-fg: #ffffff;
+  --brand-accent: #c8a97e;
+  --brand-accent-fg: #1a1a1a;
+  --brand-bg: #faf9f7;
+  --brand-surface: #ffffff;
+  --brand-surface-hover: #f5f3ef;
+  --brand-text: #1a1a1a;
+  --brand-text-muted: #6b6560;
+  --brand-border: #e8e3dc;
+  --brand-border-light: #f0ece6;
+}
+
+@theme inline {
+  --color-background: var(--brand-bg);
+  --color-foreground: var(--brand-text);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-fg: var(--brand-primary-fg);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-fg: var(--brand-accent-fg);
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-hover: var(--brand-surface-hover);
+  --color-brand-text: var(--brand-text);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-border: var(--brand-border);
+  --color-brand-border-light: var(--brand-border-light);
+  --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-playfair);
+  --font-mono: var(--font-geist-mono);
+}
+
+.font-serif {
+  font-family: var(--font-playfair), 'Playfair Display', Georgia, serif;
+}
+
+body {
+  background: var(--brand-bg);
+  color: var(--brand-text);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+}
+
+/* ── Smooth scrolling ─────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Selection color ──────────────────────────────────────────────────── */
+::selection {
+  background: var(--brand-accent);
+  color: var(--brand-accent-fg);
+}
+
+/* ── Custom scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--brand-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-text-muted);
+}
+
+/* ── Animations ───────────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out forwards;
+}
+
+/* ── Stagger children ─────────────────────────────────────────────────── */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 400ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 480ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 560ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 640ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 720ms; }
+.stagger-children > *:nth-child(11) { animation-delay: 800ms; }
+.stagger-children > *:nth-child(12) { animation-delay: 880ms; }
+
+/* ── Perfume bottle placeholder ───────────────────────────────────────── */
+.perfume-placeholder {
+  position: relative;
+  overflow: hidden;
+}
+
+.perfume-placeholder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 200%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* ── Typing animation ─────────────────────────────────────────────────── */
+/* ── Luxury Flacon & Glass Aesthetics ────────────────────────────────── */
+.glass-flacon {
+  position: relative;
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.05) 60%, rgba(0, 0, 0, 0.15) 100%);
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.8),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.15),
+    0 12px 32px -8px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.metallic-cap {
+  background: linear-gradient(135deg, #e5e5e5 0%, #ffffff 40%, #999999 70%, #d4d4d4 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.metallic-cap-gold {
+  background: linear-gradient(135deg, #d4af37 0%, #fff2a8 45%, #aa8010 80%, #e5c158 100%);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 2px 8px rgba(170, 128, 16, 0.3);
+}
+
+.label-emboss {
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(212, 175, 55, 0.4);
+}
+
+/* ── Glow pulse for AI discovery ─────────────────────────────────────── */
+@keyframes goldPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(200, 169, 126, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(200, 169, 126, 0);
+  }
+}
+
+.animate-gold-pulse {
+  animation: goldPulse 3s infinite;
+}
+
