@@ -62,6 +62,7 @@ export interface Product {
   bestFor: string[];
   similarTo: string[];
   featured?: boolean;
+  imageUrl?: string;
 }
 
 export interface Exclusions {

@@ -17,43 +17,43 @@ export default function StorySection({ brand }: StorySectionProps) {
   const isDiscovery = brand.designVariant === 'discovery-niche';
 
   return (
-    <section className="py-20 sm:py-28 border-t border-brand-border-light bg-brand-surface relative overflow-hidden">
+    <section className="py-24 sm:py-32 border-t border-brand-border bg-brand-surface/30 relative overflow-hidden">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           
           {/* Left / Editorial narrative */}
           <div className="lg:col-span-7">
             <span
-              className="text-xs font-bold uppercase tracking-widest block mb-3"
+              className="text-[10px] uppercase tracking-widest block mb-4 font-mono"
               style={{ color: brand.colors.accent }}
             >
               {isOriental ? '✦ The Heritage of the East' : isLuxury ? '✦ Atelier Philosophy' : isDiscovery ? '✦ Sugandhim Laboratory Notes' : '✦ Craftsmanship & Heritage'}
             </span>
 
-            <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-brand-text leading-tight">
+            <h2 className="editorial-title font-serif text-3xl sm:text-5xl font-normal tracking-tight text-brand-text leading-tight">
               {brand.homepage.storyHeadline}
             </h2>
 
-            <p className="mt-6 text-base sm:text-lg leading-relaxed text-brand-text-muted">
+            <p className="mt-6 text-sm sm:text-base leading-relaxed text-brand-text-muted max-w-xl">
               {brand.homepage.storyBody}
             </p>
 
-            <div className="mt-8 flex items-center gap-6">
+            <div className="mt-10 flex items-center gap-8 border-y border-brand-border py-6 max-w-lg">
               <div>
-                <span className="font-serif text-2xl sm:text-3xl font-bold text-brand-text block">
+                <span className="font-serif text-2xl sm:text-3xl font-light text-brand-text block">
                   {isOriental ? '100%' : isLuxury ? '35%' : isDiscovery ? '42°C' : '380+'}
                 </span>
-                <span className="text-xs text-brand-text-muted uppercase tracking-wider">
-                  {isOriental ? 'Alcohol-Free Attars' : isLuxury ? 'Oil Concentration' : isDiscovery ? 'Heat Tested' : 'Catalogue Creations'}
+                <span className="text-[10px] text-brand-text-muted uppercase tracking-widest mt-1 block">
+                  {isOriental ? 'Pure Alcohol-Free Oils' : isLuxury ? 'Pure Oil Concentration' : isDiscovery ? 'Indian Climate Tested' : 'Catalogue Formulations'}
                 </span>
               </div>
-              <div className="h-10 w-px bg-brand-border-light" />
+              <div className="h-10 w-px bg-brand-border" />
               <div>
-                <span className="font-serif text-2xl sm:text-3xl font-bold text-brand-text block">
+                <span className="font-serif text-2xl sm:text-3xl font-light text-brand-text block">
                   {isOriental ? 'Assam & Taif' : isLuxury ? 'Niche Inspired' : isDiscovery ? '10ml Sprays' : 'Extrait Standard'}
                 </span>
-                <span className="text-xs text-brand-text-muted uppercase tracking-wider">
-                  {isOriental ? 'Noble Origins' : isLuxury ? 'Master Expressions' : isDiscovery ? 'Trial From ₹149' : 'High Sillage'}
+                <span className="text-[10px] text-brand-text-muted uppercase tracking-widest mt-1 block">
+                  {isOriental ? 'Noble Botanical Sources' : isLuxury ? 'Master Extraits' : isDiscovery ? 'Trial Discovery Sprays' : 'Exceptional Sillage'}
                 </span>
               </div>
             </div>
@@ -61,31 +61,39 @@ export default function StorySection({ brand }: StorySectionProps) {
             <div className="mt-8">
               <Link
                 href={`/${brand.slug}/finder`}
-                className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider hover:opacity-80 transition-opacity"
+                className="group inline-flex items-center gap-2 text-xs font-medium uppercase tracking-widest transition-colors hover:text-brand-accent"
                 style={{ color: brand.colors.accent }}
               >
-                <span>Explore with AI Sommelier</span>
-                <span>→</span>
+                <span>Consult with Scent Concierge</span>
+                <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
               </Link>
             </div>
           </div>
 
           {/* Right / Visual Monogram Seal Frame */}
           <div className="lg:col-span-5 flex justify-center">
-            <div className="relative w-full max-w-sm aspect-square rounded-3xl border border-brand-border bg-gradient-to-br from-brand-bg via-brand-surface to-brand-bg p-8 flex flex-col items-center justify-center text-center shadow-xl">
-              <div
-                className="h-24 w-24 rounded-2xl flex items-center justify-center font-serif text-4xl font-bold shadow-md mb-4"
-                style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
-              >
-                {brand.monogram}
+            <div className="relative w-full max-w-sm aspect-[4/5] rounded-2xl hairline-border bg-gradient-to-b from-[#161615] via-[#0E0E0D] to-[#0B0B0A] p-8 sm:p-10 flex flex-col items-center justify-between text-center shadow-2xl">
+              <div className="w-full flex justify-between items-center text-[9px] uppercase tracking-widest text-brand-text-muted/60 font-mono">
+                <span>ESTABLISHED</span>
+                <span>AUTHENTIC</span>
               </div>
-              <h3 className="font-serif text-xl font-bold text-brand-text">
-                {brand.name}
-              </h3>
-              <p className="text-xs text-brand-text-muted mt-1 max-w-xs">
-                {brand.subTagline || brand.tagline}
-              </p>
-              <div className="mt-4 pt-4 border-t border-brand-border-light w-full text-[11px] text-brand-text-muted font-medium">
+
+              <div className="flex flex-col items-center">
+                <div
+                  className="h-20 w-20 rounded-full flex items-center justify-center font-serif text-3xl font-light tracking-wider hairline-border mb-6 shadow-inner"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderColor: `${brand.colors.accent}40`, color: brand.colors.accent }}
+                >
+                  {brand.monogram}
+                </div>
+                <h3 className="font-serif text-2xl font-normal tracking-wide text-brand-text">
+                  {brand.name}
+                </h3>
+                <p className="text-xs text-brand-text-muted mt-2 max-w-xs leading-relaxed">
+                  {brand.subTagline || brand.tagline}
+                </p>
+              </div>
+
+              <div className="border-t border-brand-border pt-4 w-full text-[10px] uppercase tracking-widest text-brand-accent/80 font-mono">
                 {brand.specialty}
               </div>
             </div>

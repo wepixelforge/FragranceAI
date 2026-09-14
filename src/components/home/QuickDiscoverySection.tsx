@@ -71,39 +71,39 @@ export default function QuickDiscoverySection({ brand }: QuickDiscoverySectionPr
   const content = getSectionContent();
 
   return (
-    <section className="py-20 sm:py-24 border-t border-brand-border-light bg-brand-surface relative overflow-hidden">
-      {/* Ambient background glow */}
+    <section className="py-24 sm:py-32 border-t border-brand-border bg-brand-surface/20 relative overflow-hidden">
+      {/* Ambient subtle glow */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-80 w-80 rounded-full blur-[130px] opacity-10 pointer-events-none"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full blur-[140px] opacity-10 pointer-events-none"
         style={{ backgroundColor: brand.colors.accent }}
       />
 
-      <div className="relative mx-auto max-w-4xl px-4 sm:px-6 text-center">
+      <div className="relative mx-auto max-w-3xl px-4 sm:px-6 text-center">
         {/* Eyebrow badge */}
         <span
-          className="text-xs font-bold uppercase tracking-widest block mb-3"
+          className="text-[10px] uppercase tracking-widest block mb-4 font-mono"
           style={{ color: brand.colors.accent }}
         >
           {content.eyebrow}
         </span>
 
         {/* Headline */}
-        <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-brand-text">
+        <h2 className="editorial-title font-serif text-3xl sm:text-5xl font-normal tracking-tight text-brand-text leading-tight">
           {content.title}
         </h2>
 
         {/* Description */}
-        <p className="mt-4 text-base sm:text-lg text-brand-text-muted max-w-2xl mx-auto leading-relaxed">
+        <p className="mt-5 text-sm sm:text-base text-brand-text-muted max-w-xl mx-auto leading-relaxed">
           {content.description}
         </p>
 
-        {/* Curated consultation scenario pills */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-2 max-w-2xl mx-auto">
+        {/* Curated consultation inquiry chips */}
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-2.5 max-w-2xl mx-auto">
           {content.pills.map((pill, i) => (
             <button
               key={i}
               onClick={() => router.push(`/${brand.slug}/finder?q=${encodeURIComponent(pill.q)}`)}
-              className="rounded-full border border-brand-border bg-brand-bg px-4 py-2 text-xs font-medium text-brand-text hover:border-brand-accent hover:shadow-sm transition-all"
+              className="hairline-border rounded-full bg-brand-surface/60 px-4 py-2 text-xs text-brand-text-muted hover:text-brand-text hover:border-brand-accent/50 transition-all duration-200"
             >
               &ldquo;{pill.label}&rdquo;
             </button>
@@ -111,19 +111,19 @@ export default function QuickDiscoverySection({ brand }: QuickDiscoverySectionPr
         </div>
 
         {/* Primary Action Button */}
-        <div className="mt-8 flex items-center justify-center">
+        <div className="mt-10 flex items-center justify-center">
           <Link
             href={`/${brand.slug}/finder`}
-            className="rounded-xl px-8 py-4 text-sm font-semibold transition-all duration-200 hover:opacity-90 shadow-lg flex items-center gap-2"
-            style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
+            className="group hairline-border rounded-full px-8 py-3.5 text-xs uppercase tracking-widest font-medium transition-all duration-300 hover:border-brand-accent hover:text-brand-accent flex items-center gap-3"
+            style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: brand.colors.accent }}
           >
             <span>{content.cta}</span>
-            <span>→</span>
+            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </Link>
         </div>
 
-        <p className="mt-4 text-xs text-brand-text-muted">
-          Instant recommendations based on your occasion, notes, or favorite fragrance style.
+        <p className="mt-4 text-[11px] uppercase tracking-widest text-brand-text-muted/60 font-mono">
+          Interactive consultation · Tailored to occasion, climate & notes
         </p>
       </div>
     </section>

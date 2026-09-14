@@ -43,26 +43,27 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
   const info = getSectionTitle();
 
   return (
-    <section className="py-20 sm:py-28 border-t border-brand-border-light bg-brand-surface">
+    <section className="py-24 sm:py-32 border-t border-brand-border bg-brand-bg relative">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-14 border-b border-brand-border pb-6 gap-4">
           <div>
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-brand-text">
+            <span className="text-[10px] uppercase tracking-widest text-brand-accent font-mono block mb-2">
+              Curated Selection
+            </span>
+            <h2 className="editorial-title font-serif text-3xl sm:text-4xl font-normal tracking-tight text-brand-text">
               {info.title}
             </h2>
-            <p className="mt-2 text-brand-text-muted text-sm sm:text-base">
+            <p className="mt-2 text-sm sm:text-base text-brand-text-muted max-w-xl leading-relaxed">
               {info.subtitle}
             </p>
           </div>
           <Link
             href={`/${brand.slug}/shop`}
-            className="hidden items-center gap-1 text-sm font-semibold transition-colors hover:opacity-80 sm:inline-flex"
+            className="group hidden sm:inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium transition-colors hover:text-brand-accent pb-1 border-b border-transparent hover:border-brand-accent"
             style={{ color: brand.colors.accent }}
           >
-            {info.cta}
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <span>{info.cta}</span>
+            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </Link>
         </div>
 
@@ -72,16 +73,14 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
           ))}
         </div>
 
-        <div className="mt-10 text-center sm:hidden">
+        <div className="mt-12 text-center sm:hidden">
           <Link
             href={`/${brand.slug}/shop`}
-            className="inline-flex items-center gap-1 text-sm font-semibold"
+            className="inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium py-3 px-6 rounded-full hairline-border"
             style={{ color: brand.colors.accent }}
           >
-            {info.cta}
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <span>{info.cta}</span>
+            <span>→</span>
           </Link>
         </div>
       </div>

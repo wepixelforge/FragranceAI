@@ -69,21 +69,21 @@ const businessPillars = [
 
 export default function BusinessValueSection({ brand }: BusinessValueSectionProps) {
   return (
-    <section className="py-20 sm:py-24 border-t border-brand-border-light bg-brand-surface">
+    <section className="py-24 sm:py-32 border-t border-brand-border bg-brand-bg relative">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="mx-auto max-w-3xl text-center mb-16">
           <span
-            className="rounded-full border px-3.5 py-1 text-xs font-semibold uppercase tracking-wider inline-block"
-            style={{ borderColor: `${brand.colors.accent}40`, color: brand.colors.accent }}
+            className="text-[10px] uppercase tracking-widest font-mono block mb-3"
+            style={{ color: brand.colors.accent }}
           >
-            How Guided Discovery Helps
+            The Art of Scent Consultation
           </span>
-          <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-brand-text mt-4">
+          <h2 className="editorial-title font-serif text-3xl sm:text-5xl font-normal tracking-tight text-brand-text">
             {brand.homepage.valuePropositionTitle || 'Helping Customers Choose with Confidence'}
           </h2>
-          <p className="mt-4 text-base text-brand-text-muted leading-relaxed">
-            {brand.homepage.valuePropositionSubtitle || 'Buying fragrance online is inherently difficult because shoppers cannot smell notes through a screen. A guided, conversational discovery experience bridges that gap.'}
+          <p className="mt-4 text-sm sm:text-base text-brand-text-muted max-w-xl mx-auto leading-relaxed">
+            {brand.homepage.valuePropositionSubtitle || 'Buying fragrance online is inherently intimate. A guided, conversational sommelier bridges the digital barrier by translating language into olfactory harmony.'}
           </p>
         </div>
 
@@ -92,56 +92,57 @@ export default function BusinessValueSection({ brand }: BusinessValueSectionProp
           {businessPillars.map((pillar, index) => (
             <div
               key={index}
-              className="rounded-2xl border border-brand-border-light bg-brand-bg p-6 sm:p-7 transition-all duration-200 hover:border-brand-accent/40"
+              className="hairline-border rounded-xl bg-brand-surface/40 p-7 transition-all duration-300 hover:border-brand-accent/40"
             >
               <div
-                className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl"
-                style={{ backgroundColor: `${brand.colors.accent}15`, color: brand.colors.accent }}
+                className="mb-5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-brand-border"
+                style={{ color: brand.colors.accent, backgroundColor: 'rgba(255,255,255,0.02)' }}
               >
                 {pillar.icon}
               </div>
-              <span className="block text-[10px] font-bold uppercase tracking-widest text-brand-accent mb-1.5">
+              <span className="block text-[9px] uppercase tracking-widest text-brand-accent/80 font-mono mb-2">
                 {pillar.tag}
               </span>
-              <h3 className="font-serif text-lg font-bold text-brand-text mb-2">
+              <h3 className="font-serif text-lg font-normal text-brand-text mb-2">
                 {pillar.title}
               </h3>
-              <p className="text-xs sm:text-sm text-brand-text-muted leading-relaxed">
+              <p className="text-xs text-brand-text-muted leading-relaxed font-light">
                 {pillar.description}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Subtle Pitch CTA Box for Brand Owners */}
-        <div className="mt-16 rounded-3xl border border-brand-border-light bg-gradient-to-br from-brand-surface via-brand-surface-hover to-brand-surface p-8 sm:p-12">
+        {/* Prototype Monograph Frame */}
+        <div className="mt-16 rounded-2xl hairline-border bg-gradient-to-b from-brand-surface/70 to-brand-surface/30 p-8 sm:p-12">
           <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-12">
             <div className="lg:col-span-8">
-              <span className="text-xs font-bold uppercase tracking-wider text-brand-accent">
-                Concept Demonstration for {brand.name}
+              <span className="text-[10px] uppercase tracking-widest text-brand-accent font-mono">
+                Bespoke Architecture for {brand.name}
               </span>
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-brand-text mt-2">
-                Imagine this experience across your entire fragrance collection.
+              <h3 className="editorial-title font-serif text-2xl sm:text-3xl font-normal text-brand-text mt-2">
+                Imagine this bespoke consultation across your complete archive.
               </h3>
-              <p className="mt-3 text-sm sm:text-base text-brand-text-muted leading-relaxed max-w-2xl">
+              <p className="mt-3 text-xs sm:text-sm text-brand-text-muted leading-relaxed max-w-2xl font-light">
                 This prototype illustrates how an intelligent discovery layer can be tailored to your brand identity, product names, notes, and pricing — without rebuilding your store or relying on generic chatbots.
               </p>
             </div>
             <div className="lg:col-span-4 flex flex-col items-start lg:items-end gap-3">
               <a
                 href={`/${brand.slug}/finder`}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition-all duration-200 hover:opacity-90 shadow-md"
-                style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
+                className="group hairline-border rounded-full px-6 py-3 text-xs uppercase tracking-widest font-medium transition-all duration-300 hover:border-brand-accent hover:text-brand-accent flex items-center gap-2"
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: brand.colors.accent }}
               >
-                Try the Discovery Experience →
+                <span>Experience Concierge</span>
+                <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
               </a>
-              <span className="text-[11px] text-brand-text-muted italic">
-                Interested in seeing this with your own catalogue?
+              <span className="text-[10px] text-brand-text-muted/60 font-mono">
+                Interactive demonstration · Evaluation release
               </span>
             </div>
           </div>
-          <div className="mt-6 pt-4 border-t border-brand-border-light/60 text-center sm:text-left">
-            <p className="text-[11px] text-brand-text-muted/70">
+          <div className="mt-8 pt-4 border-t border-brand-border text-center sm:text-left">
+            <p className="text-[10px] text-brand-text-muted/50 font-mono">
               *Independent concept demonstration prepared for review. Not an official endorsement by {brand.name}.
             </p>
           </div>

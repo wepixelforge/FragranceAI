@@ -29,19 +29,22 @@ export default async function ShopPage({ params }: PageProps) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
-      {/* Page header */}
-      <div className="mb-10">
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-brand-text sm:text-4xl">
+      {/* Editorial Page Header */}
+      <div className="mb-12 border-b border-brand-border pb-8">
+        <span className="text-[10px] uppercase tracking-widest text-brand-accent font-mono block mb-2">
+          {brand.name} · Complete Collection
+        </span>
+        <h1 className="editorial-title font-serif text-3xl sm:text-5xl font-normal tracking-tight text-brand-text">
           {brand.designVariant === 'oriental-artisanal'
             ? 'The Attar Vault & Oriental Blends'
             : brand.designVariant === 'luxury-editorial'
             ? 'The Atelier Archives'
             : brand.designVariant === 'discovery-niche'
             ? 'Perfumery Lab Catalog'
-            : 'Our Extrait Collection'}
+            : 'The Extrait Collection'}
         </h1>
-        <p className="mt-2 text-brand-text-muted">
-          {brand.specialty || `Explore the complete ${brand.name} fragrance range.`}
+        <p className="mt-3 text-sm sm:text-base text-brand-text-muted max-w-2xl leading-relaxed">
+          {brand.specialty || `Explore the complete olfactory repertoire of ${brand.name}.`}
         </p>
       </div>
 

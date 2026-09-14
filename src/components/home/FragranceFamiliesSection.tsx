@@ -141,21 +141,18 @@ export default function FragranceFamiliesSection({ brand }: FragranceFamiliesSec
   const families = getFamilies();
 
   return (
-    <section className="py-20 sm:py-28 border-t border-brand-border-light bg-brand-bg">
+    <section className="py-24 sm:py-32 border-t border-brand-border bg-brand-bg relative">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-14 border-b border-brand-border pb-6 gap-4">
           <div>
-            <span
-              className="text-xs font-bold uppercase tracking-wider block mb-2"
-              style={{ color: brand.colors.accent }}
-            >
+            <span className="text-[10px] uppercase tracking-widest text-brand-accent font-mono block mb-2">
               Olfactory Architecture
             </span>
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-brand-text">
+            <h2 className="editorial-title font-serif text-3xl sm:text-4xl font-normal tracking-tight text-brand-text">
               Explore by Scent Family
             </h2>
-            <p className="mt-2 text-sm sm:text-base text-brand-text-muted">
-              Select an accord to instantly filter matching creations with our AI Sommelier.
+            <p className="mt-2 text-sm sm:text-base text-brand-text-muted max-w-xl leading-relaxed">
+              Select an accord to explore harmonized creations guided by our Scent Concierge.
             </p>
           </div>
         </div>
@@ -168,23 +165,23 @@ export default function FragranceFamiliesSection({ brand }: FragranceFamiliesSec
               className="group block"
             >
               <div
-                className={`relative rounded-2xl overflow-hidden bg-gradient-to-b ${fam.gradient} p-6 border border-white/10 shadow-lg transition-all duration-300 group-hover:scale-[1.02] group-hover:border-brand-accent/60 flex flex-col justify-between h-64 text-white`}
+                className={`relative rounded-xl overflow-hidden bg-gradient-to-b ${fam.gradient} p-7 hairline-border transition-all duration-300 group-hover:border-brand-accent/60 flex flex-col justify-between h-72 text-white`}
               >
                 <div>
-                  <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold text-white/90">
+                  <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 rounded border border-white/15 text-white/80 font-mono inline-block">
                     {fam.tag}
                   </span>
-                  <h3 className="font-serif text-lg font-bold text-white mt-3 group-hover:text-brand-accent transition-colors">
+                  <h3 className="font-serif text-xl font-normal text-white mt-4 group-hover:text-brand-accent transition-colors">
                     {fam.name}
                   </h3>
-                  <p className="mt-2 text-xs text-white/70 leading-relaxed">
+                  <p className="mt-3 text-xs text-white/60 leading-relaxed font-light">
                     {fam.desc}
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs font-medium text-brand-accent">
-                  <span>Discover Matches</span>
-                  <span>→</span>
+                <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs tracking-widest uppercase font-medium text-brand-accent">
+                  <span>Explore Accord</span>
+                  <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
                 </div>
               </div>
             </Link>

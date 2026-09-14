@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 
@@ -15,6 +16,7 @@ export default function BottleVisual({
   brand,
   size = 'md',
 }: BottleVisualProps) {
+  const [imageError, setImageError] = useState(false);
   const cardStyle = brand.layout?.cardStyle || 'modern-flacon';
 
   // Liquid and ambient color calculations based on fragrance family
@@ -69,6 +71,28 @@ export default function BottleVisual({
 
   // Scaling
   const scaleClass = size === 'sm' ? 'scale-75' : size === 'lg' ? 'scale-125 sm:scale-135' : 'scale-95 sm:scale-100';
+
+  // Photographic Product Image (authentic brand imagery, e.g. World of Perfumers)
+  if (product.imageUrl && !imageError) {
+    const sizeContainerClass =
+      size === 'sm'
+        ? 'h-36 w-32 max-h-full max-w-full'
+        : size === 'lg'
+        ? 'h-80 w-64 sm:h-96 sm:w-80 max-h-full max-w-full'
+        : 'h-52 w-44 sm:h-64 sm:w-52 max-h-full max-w-full';
+
+    return (
+      <div className={`relative flex items-center justify-center select-none ${sizeContainerClass} p-1 transition-transform duration-500 group-hover:scale-105`}>
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="max-h-full max-w-full w-auto h-auto object-contain drop-shadow-2xl select-none"
+          onError={() => setImageError(true)}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
 
   // 1. ORNATE ATTAR BOTTLE (Arabian Aroma)
   if (cardStyle === 'ornate-attar') {
@@ -196,7 +220,7 @@ export default function BottleVisual({
           <div className="relative z-20 my-auto ml-3 mr-1 bg-white/95 text-slate-900 rounded p-2 flex flex-col items-start text-left shadow-lg border border-slate-300">
             <div className="flex items-center justify-between w-full">
               <span className="text-[7px] font-mono font-bold text-[#0284C7] uppercase">
-                FORMULA #{product.id.slice(-3).toUpperCase()}
+                EDP FLACON
               </span>
               <span className="text-[6px] font-mono text-slate-500">
                 IND-CLIMATE

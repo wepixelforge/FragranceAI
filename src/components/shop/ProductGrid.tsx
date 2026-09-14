@@ -84,94 +84,99 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
 
   return (
     <div>
-      {/* Filter bar */}
-      <div className="mb-8 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-brand-text">
-            {filteredProducts.length} Fragrance{filteredProducts.length !== 1 ? 's' : ''}
-          </h2>
+      {/* Filter & Discovery Controls */}
+      <div className="mb-10 flex flex-col gap-6">
+        <div className="flex items-center justify-between border-b border-brand-border pb-4">
+          <div className="flex items-baseline gap-3">
+            <h2 className="font-serif text-xl tracking-tight text-brand-text">
+              Collection
+            </h2>
+            <span className="text-xs uppercase tracking-widest text-brand-text-muted">
+              ({filteredProducts.length} {filteredProducts.length === 1 ? 'Flacon' : 'Flacons'})
+            </span>
+          </div>
           {activeFilterCount > 0 && (
             <button
               onClick={() => setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all' })}
-              className="text-xs font-medium text-brand-text-muted hover:text-brand-text transition-colors"
+              className="text-xs tracking-wider uppercase text-brand-accent hover:underline transition-all"
             >
-              Clear filters ({activeFilterCount})
+              Reset Filters ({activeFilterCount})
             </button>
           )}
         </div>
 
-        {/* Conversational Discovery Shortcut Banner */}
-        <div className="rounded-2xl border border-brand-accent/30 bg-brand-surface p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-2.5">
-            <span className="text-brand-accent text-base mt-0.5">✦</span>
+        {/* Conversational Discovery Shortcut Banner - Editorial Luxury */}
+        <div className="hairline-border rounded-xl bg-brand-surface/70 backdrop-blur-md p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 max-w-2xl">
+            <span className="text-brand-accent text-sm mt-0.5 select-none">✦</span>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-brand-text">
+                <span className="text-xs font-semibold uppercase tracking-wider text-brand-text">
                   {brand.slug === 'tmperfumehouse'
-                    ? 'Skip Manual Filtering in 380+ Catalogue'
+                    ? 'Curated Scent Concierge'
                     : brand.slug === 'almaham'
                     ? 'Private Atelier Fragrance Consultation'
                     : brand.slug === 'worldofperfumers'
-                    ? 'Find & Test Before Buying Full Bottle'
-                    : 'Intelligent Fragrance Discovery'}
+                    ? 'Olfactory Discovery Guidance'
+                    : 'Personal Fragrance Consultation'}
                 </span>
-                <span className="rounded-full bg-brand-accent/15 px-2 py-0.5 text-[9px] font-bold text-brand-accent uppercase">
+                <span className="text-[9px] tracking-widest uppercase px-1.5 py-0.5 rounded border border-brand-accent/30 text-brand-accent">
                   AI
                 </span>
               </div>
-              <p className="text-xs text-brand-text-muted mt-0.5">
+              <p className="text-xs text-brand-text-muted mt-1 leading-relaxed">
                 {brand.slug === 'tmperfumehouse'
-                  ? 'Describe what you want naturally: "Fresh everyday perfume under ₹800" or "Alternative to Dior Sauvage"'
+                  ? 'Skip manual catalogue searching. Inquire naturally: "Fresh everyday perfume under ₹800" or "Alternative to Dior Sauvage".'
                   : brand.slug === 'almaham'
-                  ? 'Describe your character or desired mood: "Dark sensual evening extrait for formal events"'
+                  ? 'Describe your desired atmosphere: "Dark sensual evening extrait for formal occasions" or "Pure Assam oud blend".'
                   : brand.slug === 'worldofperfumers'
-                  ? 'Find scents suited to Indian climate with low-risk 10ml pocket discovery sprays from ₹149'
-                  : 'Let our Scent Concierge match your exact preferences in natural language.'}
+                  ? 'Identify creations engineered for your climate and explore low-risk 10ml trials before choosing a full bottle.'
+                  : 'Describe your occasion, budget, or preferred notes in natural language for a bespoke recommendation.'}
               </p>
             </div>
           </div>
           <Link
             href={`/${brand.slug}/finder`}
-            className="rounded-lg px-3.5 py-2 text-xs font-bold shadow-sm whitespace-nowrap self-end sm:self-auto hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
+            className="hairline-border rounded-full px-5 py-2.5 text-xs font-medium tracking-wide uppercase whitespace-nowrap self-end sm:self-auto hover:border-brand-accent hover:text-brand-accent transition-all duration-300"
+            style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: brand.colors.accent }}
           >
             {brand.slug === 'tmperfumehouse'
-              ? 'Find My Scent →'
-              : brand.slug === 'almaham'
               ? 'Begin Consultation →'
+              : brand.slug === 'almaham'
+              ? 'Enter Atelier →'
               : brand.slug === 'worldofperfumers'
-              ? 'Help Me Explore →'
-              : 'Open Finder →'}
+              ? 'Find My Formula →'
+              : 'Open Concierge →'}
           </Link>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          {/* Gender pills */}
-          <div className="flex flex-wrap gap-1.5">
+        {/* Restrained Filter Row */}
+        <div className="flex flex-col gap-4 pt-1">
+          {/* Gender selection */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-brand-text-muted mr-2 font-mono">
+              Gender
+            </span>
             {genderOptions.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setFilters((prev) => ({ ...prev, gender: opt.value }))}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                className={`rounded-full px-3 py-1 text-xs tracking-wider uppercase transition-all duration-200 ${
                   filters.gender === opt.value
-                    ? 'border-transparent text-white'
-                    : 'border-brand-border text-brand-text-muted hover:border-brand-text-muted'
+                    ? 'border border-brand-accent bg-brand-accent/15 text-brand-accent font-medium'
+                    : 'border border-brand-border bg-transparent text-brand-text-muted hover:border-brand-border-light hover:text-brand-text'
                 }`}
-                style={
-                  filters.gender === opt.value
-                    ? { backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }
-                    : undefined
-                }
               >
                 {opt.label}
               </button>
             ))}
           </div>
 
-          <div className="hidden sm:block w-px bg-brand-border-light" />
-
-          {/* Fragrance family pills */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* Fragrance family selection */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-brand-text-muted mr-2 font-mono">
+              Family
+            </span>
             {familyOptions
               .filter((opt) => {
                 if (opt.value === 'all') return true;
@@ -181,40 +186,31 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
                 <button
                   key={opt.value}
                   onClick={() => setFilters((prev) => ({ ...prev, fragranceFamily: opt.value }))}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                  className={`rounded-full px-3 py-1 text-xs tracking-wider uppercase transition-all duration-200 ${
                     filters.fragranceFamily === opt.value
-                      ? 'border-transparent'
-                      : 'border-brand-border text-brand-text-muted hover:border-brand-text-muted'
+                      ? 'border border-brand-accent bg-brand-accent/15 text-brand-accent font-medium'
+                      : 'border border-brand-border bg-transparent text-brand-text-muted hover:border-brand-border-light hover:text-brand-text'
                   }`}
-                  style={
-                    filters.fragranceFamily === opt.value
-                      ? { backgroundColor: brand.colors.accent, color: brand.colors.accentForeground }
-                      : undefined
-                  }
                 >
                   {opt.label}
                 </button>
               ))}
           </div>
 
-          <div className="hidden sm:block w-px bg-brand-border-light" />
-
-          {/* Price pills */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* Price selection */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-brand-text-muted mr-2 font-mono">
+              Budget
+            </span>
             {priceOptions.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setFilters((prev) => ({ ...prev, priceRange: opt.value }))}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                className={`rounded-full px-3 py-1 text-xs tracking-wider uppercase transition-all duration-200 ${
                   filters.priceRange === opt.value
-                    ? 'border-transparent'
-                    : 'border-brand-border text-brand-text-muted hover:border-brand-text-muted'
+                    ? 'border border-brand-accent bg-brand-accent/15 text-brand-accent font-medium'
+                    : 'border border-brand-border bg-transparent text-brand-text-muted hover:border-brand-border-light hover:text-brand-text'
                 }`}
-                style={
-                  filters.priceRange === opt.value
-                    ? { backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }
-                    : undefined
-                }
               >
                 {opt.label}
               </button>
@@ -231,14 +227,14 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
           ))}
         </div>
       ) : (
-        <div className="py-20 text-center">
-          <p className="text-brand-text-muted">No fragrances match your filters.</p>
+        <div className="py-24 text-center hairline-border rounded-2xl bg-brand-surface/40">
+          <p className="font-serif text-lg text-brand-text-muted">No flacons match your selected criteria.</p>
           <button
             onClick={() => setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all' })}
-            className="mt-3 text-sm font-medium transition-colors"
+            className="mt-4 text-xs uppercase tracking-widest font-medium transition-colors hover:underline"
             style={{ color: brand.colors.accent }}
           >
-            Clear all filters
+            Reset All Filters
           </button>
         </div>
       )}

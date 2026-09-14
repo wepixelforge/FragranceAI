@@ -7,81 +7,79 @@ interface FooterProps {
 
 export default function Footer({ brand }: FooterProps) {
   return (
-    <footer className="border-t border-brand-border bg-brand-surface">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-          {/* Brand */}
-          <div>
+    <footer className="border-t border-brand-border bg-[#0B0B0A] text-[#EDE8DF]">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
+          {/* Brand Column */}
+          <div className="md:col-span-5">
             <div className="flex items-center gap-3 mb-4">
               <div
-                className="flex h-8 w-8 items-center justify-center rounded-md text-xs font-semibold"
-                style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-serif border border-white/15"
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: brand.colors.accent }}
               >
                 {brand.monogram}
               </div>
-              <span className="text-sm font-semibold tracking-tight text-brand-text">
+              <span className="font-serif text-lg tracking-wide text-brand-text">
                 {brand.name}
               </span>
             </div>
-            <p className="text-sm text-brand-text-muted leading-relaxed max-w-xs">
+            <p className="text-xs text-brand-text-muted leading-relaxed max-w-sm font-light">
               {brand.description}
             </p>
           </div>
 
-          {/* Quick links */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-text-muted mb-4">
-              Explore
+          {/* Navigation Links */}
+          <div className="md:col-span-3">
+            <h4 className="text-[10px] uppercase tracking-widest font-mono text-brand-accent mb-4">
+              Archive & Navigation
             </h4>
             <nav className="flex flex-col gap-2.5">
               <Link
                 href={`/${brand.slug}`}
-                className="text-sm text-brand-text-muted hover:text-brand-text transition-colors"
+                className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                Home
+                Maison Entrance
               </Link>
               <Link
                 href={`/${brand.slug}/shop`}
-                className="text-sm text-brand-text-muted hover:text-brand-text transition-colors"
+                className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                Shop All
+                Complete Collection
               </Link>
               <Link
                 href={`/${brand.slug}/finder`}
-                className="text-sm text-brand-text-muted hover:text-brand-text transition-colors"
+                className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                Fragrance Finder
+                Scent Concierge
               </Link>
             </nav>
           </div>
 
-          {/* AI discovery */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-brand-text-muted mb-4">
-              Not Sure What to Choose?
+          {/* Consultation Column */}
+          <div className="md:col-span-4">
+            <h4 className="text-[10px] uppercase tracking-widest font-mono text-brand-accent mb-4">
+              Private Consultation
             </h4>
-            <p className="text-sm text-brand-text-muted leading-relaxed mb-4">
-              Our AI fragrance assistant can help you find the perfect scent based on your preferences.
+            <p className="text-xs text-brand-text-muted leading-relaxed mb-4 font-light">
+              Consult with our digital sommelier to explore creations aligned with your preferred accords, longevity, and climate.
             </p>
             <Link
               href={`/${brand.slug}/finder`}
-              className="inline-flex items-center gap-2 text-sm font-medium transition-colors"
+              className="group inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium transition-colors hover:text-brand-accent"
               style={{ color: brand.colors.accent }}
             >
-              Try the Fragrance Finder
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <span>Begin Scent Session</span>
+              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </Link>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-brand-border-light pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-brand-text-muted">
-            Concept demonstration prepared for {brand.name}.
+        <div className="mt-14 border-t border-brand-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] uppercase tracking-widest text-brand-text-muted/60 font-mono">
+          <p>
+            Concept demonstration curated for {brand.name}.
           </p>
-          <p className="text-xs text-brand-text-muted">
-            Independent prototype for evaluation · Client-side discovery engine
+          <p>
+            Independent evaluation prototype · Editorial discovery engine
           </p>
         </div>
       </div>

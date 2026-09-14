@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrandConfig } from '@/types/brand';
 
 interface HeaderProps {
@@ -10,334 +10,163 @@ interface HeaderProps {
 
 export default function Header({ brand }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const variant = brand.designVariant;
 
-  // Variant-specific navigation links
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Curated, minimal navigation links per brand
   const getNavLinks = () => {
     switch (variant) {
       case 'oriental-artisanal':
         return [
-          { label: 'Attar Vault', href: `/${brand.slug}/shop` },
-          { label: 'Pure Ouds', href: `/${brand.slug}/shop?family=oud` },
-          { label: 'Attar Advisor', href: `/${brand.slug}/finder` },
+          { key: 'shop', label: 'Attar Vault', href: `/${brand.slug}/shop` },
+          { key: 'ouds', label: 'Pure Ouds', href: `/${brand.slug}/shop?family=oud` },
+          { key: 'finder', label: 'Scent Advisor', href: `/${brand.slug}/finder` },
         ];
       case 'luxury-editorial':
         return [
-          { label: 'Atelier Editions', href: `/${brand.slug}/shop` },
-          { label: 'Extraits De Parfum', href: `/${brand.slug}/shop` },
-          { label: 'Private Consultation', href: `/${brand.slug}/finder` },
+          { key: 'shop', label: 'Atelier Archives', href: `/${brand.slug}/shop` },
+          { key: 'extraits', label: 'Extraits De Parfum', href: `/${brand.slug}/shop` },
+          { key: 'finder', label: 'Consultation', href: `/${brand.slug}/finder` },
         ];
       case 'discovery-niche':
         return [
-          { label: 'All Formulations', href: `/${brand.slug}/shop` },
-          { label: '10ml Trials', href: `/${brand.slug}/shop` },
-          { label: 'Scent Profile Lab', href: `/${brand.slug}/finder` },
+          { key: 'all', label: 'Formulations', href: `/${brand.slug}/shop` },
+          { key: 'trials', label: '10ml Trials', href: `/${brand.slug}/shop?trial=true` },
+          { key: 'finder', label: 'Scent Lab', href: `/${brand.slug}/finder` },
         ];
       case 'catalogue-modern':
       default:
         return [
-          { label: 'Home', href: `/${brand.slug}` },
-          { label: '380+ Catalogue', href: `/${brand.slug}/shop` },
-          { label: 'AI Fragrance Finder', href: `/${brand.slug}/finder` },
+          { key: 'shop', label: 'Catalogue', href: `/${brand.slug}/shop` },
+          { key: 'featured', label: 'Best Sellers', href: `/${brand.slug}#featured` },
+          { key: 'finder', label: 'Scent Finder', href: `/${brand.slug}/finder` },
         ];
     }
   };
 
   const navLinks = getNavLinks();
 
-  // ── Render 1: ORIENTAL ARTISANAL (Arabian Aroma) ─────────────────────────────
-  if (variant === 'oriental-artisanal') {
-    return (
-      <header className="sticky top-0 z-50 border-b border-brand-border bg-brand-surface/95 backdrop-blur-md">
-        <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-8">
-          <Link href={`/${brand.slug}`} className="flex items-center gap-3 group">
-            <div className="h-10 w-10 rounded-full border border-brand-accent/60 flex items-center justify-center bg-brand-primary text-brand-accent shadow-sm">
-              <span className="font-serif text-xs font-bold tracking-wider">✦</span>
-            </div>
-            <div>
-              <span className="font-serif text-lg font-bold tracking-wide text-brand-text block">
-                {brand.name}
-              </span>
-              <span className="text-[9px] uppercase tracking-[0.25em] text-brand-accent font-semibold block">
-                Artisanal Attars & Ouds
-              </span>
-            </div>
-          </Link>
+  const getCtaLabel = () => {
+    switch (variant) {
+      case 'oriental-artisanal':
+        return '✦ Attar Advisor';
+      case 'luxury-editorial':
+        return 'Private Consultation';
+      case 'discovery-niche':
+        return '✦ Scent Concierge';
+      default:
+        return '✦ Find My Fragrance';
+    }
+  };
 
-          {/* Nav links */}
-          <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="text-xs font-medium tracking-wider text-brand-text-muted hover:text-brand-accent transition-colors"
-              >
-                {l.label}
-              </Link>
-            ))}
-          </nav>
+  const getSubtitle = () => {
+    switch (variant) {
+      case 'oriental-artisanal':
+        return 'Pure Attars & Ouds';
+      case 'luxury-editorial':
+        return 'Haute Parfumerie · Atelier';
+      case 'discovery-niche':
+        return 'Climate-Tested Perfumery';
+      default:
+        return 'Recreated Extraits';
+    }
+  };
 
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/${brand.slug}/finder`}
-              className="hidden sm:inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold tracking-wider uppercase shadow-md transition-all duration-200 hover:opacity-90"
-              style={{ backgroundColor: brand.colors.accent, color: brand.colors.accentForeground }}
-            >
-              <span>✦</span>
-              <span>Find Signature Attar</span>
-            </Link>
-
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 text-brand-text"
-              aria-label="Menu"
-            >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {isMenuOpen && (
-          <div className="border-t border-brand-border bg-brand-surface p-4 md:hidden">
-            <nav className="flex flex-col gap-3">
-              {navLinks.map((l) => (
-                <Link key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className="text-sm font-medium text-brand-text p-2">
-                  {l.label}
-                </Link>
-              ))}
-              <Link
-                href={`/${brand.slug}/finder`}
-                onClick={() => setIsMenuOpen(false)}
-                className="w-full text-center rounded-full py-3 text-xs font-bold uppercase tracking-wider mt-2"
-                style={{ backgroundColor: brand.colors.accent, color: brand.colors.accentForeground }}
-              >
-                Find Signature Attar
-              </Link>
-            </nav>
-          </div>
-        )}
-      </header>
-    );
-  }
-
-  // ── Render 2: LUXURY EDITORIAL (Al-Maham) ───────────────────────────────────
-  if (variant === 'luxury-editorial') {
-    return (
-      <header className="sticky top-0 z-50 border-b border-brand-border bg-brand-bg/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 sm:px-10">
-          <Link href={`/${brand.slug}`} className="group">
-            <span className="font-serif italic text-2xl font-normal tracking-wide text-brand-text block">
-              {brand.name}
-            </span>
-            <span className="text-[8px] uppercase tracking-[0.35em] text-brand-text-muted block">
-              Haute Parfumerie · Atelier Expressions
-            </span>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-10">
-            {navLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-text-muted hover:text-brand-text transition-colors"
-              >
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-4">
-            <Link
-              href={`/${brand.slug}/finder`}
-              className="hidden sm:inline-flex items-center gap-2 border border-brand-text px-6 py-2.5 text-[10px] font-bold tracking-[0.2em] uppercase transition-all duration-300 hover:bg-brand-text hover:text-brand-bg"
-            >
-              Private Consultation
-            </Link>
-
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 text-brand-text"
-              aria-label="Menu"
-            >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 8h16M4 16h16"} />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {isMenuOpen && (
-          <div className="border-t border-brand-border bg-brand-surface p-6 md:hidden">
-            <nav className="flex flex-col gap-4">
-              {navLinks.map((l) => (
-                <Link key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className="text-xs uppercase tracking-widest text-brand-text">
-                  {l.label}
-                </Link>
-              ))}
-              <Link
-                href={`/${brand.slug}/finder`}
-                onClick={() => setIsMenuOpen(false)}
-                className="w-full text-center border border-brand-text py-3 text-xs uppercase tracking-widest font-bold mt-2"
-              >
-                Private Consultation
-              </Link>
-            </nav>
-          </div>
-        )}
-      </header>
-    );
-  }
-
-  // ── Render 3: DISCOVERY NICHE (World of Perfumers) ──────────────────────────
-  if (variant === 'discovery-niche') {
-    return (
-      <header className="sticky top-0 z-50 border-b border-brand-border bg-brand-surface/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-8">
-          <Link href={`/${brand.slug}`} className="flex items-center gap-3 group">
-            <div className="h-8 px-2 rounded-md bg-brand-primary text-brand-primary-fg flex items-center justify-center font-mono text-xs font-bold tracking-wider">
-              {brand.monogram}
-            </div>
-            <div>
-              <span className="font-mono text-xs uppercase tracking-wider font-bold text-brand-text block">
-                {brand.name}
-              </span>
-              <span className="text-[9px] font-mono text-brand-accent uppercase block">
-                Sugandhim Labs · Climate-Tested
-              </span>
-            </div>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-6">
-            {navLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="text-xs font-semibold text-brand-text-muted hover:text-brand-text transition-colors px-2 py-1 rounded hover:bg-brand-surface-hover"
-              >
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/${brand.slug}/finder`}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-brand-accent/50 bg-brand-accent/10 px-4 py-2 text-xs font-bold text-brand-accent hover:bg-brand-accent hover:text-white transition-all duration-200"
-            >
-              <span>⚡</span>
-              <span>Scent Profile Matcher</span>
-            </Link>
-
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 text-brand-text"
-              aria-label="Menu"
-            >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {isMenuOpen && (
-          <div className="border-t border-brand-border bg-brand-surface p-4 md:hidden">
-            <nav className="flex flex-col gap-2">
-              {navLinks.map((l) => (
-                <Link key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className="text-sm font-semibold text-brand-text p-2 rounded hover:bg-brand-surface-hover">
-                  {l.label}
-                </Link>
-              ))}
-              <Link
-                href={`/${brand.slug}/finder`}
-                onClick={() => setIsMenuOpen(false)}
-                className="w-full text-center rounded-lg py-2.5 text-xs font-bold bg-brand-accent text-white mt-2"
-              >
-                Launch Scent Profile Matcher
-              </Link>
-            </nav>
-          </div>
-        )}
-      </header>
-    );
-  }
-
-  // ── Render 4: CATALOGUE MODERN (TM Perfume House default) ───────────────────
   return (
-    <header className="sticky top-0 z-50 border-b border-brand-border-light bg-brand-surface/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-8">
-        <Link href={`/${brand.slug}`} className="flex items-center gap-3 group">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-sm font-bold tracking-widest shadow-sm"
-            style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
-          >
+    <header
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        isScrolled
+          ? 'bg-[#0B0B0A]/95 border-b border-[rgba(237,232,223,0.08)] backdrop-blur-md py-3'
+          : 'bg-[#0B0B0A]/80 border-b border-[rgba(237,232,223,0.05)] backdrop-blur-sm py-4 sm:py-5'
+      }`}
+    >
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-8">
+        {/* Brand Logo / Monogram on Left */}
+        <Link href={`/${brand.slug}`} className="group flex items-center gap-3">
+          <div className="h-8 w-8 rounded-none border border-[rgba(237,232,223,0.2)] flex items-center justify-center bg-[#131415] text-[#EDE8DF] text-xs font-serif group-hover:border-[#B79A64] transition-colors">
             {brand.monogram}
           </div>
           <div>
-            <span className="font-serif text-lg font-bold tracking-tight text-brand-text block">
+            <span className="font-serif text-base sm:text-lg font-normal tracking-wide text-[#EDE8DF] block leading-tight">
               {brand.name}
             </span>
-            <span className="text-[9px] uppercase tracking-[0.2em] text-brand-accent font-semibold block">
-              380+ Fragrance Discovery
+            <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.25em] text-[#A0998F] block font-light">
+              {getSubtitle()}
             </span>
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8">
+        {/* Minimal Editorial Navigation (Desktop) */}
+        <nav className="hidden md:flex items-center gap-10">
           {navLinks.map((l) => (
             <Link
-              key={l.href}
+              key={l.key}
               href={l.href}
-              className="text-xs font-semibold uppercase tracking-wider text-brand-text-muted hover:text-brand-text transition-colors"
+              className="relative text-[11px] font-medium uppercase tracking-[0.22em] text-[#A0998F] hover:text-[#EDE8DF] transition-colors py-1 after:absolute after:bottom-0 after:left-0 after:w-0 after:h-px after:bg-[#B79A64] hover:after:w-full after:transition-all after:duration-300"
             >
               {l.label}
             </Link>
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        {/* Right CTA & Mobile Toggle */}
+        <div className="flex items-center gap-3 sm:gap-4">
           <Link
             href={`/${brand.slug}/finder`}
-            className="hidden sm:inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider shadow-md transition-all hover:opacity-90 border border-brand-accent/40"
-            style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
+            className="hidden sm:inline-flex items-center gap-2 border border-[#B79A64]/40 bg-[#121211]/80 hover:bg-[#B79A64]/15 hover:border-[#B79A64] px-5 py-2.5 text-[10px] font-medium tracking-[0.22em] uppercase text-[#EDE8DF] transition-all duration-300 shadow-sm"
           >
-            <span className="text-brand-accent">✦</span>
-            <span>AI Scent Finder</span>
+            <span>{getCtaLabel()}</span>
           </Link>
 
+          {/* Minimal Mobile Trigger */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2 text-brand-text"
-            aria-label="Menu"
+            className="md:hidden p-2 text-[#EDE8DF] hover:text-[#B79A64] transition-colors"
+            aria-label="Navigation Menu"
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.2}
+                d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M3 8h18M3 16h18"}
+              />
             </svg>
           </button>
         </div>
       </div>
 
+      {/* Mobile Drawer */}
       {isMenuOpen && (
-        <div className="border-t border-brand-border-light bg-brand-surface p-4 md:hidden">
-          <nav className="flex flex-col gap-2">
+        <div className="md:hidden border-t border-[rgba(237,232,223,0.08)] bg-[#0B0B0A]/98 backdrop-blur-xl px-6 py-8 animate-fade-in">
+          <nav className="flex flex-col gap-6">
             {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className="text-sm font-semibold uppercase tracking-wider text-brand-text p-2">
+              <Link
+                key={`m-${l.key}`}
+                href={l.href}
+                onClick={() => setIsMenuOpen(false)}
+                className="text-xs uppercase tracking-[0.25em] text-[#A0998F] hover:text-[#EDE8DF] transition-colors"
+              >
                 {l.label}
               </Link>
             ))}
-            <Link
-              href={`/${brand.slug}/finder`}
-              onClick={() => setIsMenuOpen(false)}
-              className="w-full text-center rounded-xl py-3 text-xs font-bold uppercase tracking-wider mt-2"
-              style={{ backgroundColor: brand.colors.primary, color: brand.colors.primaryForeground }}
-            >
-              Launch AI Fragrance Finder
-            </Link>
+            <div className="pt-4 border-t border-[rgba(237,232,223,0.08)]">
+              <Link
+                href={`/${brand.slug}/finder`}
+                onClick={() => setIsMenuOpen(false)}
+                className="w-full text-center block border border-[#B79A64]/50 py-3 text-[11px] font-medium tracking-[0.22em] uppercase text-[#EDE8DF] hover:bg-[#B79A64]/10 transition-colors"
+              >
+                {getCtaLabel()}
+              </Link>
+            </div>
           </nav>
         </div>
       )}
