@@ -240,6 +240,9 @@ export function doesIntentRequireProducts(
   intent: CanonicalIntent | UserIntent,
   stage1?: Stage1IntentOutput
 ): boolean {
+  if (stage1?.needs_clarification || intent === 'CLARIFICATION') {
+    return false;
+  }
   if (stage1?.requires_product_data !== undefined) {
     return stage1.requires_product_data;
   }
@@ -389,6 +392,184 @@ export function analyzePolarity(rawText: string, attrKey: keyof typeof ATTRIBUTE
   };
 }
 
+export interface AmbiguousDescriptorMatch {
+  term: string;
+  question: string;
+  interpretations: string[];
+  preservedFamilies?: string[];
+}
+
+/**
+ * Detects ambiguous, vague, or unsupported fragrance descriptors that require clarification.
+ * Principles:
+ * - Known vocabulary (fresh, woody, strong, warm, not sweet, etc.) NEVER triggers clarification.
+ * - Unknown/ambiguous terms (melty, off, weird, impossible, sexy, etc.) trigger clarification (UNKNOWN ≠ NO_MATCH).
+ * - Known terms accompanied by ambiguous terms (e.g. "unusual and woody") preserve known terms while clarifying the unknown.
+ */
+export function detectAmbiguousDescriptor(
+  text: string,
+  state?: ConversationState
+): AmbiguousDescriptorMatch | null {
+  const lower = text.toLowerCase();
+
+  // Exclude greetings, bot identity/capabilities, general conversational chit-chat, out-of-scope, resets
+  if (
+    /^(hi|hello|hey|good\s*(morning|afternoon|evening)|who\s+are\s+you|what\s+can\s+you\s+help|what\s+is\s+the\s+capital|tell\s+me\s+about\s+your\s+brand|forget\s+everything|start\s+over|reset|thank|bye|goodbye)\b/i.test(
+      lower.trim()
+    )
+  ) {
+    return null;
+  }
+
+  // Exclude SHOW_ALTERNATIVES phrases (e.g. "show me something else", "something else", "show me other options")
+  if (/\b(something\s+else|other\s+options?|different\s+options?|show\s+more|see\s+more|show\s+me\s+another|another\s+one|anything\s+else)\b/i.test(lower)) {
+    return null;
+  }
+
+  // Check if it's a specific product inquiry (e.g. "Tell me about Royal Oud") or comparison
+  if (/\b(tell\s+me\s+about|compare)\b/i.test(lower)) {
+    return null;
+  }
+
+  // Check if it's a reference perfume query (e.g. "similar to Dior Sauvage")
+  if (/\b(similar\s+to|smells?\s+like|alternative\s+to)\b/i.test(lower)) {
+    return null;
+  }
+
+  // Check if known families are present in the query
+  const knownFamilies: string[] = [];
+  if (/\b(woody|woods?|cedar|sandalwood)\b/i.test(lower)) knownFamilies.push('woody');
+  if (/\b(fresh|crisp|clean)\b/i.test(lower)) knownFamilies.push('fresh');
+  if (/\b(floral|rose|jasmine)\b/i.test(lower)) knownFamilies.push('floral');
+  if (/\b(spicy|spice|peppery|cinnamon)\b/i.test(lower)) knownFamilies.push('spicy');
+  if (/\b(citrus|lemon|bergamot|lime)\b/i.test(lower)) knownFamilies.push('citrus');
+  if (/\b(aquatic|marine|ocean)\b/i.test(lower)) knownFamilies.push('aquatic');
+  if (/\b(oud|agarwood)\b/i.test(lower)) knownFamilies.push('oud');
+  if (/\b(musk|musky)\b/i.test(lower)) knownFamilies.push('musky');
+
+  // Check specific known ambiguous terms
+  const hasOff = /\b(off)\b/i.test(lower) && !/\b(take\s+off|turn\s+off|cut\s+off|knock\s+off|show\s+off)\b/i.test(lower);
+  const hasMelty = /\b(melty|melting)\b/i.test(lower);
+  const hasWeird = /\b(weird|bizarre|funky|strange|crazy)\b/i.test(lower);
+  const hasSexy = /\b(sexy|seductive|alluring)\b/i.test(lower);
+  const hasAddictive = /\b(addictive|intoxicating)\b/i.test(lower) && !lower.includes('coffee') && !lower.includes('vanilla');
+  const hasExpensive = /\b(expensive|smells?\s+expensive|luxurious)\b/i.test(lower) && !/\b(under|below|less\s+than|\d+)\b/i.test(lower);
+  const hasImpossible = /\b(impossible)\b/i.test(lower);
+  const hasUnusual = /\b(unusual|unconventional)\b/i.test(lower);
+  const hasDifferent =
+    /\b(something\s+different|different)\b/i.test(lower) &&
+    !hasActiveConsultation(state) &&
+    (!state?.shownProductIds || state.shownProductIds.length === 0);
+  const hasInteresting =
+    /\b(something\s+interesting|interesting)\b/i.test(lower) &&
+    !hasActiveConsultation(state) &&
+    (!state?.shownProductIds || state.shownProductIds.length === 0);
+
+  if (hasMelty) {
+    return {
+      term: 'melty',
+      question: "When you say 'melty', what kind of feeling do you mean?",
+      interpretations: ["Something creamy and soft, warm and comforting, or something else?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasOff) {
+    return {
+      term: 'off',
+      question: "When you say 'off', what kind of vibe do you mean?",
+      interpretations: ["Something unusual, darker, more experimental, or something else?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasWeird) {
+    return {
+      term: 'weird',
+      question: "When you say 'weird', what kind of vibe do you mean?",
+      interpretations: ["Something unconventional, smoky and dark, experimental, or something else?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasSexy) {
+    return {
+      term: 'sexy',
+      question: "When you say 'sexy', what kind of scent do you have in mind?",
+      interpretations: ["Something warm and seductive, sweet and alluring, fresh and magnetic, or something else?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasAddictive) {
+    return {
+      term: 'addictive',
+      question: "When you say 'addictive', what kind of fragrance profile draws you in?",
+      interpretations: ["Something rich and gourmand, intoxicating and woody, or fresh and uplifting?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasExpensive) {
+    return {
+      term: 'expensive',
+      question: "When you say 'expensive', what kind of character are you picturing?",
+      interpretations: ["Something sophisticated and woody, rich and opulent with oud or amber, or a clean, polished luxury profile?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasImpossible) {
+    return {
+      term: 'impossible',
+      question: "When you say 'impossible', what kind of scent combination are you imagining?",
+      interpretations: ["Tell me what contrasting notes or feeling you're trying to find."],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasUnusual) {
+    const famText = knownFamilies.length > 0 ? ` alongside ${knownFamilies.join(' & ')}` : '';
+    return {
+      term: 'unusual',
+      question: `When you say 'unusual', what kind of twist are you looking for${famText}?`,
+      interpretations: ["Something smoky and dark, earthy, or with an unexpected spice note?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasDifferent) {
+    return {
+      term: 'different',
+      question: "Different from what you normally wear, or are you looking for a scent outside conventional styles?",
+      interpretations: ["Tell me what notes you usually wear or what feeling you want to explore."],
+      preservedFamilies: knownFamilies,
+    };
+  }
+  if (hasInteresting) {
+    return {
+      term: 'interesting',
+      question: "When you say 'interesting', what kind of character are you looking for?",
+      interpretations: ["Something complex and spicy, an unusual woody blend, or something with bold contrasting notes?"],
+      preservedFamilies: knownFamilies,
+    };
+  }
+
+  // General vague discovery queries with no known fragrance attributes at all:
+  // e.g. "I want something [word]" where [word] is not recognized
+  const discoveryMatch = lower.match(
+    /^(?:i\s+want\s+something|looking\s+for\s+something|give\s+me\s+something|show\s+me\s+something|find\s+me\s+something)\s+([a-z]+)\.?$/i
+  );
+  if (discoveryMatch) {
+    const word = discoveryMatch[1];
+    const isKnownWord =
+      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger)\b/i.test(
+        word
+      );
+    if (!isKnownWord && word.length > 2) {
+      return {
+        term: word,
+        question: `When you say '${word}', what kind of feeling or scent profile do you mean?`,
+        interpretations: ["For example, are you leaning toward something fresh and crisp, warm and cozy, rich and woody, or something else?"],
+      };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Validate and enforce polarity on any Stage 1 output (Groq or deterministic).
  * Guarantees that no negated attribute can ever become positive in fragrance_families or preferred_notes.
@@ -404,6 +585,57 @@ export function validateAndEnforcePolarity(
   }
   const clean = normalizeText(rawMessage);
   const lower = clean.toLowerCase();
+
+  // Check for ambiguous / unknown descriptors (UNKNOWN ≠ NO_MATCH)
+  const ambig = detectAmbiguousDescriptor(clean, currentState);
+  if (ambig) {
+    res.intent = 'CLARIFICATION';
+    res.needs_clarification = true;
+    res.needs_recommendations = false;
+    res.requires_product_data = false;
+    res.ambiguous_term = ambig.term;
+    res.clarification_question = ambig.question;
+    res.suggested_interpretations = ambig.interpretations;
+    if (ambig.preservedFamilies && ambig.preservedFamilies.length > 0) {
+      res.fragrance_families = [...ambig.preservedFamilies];
+    } else {
+      res.fragrance_families = [];
+    }
+    res.preferred_notes = [];
+    res.updates = (res.updates || []).filter(
+      (u) => u.field === 'fragrance_families' && ambig.preservedFamilies?.includes(String(u.value))
+    );
+    return res;
+  }
+
+  // Check for clarification follow-up resolution
+  if (currentState?.pendingClarification) {
+    const isClarificationAnswer =
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean)\b/i.test(lower) ||
+      lower.startsWith('something ') ||
+      lower.startsWith('i mean ') ||
+      lower.startsWith('more of ');
+
+    if (isClarificationAnswer) {
+      res.intent = 'RECOMMENDATION';
+      res.needs_recommendations = true;
+      res.needs_clarification = false;
+      res.requires_product_data = true;
+      if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower)) {
+        res.warmth = 'warmer';
+        if (!res.updates.some(u => u.field === 'warmth')) {
+          res.updates.push({ field: 'warmth', operation: 'SET', value: 'warmer' });
+        }
+      }
+      if (/\b(creamy|soft|sweet|gourmand|vanilla)\b/i.test(lower)) {
+        res.sweetness = 'sweeter';
+        res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'gourmand']));
+        if (!res.updates.some(u => u.field === 'sweetness')) {
+          res.updates.push({ field: 'sweetness', operation: 'SET', value: 'sweeter' });
+        }
+      }
+    }
+  }
 
   const sweetPol = analyzePolarity(lower, 'sweet');
   const oudPol = analyzePolarity(lower, 'oud');
@@ -915,10 +1147,28 @@ CRITICAL RULES:
    - "thank you" / "thanks" / "you're helpful" / "nice talking to you" / "okay" / "cool" / "interesting" / "I see" / "that's nice" / "goodbye" / "bye":
      -> intent: "GENERAL_CONVERSATION", needs_recommendations: false.
 
+   CLARIFICATION — AMBIGUOUS, VAGUE, OR UNKNOWN LANGUAGE (CRITICAL — UNKNOWN ≠ NO_MATCH):
+   When the user's primary preference uses ambiguous, vague, subjective, or unsupported terminology that cannot be confidently mapped to concrete fragrance families, notes, occasions, or intensities (e.g. "off", "melty", "weird", "sexy", "addictive", "expensive", "impossible", "bizarre"):
+   - DO NOT guess or silently map (e.g. do NOT map "melty" to sweet, do NOT map "off" to unusual, do NOT map "expensive" to woody).
+   - DO NOT classify as NO_MATCH or say "I don't have a fragrance that matches".
+   - Set: intent: "CLARIFICATION", needs_clarification: true, needs_recommendations: false.
+   - Provide clarification_question (e.g. "When you say 'melty', what kind of feeling do you mean?") and clarification_reason.
+   - If the user uses a known term alongside an ambiguous term (e.g. "I want something unusual and woody"):
+     * Keep the known term in fragrance_families: ["woody"].
+     * Set intent: "CLARIFICATION", needs_clarification: true, needs_recommendations: false.
+     * Ask clarification on the ambiguous term: "When you say 'unusual', what kind of twist are you looking for alongside woody?"
+
+   CLARIFICATION FOLLOW-UP:
+   - When the previous message was a clarification question (e.g. the assistant asked what the user meant by 'melty'):
+     * If user answers with concrete preferences (e.g. "Warm and creamy" or "Creamy and soft"):
+     * Classify as intent: "RECOMMENDATION", needs_recommendations: true, needs_clarification: false.
+     * Extract the clarified attributes (e.g. warmth: "warmer", sweetness: "sweeter" or fragrance_families: ["gourmand"]).
+
    REMEMBER: If the user's message does NOT contain a request, question, or refinement that would require showing products, it is conversational. Do NOT default to RECOMMENDATION.
 
 Active Consultation: ${JSON.stringify(currentState?.activeRequest || currentState?.currentConsultation || {})}
 Background Preferences: ${JSON.stringify(currentState?.backgroundContext || currentState?.backgroundPreferences || {})}
+Pending Clarification: ${JSON.stringify(currentState?.pendingClarification || null)}
 
 Return ONLY valid JSON matching the schema.`;
 
@@ -1106,7 +1356,94 @@ export function fallbackIntentClassifier(
   const lower = clean.toLowerCase().trim();
   const activeConsultationExists = hasActiveConsultation(currentState);
 
-  // 0. CONVERSATION GATE — CUSTOMER OBJECTIONS (must come before OUT_OF_SCOPE)
+  // 0a. CLARIFICATION FOLLOW-UP (Resolving pending clarification)
+  if (currentState?.pendingClarification) {
+    const isClarificationAnswer =
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean)\b/i.test(lower) ||
+      lower.startsWith('something ') ||
+      lower.startsWith('i mean ') ||
+      lower.startsWith('more of ');
+
+    if (isClarificationAnswer) {
+      const fams: string[] = [];
+      const updates: PreferenceUpdateItem[] = [];
+      let warmthVal: 'warmer' | null = null;
+      let sweetnessVal: 'sweeter' | null = null;
+
+      if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower)) {
+        warmthVal = 'warmer';
+        updates.push({ field: 'warmth', operation: 'SET', value: 'warmer' });
+      }
+      if (/\b(creamy|soft|sweet|gourmand|vanilla)\b/i.test(lower)) {
+        fams.push('gourmand');
+        sweetnessVal = 'sweeter';
+        updates.push({ field: 'fragrance_families', operation: 'SET', value: ['gourmand'] });
+        updates.push({ field: 'sweetness', operation: 'SET', value: 'sweeter' });
+      }
+      if (/\b(fresh|crisp|clean)\b/i.test(lower)) {
+        fams.push('fresh');
+        updates.push({ field: 'fragrance_families', operation: 'SET', value: ['fresh'] });
+      }
+      if (/\b(woody|cedar|sandalwood)\b/i.test(lower)) {
+        fams.push('woody');
+        updates.push({ field: 'fragrance_families', operation: 'SET', value: ['woody'] });
+      }
+
+      const prevFams = currentState.activeRequest?.families || [];
+      const combinedFams = Array.from(new Set([...prevFams, ...fams]));
+
+      return {
+        intent: 'RECOMMENDATION',
+        request_type: hasActiveConsultation(currentState) ? 'refinement' : 'new_consultation',
+        is_new_request: !hasActiveConsultation(currentState),
+        is_refinement: hasActiveConsultation(currentState),
+        fragrance_families: combinedFams,
+        preferred_notes: [],
+        excluded_notes: [],
+        excluded_families: [],
+        warmth: warmthVal,
+        sweetness: sweetnessVal,
+        needs_recommendations: true,
+        needs_clarification: false,
+        requires_product_data: true,
+        preferences: { fragrance_families: combinedFams },
+        updates,
+      };
+    }
+  }
+
+  // 0b. AMBIGUOUS / UNKNOWN DESCRIPTORS — CLARIFICATION FLOW (UNKNOWN ≠ NO_MATCH)
+  const ambigMatch = detectAmbiguousDescriptor(clean, currentState);
+  if (ambigMatch) {
+    const updates: PreferenceUpdateItem[] = [];
+    if (ambigMatch.preservedFamilies && ambigMatch.preservedFamilies.length > 0) {
+      updates.push({
+        field: 'fragrance_families',
+        operation: 'SET',
+        value: ambigMatch.preservedFamilies,
+      });
+    }
+    return {
+      intent: 'CLARIFICATION',
+      request_type: 'other',
+      is_new_request: false,
+      is_refinement: false,
+      fragrance_families: ambigMatch.preservedFamilies || [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: true,
+      requires_product_data: false,
+      ambiguous_term: ambigMatch.term,
+      clarification_question: ambigMatch.question,
+      suggested_interpretations: ambigMatch.interpretations,
+      preferences: {},
+      updates,
+    };
+  }
+
+  // 0c. CONVERSATION GATE — CUSTOMER OBJECTIONS (must come before OUT_OF_SCOPE)
   const isCustomerObjection =
     /\b(other\s+brands|competitors|better\s+(scents?|perfumes?|fragrances?)|smell\s+cheap|smells?\s+cheap|too\s+expensive\s+for|don'?t\s+last\s+long|doesn'?t\s+last|lasts?\s+long\s+enough|nothing\s+here\s+matches|why\s+should\s+i\s+buy|what\s+makes\s+(this|your)\s+better|overpriced|not\s+worth|waste\s+of\s+money|i'?ve\s+smelled\s+better|cheap\s+quality|low\s+quality|poor\s+quality|rip\s*off|knockoff|fake|copy\s+of)\b/i.test(lower) ||
     (lower.includes('better than') && (lower.includes('brand') || lower.includes('fragrance') || lower.includes('perfume') || lower.includes('scent'))) ||

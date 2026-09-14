@@ -120,6 +120,8 @@ export function normalizeAssistantMessages(
     isPartialMatch?: boolean;
     tradeOff?: string;
     productName?: string;
+    needsClarification?: boolean;
+    limitingFactor?: string;
   }
 ): string[] {
   const sanitized = reply
@@ -143,6 +145,18 @@ export function normalizeAssistantMessages(
     ];
   }
 
+  // 2b. CLARIFICATION Archetype: 1-2 thoughtful consultant messages
+  if (intent === 'CLARIFICATION' || context?.needsClarification) {
+    const sentences = splitIntoSentences(sanitized);
+    if (sentences.length >= 1 && sentences.length <= 2) {
+      return sentences;
+    }
+    if (sentences.length > 2) {
+      return balanceThoughts(sentences, 2);
+    }
+    return [sanitized];
+  }
+
   // 3. NO_MATCH Archetype: 2 clear thoughts
   if (context?.resultsCount === 0 && (intent === 'RECOMMENDATION' || intent === 'REFINE_RECOMMENDATION')) {
     const sentences = splitIntoSentences(sanitized);
@@ -150,23 +164,28 @@ export function normalizeAssistantMessages(
       return balanceThoughts(sentences, 2);
     }
     return [
-      "I couldn't find a strong match for all of those constraints.",
-      "Relaxing your budget or expanding note families will reveal several close alternatives.",
+      "I couldn't find a suitable option within those constraints.",
+      context?.limitingFactor ? `The ${context.limitingFactor} is the limiting factor here.` : "Adjusting the notes or expanding the budget will reveal several close alternatives.",
     ];
   }
 
-  // 3b. PARTIAL_MATCH Archetype: 2-3 natural thoughts (No exact match, closest candidate, trade-off)
+  // 3b. PARTIAL_MATCH Archetype: 2 natural thoughts (Lead directly with closest candidate, grounded trade-off)
   if (context?.isPartialMatch) {
-    const sentences = splitIntoSentences(sanitized);
-    if (sentences.length >= 2 && sentences.length <= 4) {
-      return sentences;
+    const rawSentences = splitIntoSentences(sanitized);
+    // Strip any negative database-style statements ("I couldn't find...", "I don't have...", "We don't currently have...")
+    const cleanSentences = rawSentences.filter(
+      (s) => !/^(i\s+(couldn'?t|cannot|can't)\s+find|i\s+don'?t\s+have|we\s+don'?t\s+(currently\s+)?have|there\s+(is|are)\s+no\s+(direct|exact))/i.test(s.trim())
+    );
+
+    if (cleanSentences.length >= 2 && cleanSentences.length <= 3) {
+      return cleanSentences;
     }
     const closestName = context?.productName;
-    return [
-      "I couldn't find an exact match combining all of your preferences.",
-      closestName ? `The closest fit is ${closestName}.` : "The closest option is featured below.",
-      context?.tradeOff || "It keeps the character you're after with a slightly different intensity profile."
-    ];
+    const thought1 = cleanSentences[0] && /closest/i.test(cleanSentences[0])
+      ? cleanSentences[0]
+      : (closestName ? `The closest option is ${closestName}.` : "The closest option is featured below.");
+    const thought2 = context?.tradeOff || cleanSentences[1] || "It keeps the character you're after with a slightly different intensity profile.";
+    return [thought1, thought2];
   }
 
   // 4. CUSTOMER_OBJECTION Archetype

@@ -284,15 +284,19 @@ CRITICAL RULES:
 3. INTENT BEHAVIOR:
    - OUT_OF_SCOPE: Provide the direct factual answer (e.g. "The capital of France is Paris.") briefly. No products.
    - GREETING/IDENTITY/CAPABILITY: Respond politely without presenting any products.
+   - CLARIFICATION:
+      * Ask a thoughtful, friendly fragrance clarification question.
+      * E.g. "When you say '[word]', what kind of feeling do you mean? Something creamy and soft, warm and comforting, or something else?"
+      * Do NOT present any products. Keep it to 1 to 2 short sentences.
    - PRODUCT_INFO: Give a factual overview of the requested product. Do NOT call it "Best Match".
    - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Do NOT call either "Best Match".
    - SHOW_ALTERNATIVES: Present the fresh alternatives provided in CANONICAL RANKED PRODUCTS. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
    - PARTIAL_MATCH:
-      * State honestly and naturally that no exact match was found combining all requested dimensions.
-      * Present the single closest product provided in CANONICAL RANKED PRODUCTS[0].
-      * Ground your explanation in the trade-off provided: explain what it keeps/satisfies and what differs (e.g. softer intensity, lighter warmth).
+      * Lead directly with the closest option (e.g. "The closest option is [Product].").
+      * NEVER start with a negative database statement like "I couldn't find a fragrance that matches both..." or "I don't have...".
+      * Ground your explanation in the trade-off provided: explain what it keeps/satisfies and what differs (e.g. "It keeps the refreshing character but offers moderate intensity rather than strong.").
       * Never call it "Best Match". Never claim characteristics the product lacks.
-   - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: State honestly and politely why no match was found based on the active constraints (e.g. avoiding sweet fragrances, budget ceiling, or requested intensity). Never present invalid products.
+   - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: State honestly and politely that no suitable option was found within those constraints, briefly explaining the limiting factor (e.g. budget ceiling or excluded notes). Never present invalid products. Avoid robotic "relax one of your preferences" phrases.
 
 4. EXPLANATION MUST STRICTLY MATCH ACTIVE CONSULTATION STATE:
    - If warmth is "moderate-warm" or warmthMax is "warm": do NOT claim "leaning into a warmer profile" or "deep warmth". Describe it as subtle, balanced, or moderate warmth.
@@ -457,15 +461,33 @@ export function fallbackResponseGenerator(
     return `Got it! If you'd like to explore fragrances, just tell me what occasion, scent family, or budget you have in mind.`;
   }
 
+  // 5a. CLARIFICATION (Ambiguous or unknown language)
+  if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification) {
+    const question =
+      stage1.clarification_question ||
+      (stage1.ambiguous_term
+        ? `When you say '${stage1.ambiguous_term}', what kind of feeling do you mean?`
+        : "Could you tell me a little more about what kind of scent profile you have in mind?");
+    const interpretation =
+      stage1.suggested_interpretations && stage1.suggested_interpretations.length > 0
+        ? stage1.suggested_interpretations[0]
+        : (stage1.ambiguous_term === 'off'
+          ? "Something unusual, darker, more experimental, or something else?"
+          : stage1.ambiguous_term === 'melty'
+          ? "Something creamy and soft, warm and comforting, or something else?"
+          : "For example, are you leaning toward something fresh and crisp, warm and cozy, or rich and woody?");
+    return `${question} ${interpretation}`;
+  }
+
   // 5b. NO_ALTERNATIVES (Graceful exhaustion of alternatives)
   if (
     options.status === 'NO_ALTERNATIVES' ||
     (stage1.intent === 'SHOW_ALTERNATIVES' && results.length === 0)
   ) {
-    return "I don't have another option that fits all your current preferences. I can relax one of your requirements if you'd like.";
+    return "I couldn't find another suitable option matching those exact preferences from our remaining catalogue.";
   }
 
-  // 6. PARTIAL MATCH (Closest legitimate candidate with grounded trade-off)
+  // 6. PARTIAL MATCH (Closest legitimate candidate with grounded trade-off — lead directly with closest option)
   if (
     options.status === 'PARTIAL_MATCH' ||
     (results.length === 1 && (results[0].matchTier === 'Closest Match' || results[0].explanation.includes('closest match')))
@@ -474,7 +496,7 @@ export function fallbackResponseGenerator(
     const tradeOff =
       closest.detailedReasons?.find((d) => d.category === 'Profile')?.text ||
       closest.explanation;
-    return `I couldn't find an exact match combining all of your preferences. The closest fit is ${closest.product.name}. ${tradeOff}`;
+    return `The closest option is ${closest.product.name}. ${tradeOff}`;
   }
 
   // 7. HARD CONSTRAINT FAILURE / NO_VALID_MATCH
@@ -485,20 +507,6 @@ export function fallbackResponseGenerator(
 
     if (isStrongControlledSillage) {
       return `Nothing in this collection combines strong intensity with controlled projection. I can show you the closest moderate-intensity options or stronger options with more projection.`;
-    }
-
-    const hasFresh =
-      activeReq.families?.some((f) => ['fresh', 'aquatic', 'citrus'].includes(f.toLowerCase())) ||
-      currentState.activeRequest?.families?.some((f) => ['fresh', 'aquatic', 'citrus'].includes(f.toLowerCase())) ||
-      activeReq.freshness === 'fresher' ||
-      currentState.activeRequest?.freshness === 'fresher';
-
-    const hasStrong =
-      activeReq.intensity === 'strong' ||
-      currentState.activeRequest?.intensity === 'strong';
-
-    if (hasFresh && hasStrong) {
-      return `I don't currently have a fragrance that combines a fresh profile with strong intensity. I can either keep it fresh and choose the strongest available option, or show you my strongest fragrances.`;
     }
 
     const failedList: string[] = [];
@@ -519,9 +527,9 @@ export function fallbackResponseGenerator(
     }
 
     if (failedList.length > 0) {
-      return `I couldn't find a match that combines all of your criteria (${failedList.join(' while ')}). We can relax the budget, occasion, or explore other scent profiles.`;
+      return `I couldn't find a suitable option within those constraints (${failedList.join(' while ')}).`;
     }
-    return `I couldn't find a direct match with those exact constraints from our catalogue. Would you like to adjust the notes or explore a nearby scent family?`;
+    return `I couldn't find a suitable option within those constraints.`;
   }
 
   // 7. PRODUCT INFO (TEST 26) - No "Best Match" language!

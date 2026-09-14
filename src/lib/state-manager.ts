@@ -136,6 +136,7 @@ export function createInitialConversationState(): ConversationState {
     preferences: buildUnifiedPreferences(currentConsultation, backgroundPreferences),
     previously_discussed_products: [],
     turnCount: 0,
+    pendingClarification: null,
   };
 }
 
@@ -180,6 +181,30 @@ export function updateConversationState(
   // 1. RESET INTENT ("Forget everything. Start over.")
   if (stage1.intent === 'RESET_CONSULTATION') {
     return createInitialConversationState();
+  }
+
+  // 1b. CLARIFICATION INTENT — PRESERVE STATE UNTOUCHED & RECORD PENDING CLARIFICATION
+  if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification) {
+    const rawMsg = typeof discussedProductIdsOrMessage === 'string'
+      ? discussedProductIdsOrMessage
+      : (userMessage || '');
+
+    const activeReq: ActiveRequest = base.activeRequest ? { ...base.activeRequest } : createInitialActiveRequest();
+    if (stage1.fragrance_families && stage1.fragrance_families.length > 0) {
+      activeReq.families = Array.from(new Set([...(activeReq.families || []), ...stage1.fragrance_families]));
+    }
+
+    return {
+      ...base,
+      intent: 'CLARIFICATION' as CanonicalIntent,
+      activeRequest: activeReq,
+      turnCount: (base.turnCount || 0) + 1,
+      pendingClarification: {
+        originalQuery: rawMsg,
+        ambiguousTerm: stage1.ambiguous_term || undefined,
+        question: stage1.clarification_question || undefined,
+      },
+    };
   }
 
   // Deep clone current active request & background context
@@ -726,6 +751,7 @@ export function updateConversationState(
     previously_discussed_products: updatedShown,
     lastIntent: stage1.intent,
     turnCount: base.turnCount + 1,
+    pendingClarification: null,
   };
 }
 

@@ -120,6 +120,11 @@ export interface ConversationState {
   previously_discussed_products: string[];
   lastIntent?: UserIntent;
   turnCount: number;
+  pendingClarification?: {
+    originalQuery: string;
+    ambiguousTerm?: string;
+    question?: string;
+  } | null;
 }
 
 export interface ChatMessage {
@@ -285,6 +290,8 @@ export interface Stage1IntentOutput {
   needs_clarification: boolean;
   clarification_reason?: string | null;
   clarification_question?: string | null;
+  ambiguous_term?: string | null;
+  suggested_interpretations?: string[];
   has_contradiction?: boolean;
   contradiction_details?: string | null;
   out_of_scope_answer?: string | null;

@@ -342,6 +342,8 @@ export async function POST(req: NextRequest) {
       stage1.intent === 'RESET_CONSULTATION' ||
       stage1.intent === 'GENERAL_CONVERSATION' ||
       stage1.intent === 'BRAND_CONVERSATION' ||
+      stage1.intent === 'CLARIFICATION' ||
+      Boolean(stage1.needs_clarification) ||
       (stage1.intent === 'CUSTOMER_OBJECTION' && !stage1.needs_recommendations) ||
       stage1.intent === 'PURCHASE_ASSISTANCE';
 
@@ -413,7 +415,7 @@ export async function POST(req: NextRequest) {
       uiProductIds: uiIds,
       previousProductIds: activePrevIds,
       temporaryExcludedProductIds: excludeIds,
-      status: canonicalResult.status,
+      status: (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification) ? 'CLARIFY' : canonicalResult.status,
       rankedProductIds: rankedIds,
       matchReasons: recommendationResults.flatMap((r) => r.matchReasons.map((m) => m.label)),
       finalProductIdsSentToLLM: llmIds,
@@ -489,6 +491,7 @@ export async function POST(req: NextRequest) {
       isPartialMatch: canonicalResult.isPartialMatch,
       tradeOff: canonicalResult.tradeOff,
       productName: recommendationResults[0]?.product.name,
+      needsClarification: Boolean(stage1.needs_clarification || stage1.intent === 'CLARIFICATION'),
     });
 
     const responsePayload: ChatApiResponse = {
