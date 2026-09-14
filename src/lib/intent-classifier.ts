@@ -254,9 +254,11 @@ export function doesIntentRequireProducts(
     case 'RESET_CONSULTATION':
     case 'GENERAL_CONVERSATION':
     case 'BRAND_CONVERSATION':
-    case 'CUSTOMER_OBJECTION':
     case 'PURCHASE_ASSISTANCE':
       return false;
+
+    case 'CUSTOMER_OBJECTION':
+      return Boolean(stage1?.needs_recommendations);
 
     case 'CLARIFICATION':
       return Boolean(stage1?.needs_recommendations);
@@ -576,23 +578,7 @@ export function validateAndEnforcePolarity(
     });
   }
 
-  // 3. Detect pure negative preference message (e.g. "i dont like sweet perfume")
-  const hasPositiveOccasion = Boolean(res.occasion);
-  const hasPositiveSeason = Boolean(res.season);
-  const hasPositiveFamilies = (res.fragrance_families || []).length > 0;
-  const hasPositiveNotes = (res.preferred_notes || []).length > 0;
-  const isExplicitRec = lower.includes('recommend') || lower.includes('show me') || lower.includes('give me') || lower.includes('find me');
-
-  if ((mustExcludeFamilies.length > 0 || mustExcludeNotes.length > 0 || strongPol.isNegated) &&
-      !hasPositiveOccasion && !hasPositiveSeason && !hasPositiveFamilies && !hasPositiveNotes && !isExplicitRec) {
-    res.intent = 'PREFERENCE_UPDATE';
-    res.request_type = hasActiveConsultation(currentState) ? 'refinement' : 'other';
-    res.is_new_request = false;
-    res.is_refinement = hasActiveConsultation(currentState);
-    res.needs_recommendations = false;
-  }
-
-  // 4. Enforce positive attributes when clearly requested and not negated
+  // 3. Enforce positive attributes when clearly requested and not negated
   if (freshPol.isPositive) {
     if (!res.fragrance_families?.includes('fresh')) {
       res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'fresh']));
@@ -608,6 +594,23 @@ export function validateAndEnforcePolarity(
     if (!res.fragrance_families?.includes('woody')) {
       res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'woody']));
     }
+  }
+
+  // 4. Detect pure negative preference message (e.g. "i dont like sweet perfume", "no leather")
+  const hasPositiveOccasion = Boolean(res.occasion);
+  const hasPositiveSeason = Boolean(res.season);
+  const hasPositiveFamilies = (res.fragrance_families || []).length > 0;
+  const hasPositiveNotes = (res.preferred_notes || []).length > 0;
+  const hasPositiveIntensity = isExplicitStrong;
+  const isExplicitRec = lower.includes('recommend') || lower.includes('show me') || lower.includes('give me') || lower.includes('find me') || lower.includes('i want') || lower.includes('looking for') || lower.includes('suggest');
+
+  if ((mustExcludeFamilies.length > 0 || mustExcludeNotes.length > 0 || strongPol.isNegated) &&
+      !hasPositiveOccasion && !hasPositiveSeason && !hasPositiveFamilies && !hasPositiveNotes && !hasPositiveIntensity && !isExplicitRec) {
+    res.intent = 'PREFERENCE_UPDATE';
+    res.request_type = hasActiveConsultation(currentState) ? 'refinement' : 'other';
+    res.is_new_request = false;
+    res.is_refinement = hasActiveConsultation(currentState);
+    res.needs_recommendations = false;
   }
 
   // 5. Longevity detection
@@ -660,6 +663,39 @@ export function validateAndEnforcePolarity(
     res.request_type = 'new_consultation';
     res.is_new_request = true;
     res.is_refinement = false;
+  }
+
+  // 9. Competitor Objection with Preference or Direction
+  if (res.intent === 'CUSTOMER_OBJECTION') {
+    const hasAnyPreference =
+      (res.fragrance_families && res.fragrance_families.length > 0) ||
+      (res.preferred_notes && res.preferred_notes.length > 0) ||
+      Boolean(res.occasion) ||
+      Boolean(res.season) ||
+      freshPol.isPositive ||
+      woodyPol.isPositive ||
+      spicyPol.isPositive ||
+      citrusPol.isPositive ||
+      aquaticPol.isPositive ||
+      floralPol.isPositive;
+
+    if (hasAnyPreference) {
+      res.needs_recommendations = true;
+      res.request_type = 'new_consultation';
+      res.is_new_request = true;
+      res.is_refinement = false;
+      if (!res.preferences) res.preferences = {};
+      if (res.fragrance_families && res.fragrance_families.length > 0) {
+        res.preferences.fragrance_families = res.fragrance_families;
+        if (!res.updates.some((u) => u.field === 'fragrance_families')) {
+          res.updates.push({
+            field: 'fragrance_families',
+            operation: 'SET',
+            value: res.fragrance_families,
+          });
+        }
+      }
+    }
   }
 
   return res;
@@ -859,11 +895,12 @@ CRITICAL RULES:
    These messages must NEVER trigger product retrieval or the recommendation engine.
 
    CUSTOMER_OBJECTION — Competitive statements, quality doubts, value challenges:
-   - "other brands have better scents" -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false, out_of_scope_answer: a confident, non-defensive response that acknowledges the customer's perspective without attacking competitors or making unsupported claims.
-   - "these perfumes smell cheap" / "your fragrances don't last long" / "this is too expensive for the quality" / "I've smelled better" / "nothing here matches luxury brands":
-     -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false.
-   - "why should I buy from you and not Zara?" / "what makes this better than designer brands?":
-     -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false.
+   - Pure objection without stated preference (e.g. "other brands have better scents", "TM Perfume House has better scents", "these perfumes smell cheap", "your fragrances don't last long"):
+     -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false, out_of_scope_answer: a confident, non-defensive response that acknowledges the customer's perspective without attacking competitors or making unsupported claims.
+   - Objection COMBINED with a stated preference or scent family (e.g. "TM Perfume House has better scents. I like fresh perfumes." or "Other brands are better. Show me something woody."):
+     -> intent: "CUSTOMER_OBJECTION", needs_recommendations: true, fragrance_families: [extracted family], request_type: "new_consultation", is_new_request: true.
+   - Objection COMBINED with similarity request (e.g. "Fraganote has better scents. Show me something similar."):
+     -> intent: "SIMILAR_TO_REFERENCE", reference_perfume: "Fraganote", is_similarity_request: true, needs_recommendations: true.
 
    BRAND_CONVERSATION — Questions about the brand, returns, shipping, ingredients, sourcing:
    - "where are your perfumes made?" / "what ingredients do you use?" / "do you do returns?" / "how long does shipping take?" / "tell me about your brand" / "is this brand cruelty free?":
@@ -1073,22 +1110,50 @@ export function fallbackIntentClassifier(
   const isCustomerObjection =
     /\b(other\s+brands|competitors|better\s+(scents?|perfumes?|fragrances?)|smell\s+cheap|smells?\s+cheap|too\s+expensive\s+for|don'?t\s+last\s+long|doesn'?t\s+last|lasts?\s+long\s+enough|nothing\s+here\s+matches|why\s+should\s+i\s+buy|what\s+makes\s+(this|your)\s+better|overpriced|not\s+worth|waste\s+of\s+money|i'?ve\s+smelled\s+better|cheap\s+quality|low\s+quality|poor\s+quality|rip\s*off|knockoff|fake|copy\s+of)\b/i.test(lower) ||
     (lower.includes('better than') && (lower.includes('brand') || lower.includes('fragrance') || lower.includes('perfume') || lower.includes('scent'))) ||
+    (lower.includes('has better') && (lower.includes('brand') || lower.includes('scent') || lower.includes('perfume') || lower.includes('fragrance') || lower.includes('house'))) ||
     (lower.includes('why not') && (lower.includes('zara') || lower.includes('designer') || lower.includes('niche')));
 
   if (isCustomerObjection) {
-    return {
-      intent: 'CUSTOMER_OBJECTION',
-      request_type: 'other',
-      is_new_request: false,
-      is_refinement: false,
-      fragrance_families: [],
-      preferred_notes: [],
-      excluded_notes: [],
-      excluded_families: [],
-      needs_recommendations: false,
-      needs_clarification: false,
-      preferences: {},
-    };
+    const hasSimRequest = lower.includes('something similar') || lower.includes('similar to') || lower.includes('show me similar');
+    if (!hasSimRequest) {
+      const explicitFamilyMatch = lower.match(/\b(fresh|woody|citrus|aquatic|floral|oud|spicy|sweet|oriental|musky|gourmand)\b/i);
+      const hasPreferenceSignal =
+        (lower.includes('i like') || lower.includes('i want') || lower.includes('prefer') || lower.includes('looking for') || lower.includes('give me')) &&
+        explicitFamilyMatch;
+
+      if (hasPreferenceSignal && explicitFamilyMatch) {
+        const fam = explicitFamilyMatch[1].toLowerCase();
+        return {
+          intent: 'CUSTOMER_OBJECTION',
+          request_type: 'new_consultation',
+          is_new_request: true,
+          is_refinement: false,
+          fragrance_families: [fam],
+          preferred_notes: [],
+          excluded_notes: [],
+          excluded_families: [],
+          needs_recommendations: true,
+          needs_clarification: false,
+          preferences: { fragrance_families: [fam] },
+          updates: [{ field: 'fragrance_families', operation: 'SET', value: [fam] }],
+        };
+      }
+
+      // Pure objection without preference
+      return {
+        intent: 'CUSTOMER_OBJECTION',
+        request_type: 'other',
+        is_new_request: false,
+        is_refinement: false,
+        fragrance_families: [],
+        preferred_notes: [],
+        excluded_notes: [],
+        excluded_families: [],
+        needs_recommendations: false,
+        needs_clarification: false,
+        preferences: {},
+      };
+    }
   }
 
   // 0b. CONVERSATION GATE — BRAND CONVERSATION
@@ -1848,6 +1913,8 @@ export function fallbackIntentClassifier(
   else if (lower.includes('bleu de chanel')) referencePerfume = 'Bleu de Chanel';
   else if (lower.includes('aventus')) referencePerfume = 'Creed Aventus';
   else if (lower.includes('baccarat')) referencePerfume = 'Baccarat Rouge 540';
+  else if (lower.includes('fraganote')) referencePerfume = 'Fraganote';
+  else if (lower.includes('tm perfume house') || lower.includes('tm perfumers')) referencePerfume = 'TM Perfume House';
 
   if (isWearingReference && referencePerfume && !lower.includes('recommend') && !lower.includes('give me')) {
     return {
@@ -1867,7 +1934,7 @@ export function fallbackIntentClassifier(
     };
   }
 
-  if (lower.includes('similar to') && referencePerfume) {
+  if ((lower.includes('similar to') || lower.includes('something similar') || lower.includes('show me similar')) && referencePerfume) {
     return {
       intent: 'SIMILAR_TO_REFERENCE',
       request_type: 'new_consultation',

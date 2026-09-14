@@ -50,10 +50,18 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
   } = useScentFinder();
   const [input, setInput] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef<boolean>(false);
   const initialQueryHandled = useRef(false);
 
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 140;
+    userScrolledUpRef.current = !isNearBottom;
+  };
+
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (scrollContainerRef.current) {
+    if (scrollContainerRef.current && !userScrolledUpRef.current) {
       scrollContainerRef.current.scrollTo({
         top: scrollContainerRef.current.scrollHeight,
         behavior,
@@ -63,7 +71,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
 
   useEffect(() => {
     scrollToBottom('smooth');
-    const timer = setTimeout(() => scrollToBottom('smooth'), 100);
+    const timer = setTimeout(() => scrollToBottom('smooth'), 120);
     return () => clearTimeout(timer);
   }, [messages, isTyping]);
 
@@ -81,6 +89,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
     const refSlug = searchParams.get('ref');
     if (q && !initialQueryHandled.current) {
       initialQueryHandled.current = true;
+      userScrolledUpRef.current = false;
       sendMessage(q, false, refSlug || undefined);
     }
   }, [searchParams, sendMessage]);
@@ -92,6 +101,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
   ) => {
     const trimmed = rawText.trim();
     if (!trimmed || isTyping) return;
+    userScrolledUpRef.current = false;
     setInput('');
     sendMessage(trimmed, isAlternativeRequest, contextProductSlug);
   };
@@ -142,7 +152,11 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
       <ConsultationDebugPanel debugInfo={latestDebugInfo} />
 
       {/* Scrollable Consultation Area */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 space-y-8 max-w-5xl mx-auto w-full">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 space-y-6 max-w-5xl mx-auto w-full"
+      >
         
         {/* Welcome state when consultation is empty */}
         {messages.length === 0 && (
@@ -180,63 +194,72 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
         )}
 
         {/* Message Thread */}
-        {messages.map((message) => (
-          <div key={message.id} className="animate-fade-in-up">
-            {/* User Dialogue */}
-            {message.type === 'user' && (
-              <div className="flex justify-end" data-testid="chat-user-message">
-                <div className="max-w-lg border border-[rgba(237,232,223,0.12)] bg-[#181816] px-5 py-3.5 text-xs sm:text-sm text-[#EDE8DF] font-light leading-relaxed shadow-sm">
-                  {message.text}
-                </div>
-              </div>
-            )}
+        {messages.map((message, idx) => {
+          const prevMsg = idx > 0 ? messages[idx - 1] : null;
+          const isFollowUpAssistantThought = message.type === 'assistant' && prevMsg?.type === 'assistant';
 
-            {/* Sommelier Dialogue */}
-            {message.type === 'assistant' && (
-              <div className="flex justify-start">
-                <div className="max-w-2xl border-l border-[#B79A64] pl-5 py-1">
-                  <span className="text-[9px] uppercase tracking-[0.25em] text-[#B79A64] font-medium block mb-1.5">
-                    {brand.finder.assistantName}
-                  </span>
-                  <div className="text-xs sm:text-sm text-[#EDE8DF] font-light leading-relaxed whitespace-pre-line">
-                    {sanitizeUserFacingResponse(message.text || '')}
+          return (
+            <div key={message.id} className="animate-fade-in-up">
+              {/* User Dialogue */}
+              {message.type === 'user' && (
+                <div className="flex justify-end" data-testid="chat-user-message">
+                  <div className="max-w-lg border border-[rgba(237,232,223,0.12)] bg-[#181816] px-5 py-3.5 text-xs sm:text-sm text-[#EDE8DF] font-light leading-relaxed shadow-sm">
+                    {message.text}
                   </div>
-
-                  {/* Refinement Chips */}
-                  {message.suggestedChips && message.suggestedChips.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-[rgba(237,232,223,0.06)] flex flex-wrap gap-2">
-                      {message.suggestedChips.map((chip) => (
-                        <button
-                          key={chip}
-                          type="button"
-                          onClick={() => handleSendMessage(chip)}
-                          className="border border-[rgba(237,232,223,0.15)] bg-[#121211] hover:border-[#B79A64] text-[11px] text-[#A0998F] hover:text-[#EDE8DF] px-3.5 py-1.5 transition-colors cursor-pointer"
-                        >
-                          {chip}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Curated Recommendations (Primary Match + Also Consider) */}
-            {message.type === 'recommendations' && message.results && message.results.length > 0 && (
-              <CuratedRecommendationGroup
-                results={message.results}
-                brand={brand}
-              />
-            )}
-          </div>
-        ))}
+              {/* Sommelier Dialogue */}
+              {message.type === 'assistant' && (
+                <div className="flex justify-start">
+                  <div className={`max-w-2xl border-l border-[#B79A64] pl-5 py-1 ${isFollowUpAssistantThought ? '-mt-2' : ''}`}>
+                    {!isFollowUpAssistantThought && (
+                      <span className="text-[9px] uppercase tracking-[0.25em] text-[#B79A64] font-medium block mb-1.5">
+                        {brand.finder.assistantName}
+                      </span>
+                    )}
+                    <div className="text-xs sm:text-sm text-[#EDE8DF] font-light leading-relaxed whitespace-pre-line">
+                      {sanitizeUserFacingResponse(message.text || '')}
+                    </div>
 
-        {/* Typing indicator */}
+                    {/* Refinement Chips */}
+                    {message.suggestedChips && message.suggestedChips.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-[rgba(237,232,223,0.06)] flex flex-wrap gap-2">
+                        {message.suggestedChips.map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => handleSendMessage(chip)}
+                            className="border border-[rgba(237,232,223,0.15)] bg-[#121211] hover:border-[#B79A64] text-[11px] text-[#A0998F] hover:text-[#EDE8DF] px-3.5 py-1.5 transition-colors cursor-pointer"
+                          >
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Curated Recommendations (Primary Match + Also Consider) */}
+              {message.type === 'recommendations' && message.results && message.results.length > 0 && (
+                <CuratedRecommendationGroup
+                  results={message.results}
+                  brand={brand}
+                />
+              )}
+            </div>
+          );
+        })}
+
+        {/* Subtle consultant indicator */}
         {isTyping && (
           <div className="flex justify-start">
-            <div className="border-l border-[#B79A64]/40 pl-4 py-1 flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-[0.22em] text-[#A0998F]">
-                Consulting formulation library
+            <div className="border-l border-[#B79A64]/40 pl-5 py-1 flex items-center gap-2.5">
+              <span className="text-[9px] uppercase tracking-[0.22em] text-[#A0998F]">
+                {messages[messages.length - 1]?.type === 'assistant'
+                  ? 'Continuing consultation'
+                  : 'Consulting formulation library'}
               </span>
               <span className="flex gap-1">
                 <span className="h-1 w-1 rounded-full bg-[#B79A64] animate-pulse" />
@@ -263,9 +286,10 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
             <input
               type="text"
               value={input}
+              disabled={isTyping}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe your desired mood, occasion, or notes..."
-              className="flex-1 bg-[#121211] border border-[rgba(237,232,223,0.15)] focus:border-[#B79A64] text-[#EDE8DF] placeholder-[#6B655B] text-xs sm:text-sm px-4 sm:px-5 py-3.5 outline-none transition-colors"
+              placeholder={isTyping ? "Consultant is replying..." : "Describe your desired mood, occasion, or notes..."}
+              className="flex-1 bg-[#121211] border border-[rgba(237,232,223,0.15)] focus:border-[#B79A64] disabled:opacity-60 text-[#EDE8DF] placeholder-[#6B655B] text-xs sm:text-sm px-4 sm:px-5 py-3.5 outline-none transition-colors"
             />
             <button
               type="submit"

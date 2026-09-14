@@ -29,7 +29,7 @@ export type Gender = 'men' | 'women' | 'unisex';
 export type Longevity = 'light' | 'moderate' | 'long-lasting' | 'beast-mode';
 export type Intensity = 'subtle' | 'moderate' | 'strong' | 'projection-beast';
 
-export type MatchTier = 'Best Match' | 'Great Match' | 'Good Option' | 'Alternative' | 'Spotlight' | 'Comparison Candidate';
+export type MatchTier = 'Best Match' | 'Great Match' | 'Good Option' | 'Alternative' | 'Spotlight' | 'Comparison Candidate' | 'Closest Match';
 
 export interface Product {
   id: string;
@@ -140,7 +140,7 @@ export interface RankedProductResult {
 export interface CanonicalRecommendationResult {
   recommendation_id?: string;
   intent?: string;
-  status?: 'SUCCESS' | 'NO_VALID_MATCH' | 'NO_ALTERNATIVES';
+  status?: 'SUCCESS' | 'NO_VALID_MATCH' | 'NO_ALTERNATIVES' | 'PARTIAL_MATCH';
   reason?: string;
   failed_constraints?: string[];
   type: 'recommendation' | 'product_info' | 'compare_products' | 'none';
@@ -151,6 +151,10 @@ export interface CanonicalRecommendationResult {
   hardConstraintFailed: boolean;
   active_state?: any;
   hard_constraints?: any;
+  isPartialMatch?: boolean;
+  unmetPreferences?: string[];
+  matchedPreferences?: string[];
+  tradeOff?: string;
 }
 
 export interface ParsedQuery extends StructuredPreferences {

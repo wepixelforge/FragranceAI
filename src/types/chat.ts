@@ -237,6 +237,7 @@ export interface ConsultationDebugInfo {
 
 export interface ChatApiResponse {
   reply: string;
+  messages?: string[];
   intent: UserIntent;
   results: RecommendationResult[];
   updatedState: ConversationState;
@@ -244,6 +245,10 @@ export interface ChatApiResponse {
   suggestedFollowUps?: string[];
   suggestedChips?: string[];
   debugInfo?: ConsultationDebugInfo;
+  isPartialMatch?: boolean;
+  unmetPreferences?: string[];
+  matchedPreferences?: string[];
+  tradeOff?: string;
 }
 
 export interface Stage1IntentOutput {

@@ -7,6 +7,7 @@ import {
   UserIntent,
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
+import { getVerifiedBrandDifferentiator } from './message-sequencer';
 
 export interface ResponseGeneratorOptions {
   hardConstraintFailed?: boolean;
@@ -286,6 +287,11 @@ CRITICAL RULES:
    - PRODUCT_INFO: Give a factual overview of the requested product. Do NOT call it "Best Match".
    - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Do NOT call either "Best Match".
    - SHOW_ALTERNATIVES: Present the fresh alternatives provided in CANONICAL RANKED PRODUCTS. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
+   - PARTIAL_MATCH:
+      * State honestly and naturally that no exact match was found combining all requested dimensions.
+      * Present the single closest product provided in CANONICAL RANKED PRODUCTS[0].
+      * Ground your explanation in the trade-off provided: explain what it keeps/satisfies and what differs (e.g. softer intensity, lighter warmth).
+      * Never call it "Best Match". Never claim characteristics the product lacks.
    - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: State honestly and politely why no match was found based on the active constraints (e.g. avoiding sweet fragrances, budget ceiling, or requested intensity). Never present invalid products.
 
 4. EXPLANATION MUST STRICTLY MATCH ACTIVE CONSULTATION STATE:
@@ -383,24 +389,35 @@ export function fallbackResponseGenerator(
     return `I've cleared your previous consultation preferences. What direction would you like to explore now?`;
   }
 
-  // 5c. CUSTOMER OBJECTION — Acknowledge without attacking competitors or making unsupported claims
+  // 5c. CUSTOMER OBJECTION — Acknowledge non-defensively with verified brand differentiator
   if (stage1.intent === 'CUSTOMER_OBJECTION') {
+    const diff = getVerifiedBrandDifferentiator(brand);
+    // If the objection was accompanied by a preference and recommendations were retrieved
+    if (results.length > 0) {
+      return `That's fair — fragrance is personal. Since you shared what you're looking for, I can certainly work with that. Here are a couple of creations I'd start with:`;
+    }
+
     const lower = message.toLowerCase();
-    if (lower.includes('other brands') && lower.includes('better')) {
-      return `That's a fair point — every brand has its strengths. Our focus at ${brand.name} is on crafting distinctive blends that stand on their own. If you tell me what kind of scent profile you enjoy, I can show you what makes our collection worth exploring.`;
+    if (
+      lower.includes('other brands') ||
+      lower.includes('better scents') ||
+      lower.includes('better than') ||
+      lower.includes('has better')
+    ) {
+      return `That's fair — fragrance is personal. Another house may simply align with your current preferences. Our strength is ${diff}. If you're open to exploring, tell me what you enjoy most about their scents.`;
     }
     if (lower.includes('smell cheap') || lower.includes('cheap quality') || lower.includes('low quality')) {
-      return `I understand that concern. Our formulations use quality ingredients with carefully layered note structures. I'd love for you to experience them firsthand — which scent profile appeals to you most?`;
+      return `I understand that concern. Our formulations focus on quality ingredients with carefully layered note structures. Which scent profile appeals to you most?`;
     }
     if (lower.includes('expensive') || lower.includes('overpriced') || lower.includes('not worth') || lower.includes('waste of money')) {
-      return `Price is definitely an important factor. Our range spans different price points, and each is formulated for lasting performance. Would you like me to find options within a specific budget?`;
+      return `Price is definitely an important factor. Our range spans accessible price points, each formulated for lasting wear. Would you like me to find options within a specific budget?`;
     }
     if (lower.includes('don\'t last') || lower.includes('doesnt last') || lower.includes('doesn\'t last')) {
-      return `Longevity can vary based on skin type, application, and environment. Several of our fragrances are designed for extended wear with strong projection. Want me to highlight our best performers?`;
+      return `Longevity can vary based on skin type and environment. Several of our fragrances are formulated for extended wear with noticeable sillage. Would you like me to highlight those?`;
     }
     return (
       stage1.out_of_scope_answer ||
-      `I appreciate your perspective. Every perfume journey is personal, and I'd love to help you find something that genuinely resonates. What notes or occasions matter most to you?`
+      `That's fair — fragrance is personal. Every perfume journey is unique, and our strength is ${diff}. What notes or occasions matter most to you?`
     );
   }
 
@@ -448,7 +465,19 @@ export function fallbackResponseGenerator(
     return "I don't have another option that fits all your current preferences. I can relax one of your requirements if you'd like.";
   }
 
-  // 6. HARD CONSTRAINT FAILURE / NO_VALID_MATCH
+  // 6. PARTIAL MATCH (Closest legitimate candidate with grounded trade-off)
+  if (
+    options.status === 'PARTIAL_MATCH' ||
+    (results.length === 1 && (results[0].matchTier === 'Closest Match' || results[0].explanation.includes('closest match')))
+  ) {
+    const closest = results[0];
+    const tradeOff =
+      closest.detailedReasons?.find((d) => d.category === 'Profile')?.text ||
+      closest.explanation;
+    return `I couldn't find an exact match combining all of your preferences. The closest fit is ${closest.product.name}. ${tradeOff}`;
+  }
+
+  // 7. HARD CONSTRAINT FAILURE / NO_VALID_MATCH
   if (options.hardConstraintFailed || (results.length === 0 && stage1.needs_recommendations)) {
     const isStrongControlledSillage =
       (activeReq.intensity === 'strong' || currentState.activeRequest?.intensity === 'strong') &&

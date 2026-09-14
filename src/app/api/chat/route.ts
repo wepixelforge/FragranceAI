@@ -20,6 +20,7 @@ import {
 } from '@/lib/state-manager';
 import { getRecommendations } from '@/lib/recommendation-engine';
 import { generateConversationalResponse } from '@/lib/response-generator';
+import { normalizeAssistantMessages } from '@/lib/message-sequencer';
 
 export async function POST(req: NextRequest) {
   try {
@@ -341,7 +342,7 @@ export async function POST(req: NextRequest) {
       stage1.intent === 'RESET_CONSULTATION' ||
       stage1.intent === 'GENERAL_CONVERSATION' ||
       stage1.intent === 'BRAND_CONVERSATION' ||
-      stage1.intent === 'CUSTOMER_OBJECTION' ||
+      (stage1.intent === 'CUSTOMER_OBJECTION' && !stage1.needs_recommendations) ||
       stage1.intent === 'PURCHASE_ASSISTANCE';
 
     const hasValidRecommendations = Boolean(
@@ -354,6 +355,11 @@ export async function POST(req: NextRequest) {
       canonicalResult.status !== 'NO_VALID_MATCH' &&
       recommendationResults.length > 0
     );
+
+    // If objection with preference requested recommendations, cap to maximum 2 products
+    if (stage1.intent === 'CUSTOMER_OBJECTION' && hasValidRecommendations) {
+      recommendationResults = recommendationResults.slice(0, 2);
+    }
 
     // Development Debug Info Payload (All 17 Audit Points & Section 10 requirements)
     const rankedIds = hasValidRecommendations ? recommendationResults.map((r) => r.product.id) : [];
@@ -472,14 +478,32 @@ export async function POST(req: NextRequest) {
       console.log('==================================================================\n');
     }
 
+    const sequentialMessages = normalizeAssistantMessages(reply, brand, stage1.intent, {
+      resultsCount: hasValidRecommendations ? recommendationResults.length : 0,
+      hasPreference: Boolean(
+        stage1.fragrance_families?.length ||
+        stage1.preferred_notes?.length ||
+        stage1.updates?.length
+      ),
+      referencePerfume: stage1.reference_perfume,
+      isPartialMatch: canonicalResult.isPartialMatch,
+      tradeOff: canonicalResult.tradeOff,
+      productName: recommendationResults[0]?.product.name,
+    });
+
     const responsePayload: ChatApiResponse = {
       reply,
+      messages: sequentialMessages,
       intent: stage1.intent,
       results: hasValidRecommendations ? recommendationResults : [],
       updatedState,
       needsRecommendations: hasValidRecommendations,
       suggestedChips: stage1.suggested_chips || undefined,
       debugInfo,
+      isPartialMatch: canonicalResult.isPartialMatch,
+      unmetPreferences: canonicalResult.unmetPreferences,
+      matchedPreferences: canonicalResult.matchedPreferences,
+      tradeOff: canonicalResult.tradeOff,
     };
 
     return NextResponse.json(responsePayload, { status: 200 });

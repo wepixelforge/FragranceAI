@@ -49,6 +49,10 @@ export interface RecommendationEngineResponse {
   filteredCount: number;
   totalCatalogueCount: number;
   topScore: number | null;
+  isPartialMatch?: boolean;
+  unmetPreferences?: string[];
+  matchedPreferences?: string[];
+  tradeOff?: string;
 }
 
 /**
@@ -63,7 +67,13 @@ export interface RecommendationEngineResponse {
  * - Minimum intensity (when user requested strong / stronger)
  * - Excluded gender
  */
-export function isValidCandidate(
+/**
+ * Hard Constraints Validator (Strict & Non-Negotiable)
+ * Validates budget, note exclusions, family exclusions, gender exclusions,
+ * explicit negative caps (sillageMax, intensityMax, warmthMax), relative price cap,
+ * and excluded product IDs. These must NEVER be violated to produce a recommendation.
+ */
+export function isHardCandidateValid(
   product: Product,
   preferences: StructuredPreferences,
   options?: {
@@ -239,6 +249,26 @@ export function isValidCandidate(
     }
   }
 
+  return { valid: true };
+}
+
+/**
+ * Validates candidates against both hard constraints and strict exact match attributes.
+ */
+export function isValidCandidate(
+  product: Product,
+  preferences: StructuredPreferences,
+  options?: {
+    excludeProductIds?: string[];
+    relativePriceCap?: number | null;
+    ignoreExcludedProductIds?: boolean;
+  }
+): { valid: boolean; reason?: string } {
+  const hardCheck = isHardCandidateValid(product, preferences, options);
+  if (!hardCheck.valid) {
+    return hardCheck;
+  }
+
   // 10. Required Strong Intensity
   if (preferences.intensity === 'strong') {
     if (product.intensity !== 'strong' && product.intensity !== 'projection-beast') {
@@ -264,6 +294,124 @@ export function isValidCandidate(
   }
 
   return { valid: true };
+}
+
+/**
+ * Builds grounded partial match trade-off explanation and structured preferences comparison.
+ */
+export function buildPartialMatchTradeOff(
+  product: Product,
+  preferences: StructuredPreferences
+): {
+  matchedPreferences: string[];
+  unmetPreferences: string[];
+  tradeOff: string;
+} {
+  const matchedPreferences: string[] = [];
+  const unmetPreferences: string[] = [];
+
+  const requestedFresh =
+    preferences.freshness === 'fresher' ||
+    preferences.fragranceFamilies?.some((f) => ['fresh', 'aquatic', 'citrus'].includes(f.toLowerCase()));
+
+  const requestedStrong = preferences.intensity === 'strong';
+  const requestedWarm = preferences.warmth === 'warmer';
+  const hasBudget = preferences.budget?.max !== undefined && preferences.budget?.max !== null;
+  const isSweetExcluded = preferences.exclusions?.fragranceFamilies?.some((f) =>
+    ['sweet', 'gourmand'].includes(f.toLowerCase())
+  );
+  const isControlledSillage = preferences.sillageMax === 'moderate';
+
+  const productIsFresh =
+    product.fragranceFamily.some((f) => ['fresh', 'aquatic', 'citrus'].includes(f.toLowerCase())) ||
+    product.freshness === 'fresh' ||
+    product.freshness === 'very-fresh';
+
+  const productIsStrong = product.intensity === 'strong' || product.intensity === 'projection-beast';
+  const productIsWarm = product.warmth === 'warm' || product.warmth === 'very-warm';
+
+  if (hasBudget) {
+    matchedPreferences.push(`under ₹${preferences.budget!.max}`);
+  }
+  if (isSweetExcluded) {
+    matchedPreferences.push('non-sweet profile');
+  }
+  if (isControlledSillage) {
+    matchedPreferences.push('controlled projection');
+  }
+
+  if (requestedFresh) {
+    if (productIsFresh) {
+      matchedPreferences.push('refreshing fresh character');
+    } else {
+      unmetPreferences.push('fresh profile');
+    }
+  }
+
+  if (requestedStrong) {
+    if (productIsStrong) {
+      matchedPreferences.push('strong intensity');
+    } else {
+      unmetPreferences.push(`strong intensity (is ${product.intensity})`);
+    }
+  }
+
+  if (requestedWarm) {
+    if (productIsWarm) {
+      matchedPreferences.push('warm presence');
+    } else {
+      unmetPreferences.push('warmer base');
+    }
+  }
+
+  // Check other fragrance families
+  if (preferences.fragranceFamilies) {
+    for (const fam of preferences.fragranceFamilies) {
+      if (['fresh', 'aquatic', 'citrus'].includes(fam.toLowerCase())) continue;
+      if (product.fragranceFamily.includes(fam)) {
+        matchedPreferences.push(`${fam} accord`);
+      } else {
+        unmetPreferences.push(`${fam} family`);
+      }
+    }
+  }
+
+  // Deterministic trade-off text generation based on genuine contributions
+  let tradeOff = '';
+
+  if (requestedFresh && requestedStrong) {
+    if (hasBudget) {
+      tradeOff = `It stays within ₹${preferences.budget!.max} and keeps the fresh profile, although its intensity is a little softer than requested.`;
+    } else if (isSweetExcluded) {
+      tradeOff = `It keeps the fresh, non-sweet profile, although it has moderate intensity rather than strong projection.`;
+    } else {
+      tradeOff = `It keeps the refreshing character while offering moderate rather than strong presence.`;
+    }
+  } else if (requestedFresh && requestedWarm) {
+    if (productIsFresh && (product.warmth === 'neutral' || product.warmth === 'warm')) {
+      tradeOff = `It brings in gentle warmth while still preserving a clean, refreshing character.`;
+    } else if (productIsWarm) {
+      tradeOff = `It's slightly warmer than the fresh options, while still keeping a lighter, cleaner character.`;
+    } else {
+      tradeOff = `It balances a clean, uplifting opening with a smoother, warmer drydown.`;
+    }
+  } else if (requestedStrong && isControlledSillage) {
+    tradeOff = `It delivers defined presence while staying refined and controlled rather than overpowering.`;
+  } else if (unmetPreferences.length > 0) {
+    const matchedSummary =
+      matchedPreferences.length > 0
+        ? matchedPreferences.slice(0, 2).join(' and ')
+        : 'requested fragrance direction';
+    tradeOff = `It keeps the ${matchedSummary}, although its ${unmetPreferences[0]} differs slightly from what was requested.`;
+  } else {
+    tradeOff = `It closely aligns with your preferences, offering the best balanced composition in our catalogue.`;
+  }
+
+  return {
+    matchedPreferences,
+    unmetPreferences,
+    tradeOff,
+  };
 }
 
 /**
@@ -417,23 +565,20 @@ export function getRecommendations(
 
   const candidatesBeforeFilter = products.map((p) => p.id);
   const candidatesRemoved: RemovedCandidateDetail[] = [];
-  const validProducts: Product[] = [];
+  const hardValidProducts: Product[] = [];
 
   for (const product of products) {
-    const check = isValidCandidate(product, preferences, { excludeProductIds, relativePriceCap });
-    if (check.valid) {
-      validProducts.push(product);
+    const hardCheck = isHardCandidateValid(product, preferences, { excludeProductIds, relativePriceCap });
+    if (hardCheck.valid) {
+      hardValidProducts.push(product);
     } else {
       candidatesRemoved.push({
         id: product.id,
         name: product.name,
-        reason: check.reason || 'Failed hard constraints',
+        reason: hardCheck.reason || 'Failed hard constraints',
       });
     }
   }
-
-  const validCandidates = validProducts.map((p) => p.id);
-  const filteredCount = validProducts.length;
 
   // Check if failure is solely because all eligible options were already shown in this thread
   const totalExcludedIds = Array.from(
@@ -443,7 +588,7 @@ export function getRecommendations(
   const isAlternativesExhausted =
     totalExcludedIds.length > 0 &&
     products.some((product) => {
-      const checkWithoutExclude = isValidCandidate(product, preferences, {
+      const checkWithoutExclude = isHardCandidateValid(product, preferences, {
         excludeProductIds: [],
         ignoreExcludedProductIds: true,
         relativePriceCap,
@@ -452,7 +597,7 @@ export function getRecommendations(
     });
 
   // Zero valid candidates handling:
-  if (filteredCount === 0) {
+  if (hardValidProducts.length === 0) {
     const failedConstraints = [...excludedConstraints, ...appliedConstraints];
     const status: 'NO_VALID_MATCH' | 'NO_ALTERNATIVES' = isAlternativesExhausted
       ? 'NO_ALTERNATIVES'
@@ -500,12 +645,15 @@ export function getRecommendations(
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PHASE 2: DETERMINISTIC SOFT RANKING ON VALID CANDIDATES
+  // PHASE 2: EXACT MATCH EVALUATION ON HARD-VALID CANDIDATES
   // ══════════════════════════════════════════════════════════════════════════
-  const scored = validProducts.map((product) => scoreProduct(product, preferences));
+  const exactCandidates = hardValidProducts.filter((product) => {
+    const check = isValidCandidate(product, preferences, { excludeProductIds, relativePriceCap });
+    return check.valid;
+  });
 
-  // Sort descending by score; tie-break on lower price if relative price is cheaper
-  scored.sort((a, b) => {
+  const scoredExact = exactCandidates.map((product) => scoreProduct(product, preferences));
+  scoredExact.sort((a, b) => {
     if (b.score !== a.score) {
       return b.score - a.score;
     }
@@ -515,17 +663,12 @@ export function getRecommendations(
     return 0;
   });
 
-  // Genuine relevance filter: If fragrance families are requested, the candidate MUST match family, occasion, or notes
   const hasFamilyFilter = preferences.fragranceFamilies && preferences.fragranceFamilies.length > 0;
-  
-  // Composition: If user positively requested strong intensity AND capped sillage/projection at moderate,
-  // candidates must satisfy both the positive intensity and the negative sillage cap.
-  // If zero candidates satisfy strong intensity + controlled sillage, trigger genuine NO_VALID_MATCH.
   const requiresStrongWithControlledSillage =
     preferences.intensity === 'strong' &&
     (preferences.sillageMax === 'moderate' || preferences.sillageMax === 'intimate');
 
-  const eligibleScored = scored.filter((r) => {
+  const eligibleExactScored = scoredExact.filter((r) => {
     if (r.score < 10) return false;
     if (hasFamilyFilter) {
       const matchesFam = preferences.fragranceFamilies!.some((f) => r.product.fragranceFamily.includes(f));
@@ -542,26 +685,101 @@ export function getRecommendations(
     return true;
   });
 
-  if (eligibleScored.length === 0) {
+  // If exact matches exist, deliver standard ranked recommendations
+  if (eligibleExactScored.length > 0) {
+    const effectiveTopN = Math.min(topN, 3);
+    const topResults = eligibleExactScored.slice(0, effectiveTopN);
+
+    topResults.forEach((result, idx) => {
+      if (idx === 0) {
+        result.matchTier = result.score >= 65 ? 'Best Match' : 'Great Match';
+      } else if (idx === 1) {
+        result.matchTier = result.score >= 55 ? 'Great Match' : 'Good Option';
+      } else {
+        result.matchTier = 'Alternative';
+      }
+
+      result.explanation = generateNaturalExplanation(result, preferences);
+      result.detailedReasons = generateDetailedReasons(result, preferences);
+    });
+
+    const rankedProducts: RankedProductResult[] = topResults.map((r, idx) => ({
+      productId: r.product.id,
+      product: r.product,
+      rank: idx + 1,
+      score: r.score,
+      matchTier: r.matchTier,
+      matchReasons: r.matchReasons,
+      detailedReasons: r.detailedReasons,
+      explanation: r.explanation,
+    }));
+
+    const canonicalResult: CanonicalRecommendationResult = {
+      recommendation_id: `rec-${Date.now()}`,
+      intent: 'RECOMMENDATION',
+      status: 'SUCCESS',
+      type: 'recommendation',
+      products: rankedProducts,
+      appliedConstraints,
+      excludedConstraints,
+      compromises: [],
+      hardConstraintFailed: false,
+      isPartialMatch: false,
+      hard_constraints: {
+        budget_max: preferences.budget?.max ?? null,
+        excluded_families: exclusions.fragranceFamilies || [],
+        excluded_notes: exclusions.notes || [],
+        intensity_cap: preferences.intensityMax || null,
+      },
+    };
+
+    return {
+      results: topResults,
+      canonicalResult,
+      parsed: preferences,
+      hardConstraintFailed: false,
+      isPartialMatch: false,
+      candidatesBeforeFilter,
+      candidatesRemoved,
+      validCandidates: exactCandidates.map((p) => p.id),
+      filteredCount: exactCandidates.length,
+      totalCatalogueCount,
+      topScore: topResults[0]?.score || null,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PHASE 3: PARTIAL MATCH (CLOSEST CANDIDATE RANKING)
+  // ══════════════════════════════════════════════════════════════════════════
+  // No exact match satisfied all soft dimensions simultaneously, but hard-valid candidates exist.
+  // We rank all hard-valid candidates deterministically using the existing scoring architecture.
+  const scoredPartial = hardValidProducts.map((product) => scoreProduct(product, preferences));
+  scoredPartial.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if (preferences.relativePrice === 'cheaper') {
+      return a.product.price - b.product.price;
+    }
+    return 0;
+  });
+
+  // Candidate must have a positive score showing genuine affinity
+  const viablePartial = scoredPartial.filter((r) => r.score > 0);
+
+  if (viablePartial.length === 0) {
     const failedConstraints = [...excludedConstraints, ...appliedConstraints];
     if (requiresStrongWithControlledSillage) {
       failedConstraints.push('Strong intensity with controlled projection (not loud)');
     }
-    const status: 'NO_VALID_MATCH' | 'NO_ALTERNATIVES' = isAlternativesExhausted
-      ? 'NO_ALTERNATIVES'
-      : 'NO_VALID_MATCH';
-    const reason = isAlternativesExhausted
-      ? 'No additional products satisfy the current constraints.'
-      : 'relevance_threshold';
-
     const emptyCanonical: CanonicalRecommendationResult = {
       recommendation_id: `rec-${Date.now()}`,
       intent: isAlternativesExhausted ? 'SHOW_ALTERNATIVES' : 'RECOMMENDATION',
-      status,
-      reason,
-      failed_constraints: isAlternativesExhausted
-        ? ['No additional products satisfy the current constraints.']
-        : failedConstraints,
+      status: isAlternativesExhausted ? 'NO_ALTERNATIVES' : 'NO_VALID_MATCH',
+      reason: isAlternativesExhausted
+        ? 'No additional products satisfy the current constraints.'
+        : 'relevance_threshold',
+      failed_constraints: failedConstraints,
       type: 'recommendation',
       products: [],
       appliedConstraints,
@@ -580,74 +798,76 @@ export function getRecommendations(
       canonicalResult: emptyCanonical,
       parsed: preferences,
       hardConstraintFailed: true,
-      failedConstraints: emptyCanonical.failed_constraints || failedConstraints,
+      failedConstraints,
       candidatesBeforeFilter,
       candidatesRemoved,
-      validCandidates,
+      validCandidates: [],
       filteredCount: 0,
       totalCatalogueCount,
       topScore: null,
     };
   }
 
-  // Select 1 Best Match + up to 2 Alternatives (1-3 max)
-  const effectiveTopN = Math.min(topN, 3);
-  const topResults = eligibleScored.slice(0, effectiveTopN);
+  // Pick the single closest product (topN = 1)
+  const closest = viablePartial[0];
+  const tradeOffData = buildPartialMatchTradeOff(closest.product, preferences);
 
-  // Assign match tiers
-  topResults.forEach((result, idx) => {
-    if (idx === 0) {
-      result.matchTier = result.score >= 65 ? 'Best Match' : 'Great Match';
-    } else if (idx === 1) {
-      result.matchTier = result.score >= 55 ? 'Great Match' : 'Good Option';
-    } else {
-      result.matchTier = 'Alternative';
-    }
+  closest.matchTier = 'Closest Match';
+  closest.explanation = `${closest.product.name} is the closest match in this collection: ${tradeOffData.tradeOff}`;
+  closest.detailedReasons = [
+    { category: 'Profile', text: tradeOffData.tradeOff },
+    ...closest.detailedReasons.filter((d) => d.category !== 'Profile'),
+  ];
 
-    result.explanation = generateNaturalExplanation(result, preferences);
-    result.detailedReasons = generateDetailedReasons(result, preferences);
-  });
-
-  const rankedProducts: RankedProductResult[] = topResults.map((r, idx) => ({
-    productId: r.product.id,
-    product: r.product,
-    rank: idx + 1,
-    score: r.score,
-    matchTier: r.matchTier,
-    matchReasons: r.matchReasons,
-    detailedReasons: r.detailedReasons,
-    explanation: r.explanation,
-  }));
-
-  const canonicalResult: CanonicalRecommendationResult = {
+  const partialCanonical: CanonicalRecommendationResult = {
     recommendation_id: `rec-${Date.now()}`,
     intent: 'RECOMMENDATION',
-    status: 'SUCCESS',
+    status: 'PARTIAL_MATCH',
     type: 'recommendation',
-    products: rankedProducts,
+    products: [
+      {
+        productId: closest.product.id,
+        product: closest.product,
+        rank: 1,
+        score: closest.score,
+        matchTier: 'Closest Match',
+        matchReasons: closest.matchReasons,
+        detailedReasons: closest.detailedReasons,
+        explanation: closest.explanation,
+      },
+    ],
     appliedConstraints,
     excludedConstraints,
-    compromises: [],
+    compromises: [tradeOffData.tradeOff],
     hardConstraintFailed: false,
+    isPartialMatch: true,
+    matchedPreferences: tradeOffData.matchedPreferences,
+    unmetPreferences: tradeOffData.unmetPreferences,
+    tradeOff: tradeOffData.tradeOff,
     hard_constraints: {
       budget_max: preferences.budget?.max ?? null,
       excluded_families: exclusions.fragranceFamilies || [],
       excluded_notes: exclusions.notes || [],
       intensity_cap: preferences.intensityMax || null,
+      intensity_min: preferences.intensity === 'strong' ? 'strong' : null,
     },
   };
 
   return {
-    results: topResults,
-    canonicalResult,
+    results: [closest],
+    canonicalResult: partialCanonical,
     parsed: preferences,
     hardConstraintFailed: false,
+    isPartialMatch: true,
+    matchedPreferences: tradeOffData.matchedPreferences,
+    unmetPreferences: tradeOffData.unmetPreferences,
+    tradeOff: tradeOffData.tradeOff,
     candidatesBeforeFilter,
     candidatesRemoved,
-    validCandidates,
-    filteredCount,
+    validCandidates: [closest.product.id],
+    filteredCount: 1,
     totalCatalogueCount,
-    topScore: topResults[0]?.score || null,
+    topScore: closest.score,
   };
 }
 
