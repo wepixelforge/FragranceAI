@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme="dark"] {
   /* Editorial Luxury Defaults (Maison / Obsidian Aesthetic) */
   --brand-primary: #0b0b0a;
   --brand-primary-fg: #ede8df;
@@ -13,6 +14,186 @@
   --brand-text-muted: #9e978d;
   --brand-border: rgba(237, 232, 223, 0.1);
   --brand-border-light: rgba(237, 232, 223, 0.05);
+  --brand-stage: #0f0f0e;
+  --brand-input-bg: #121211;
+  --brand-input-border: rgba(237, 232, 223, 0.15);
+  --brand-user-bubble: #181816;
+  color-scheme: dark;
+}
+
+[data-theme="light"],
+html.light {
+  /* Editorial Luxury Light Mode (Warm Ivory + Charcoal + Muted Champagne Gold) */
+  --brand-primary: #1a1918;
+  --brand-primary-fg: #faf7f2;
+  --brand-accent: #967848;
+  --brand-accent-fg: #ffffff;
+  --brand-bg: #faf7f2;
+  --brand-surface: #ffffff;
+  --brand-surface-hover: #f4f0e8;
+  --brand-text: #1a1918;
+  --brand-text-muted: #6e685f;
+  --brand-border: rgba(26, 25, 24, 0.09);
+  --brand-border-light: rgba(26, 25, 24, 0.05);
+  --brand-stage: #f3efe7;
+  --brand-input-bg: #ffffff;
+  --brand-input-border: rgba(26, 25, 24, 0.14);
+  --brand-user-bubble: #ede7dc;
+  color-scheme: light;
+}
+
+/* ── Brand Specific Overrides - Dark ────────────────────────────────────── */
+[data-brand="tmperfumehouse"] {
+  --brand-primary: #0a0a09;
+  --brand-primary-fg: #f5f2eb;
+  --brand-accent: #c8a97e;
+  --brand-accent-fg: #0a0a09;
+  --brand-bg: #0a0a09;
+  --brand-surface: #131312;
+  --brand-surface-hover: #1a1a18;
+  --brand-text: #f5f2eb;
+  --brand-text-muted: #9e978e;
+  --brand-border: rgba(245, 242, 235, 0.1);
+  --brand-border-light: rgba(245, 242, 235, 0.05);
+  --brand-stage: #0f0f0e;
+  --brand-input-bg: #131312;
+  --brand-input-border: rgba(245, 242, 235, 0.15);
+  --brand-user-bubble: #1a1a18;
+}
+
+[data-brand="almaham"] {
+  --brand-primary: #040f0b;
+  --brand-primary-fg: #f9f8f5;
+  --brand-accent: #d4af37;
+  --brand-accent-fg: #040f0b;
+  --brand-bg: #040f0b;
+  --brand-surface: #081712;
+  --brand-surface-hover: #0d201a;
+  --brand-text: #f9f8f5;
+  --brand-text-muted: #9aa79f;
+  --brand-border: rgba(212, 175, 55, 0.15);
+  --brand-border-light: rgba(212, 175, 55, 0.06);
+  --brand-stage: #06130e;
+  --brand-input-bg: #081712;
+  --brand-input-border: rgba(212, 175, 55, 0.2);
+  --brand-user-bubble: #0d201a;
+}
+
+[data-brand="arabianaroma"] {
+  --brand-primary: #070c16;
+  --brand-primary-fg: #faf6ef;
+  --brand-accent: #e5a93c;
+  --brand-accent-fg: #070c16;
+  --brand-bg: #070c16;
+  --brand-surface: #0e1624;
+  --brand-surface-hover: #141e30;
+  --brand-text: #faf6ef;
+  --brand-text-muted: #a39987;
+  --brand-border: rgba(229, 169, 60, 0.15);
+  --brand-border-light: rgba(229, 169, 60, 0.06);
+  --brand-stage: #0a101c;
+  --brand-input-bg: #0e1624;
+  --brand-input-border: rgba(229, 169, 60, 0.2);
+  --brand-user-bubble: #141e30;
+}
+
+[data-brand="worldofperfumers"] {
+  --brand-primary: #0b0b0a;
+  --brand-primary-fg: #ede8df;
+  --brand-accent: #b79a64;
+  --brand-accent-fg: #0b0b0a;
+  --brand-bg: #0b0b0a;
+  --brand-surface: #121211;
+  --brand-surface-hover: #181817;
+  --brand-text: #ede8df;
+  --brand-text-muted: #a0998f;
+  --brand-border: rgba(237, 232, 223, 0.1);
+  --brand-border-light: rgba(237, 232, 223, 0.05);
+  --brand-stage: #0f0f0e;
+  --brand-input-bg: #121211;
+  --brand-input-border: rgba(237, 232, 223, 0.15);
+  --brand-user-bubble: #181817;
+}
+
+/* ── Brand Specific Overrides - Light ───────────────────────────────────── */
+[data-theme="light"][data-brand="tmperfumehouse"],
+[data-theme="light"] [data-brand="tmperfumehouse"],
+html.light [data-brand="tmperfumehouse"] {
+  --brand-primary: #1c1b1a;
+  --brand-primary-fg: #f8f6f1;
+  --brand-accent: #9b7b4b;
+  --brand-accent-fg: #ffffff;
+  --brand-bg: #f8f6f1;
+  --brand-surface: #ffffff;
+  --brand-surface-hover: #f2eee7;
+  --brand-text: #1c1b1a;
+  --brand-text-muted: #6b665f;
+  --brand-border: rgba(28, 27, 26, 0.09);
+  --brand-border-light: rgba(28, 27, 26, 0.05);
+  --brand-stage: #f1ece3;
+  --brand-input-bg: #ffffff;
+  --brand-input-border: rgba(28, 27, 26, 0.14);
+  --brand-user-bubble: #ebe5da;
+}
+
+[data-theme="light"][data-brand="worldofperfumers"],
+[data-theme="light"] [data-brand="worldofperfumers"],
+html.light [data-brand="worldofperfumers"] {
+  --brand-primary: #191817;
+  --brand-primary-fg: #faf8f5;
+  --brand-accent: #967848;
+  --brand-accent-fg: #ffffff;
+  --brand-bg: #faf8f5;
+  --brand-surface: #ffffff;
+  --brand-surface-hover: #f4f0ea;
+  --brand-text: #191817;
+  --brand-text-muted: #68635c;
+  --brand-border: rgba(25, 24, 23, 0.09);
+  --brand-border-light: rgba(25, 24, 23, 0.05);
+  --brand-stage: #f3efe7;
+  --brand-input-bg: #ffffff;
+  --brand-input-border: rgba(25, 24, 23, 0.14);
+  --brand-user-bubble: #ece6db;
+}
+
+[data-theme="light"][data-brand="almaham"],
+[data-theme="light"] [data-brand="almaham"],
+html.light [data-brand="almaham"] {
+  --brand-primary: #101714;
+  --brand-primary-fg: #f6f5ee;
+  --brand-accent: #a48226;
+  --brand-accent-fg: #ffffff;
+  --brand-bg: #f6f5ee;
+  --brand-surface: #fcfbf8;
+  --brand-surface-hover: #efece2;
+  --brand-text: #101714;
+  --brand-text-muted: #58635e;
+  --brand-border: rgba(16, 23, 20, 0.09);
+  --brand-border-light: rgba(16, 23, 20, 0.05);
+  --brand-stage: #ece8dc;
+  --brand-input-bg: #fcfbf8;
+  --brand-input-border: rgba(16, 23, 20, 0.14);
+  --brand-user-bubble: #e7e2d3;
+}
+
+[data-theme="light"][data-brand="arabianaroma"],
+[data-theme="light"] [data-brand="arabianaroma"],
+html.light [data-brand="arabianaroma"] {
+  --brand-primary: #151821;
+  --brand-primary-fg: #f7f4ee;
+  --brand-accent: #a87722;
+  --brand-accent-fg: #ffffff;
+  --brand-bg: #f7f4ee;
+  --brand-surface: #fcfaf6;
+  --brand-surface-hover: #eee8dc;
+  --brand-text: #151821;
+  --brand-text-muted: #696458;
+  --brand-border: rgba(21, 24, 33, 0.09);
+  --brand-border-light: rgba(21, 24, 33, 0.05);
+  --brand-stage: #ebe4d5;
+  --brand-input-bg: #fcfaf6;
+  --brand-input-border: rgba(21, 24, 33, 0.14);
+  --brand-user-bubble: #e5ddcd;
 }
 
 @theme inline {
@@ -29,6 +210,10 @@
   --color-brand-text-muted: var(--brand-text-muted);
   --color-brand-border: var(--brand-border);
   --color-brand-border-light: var(--brand-border-light);
+  --color-brand-stage: var(--brand-stage);
+  --color-brand-input-bg: var(--brand-input-bg);
+  --color-brand-input-border: var(--brand-input-border);
+  --color-brand-user-bubble: var(--brand-user-bubble);
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-playfair);
   --font-mono: var(--font-geist-mono);
@@ -46,6 +231,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Smooth Theme Transition (250-350ms restrained) ─────────────────── */
+body,
+header,
+footer,
+main,
+section,
+[data-brand] {
+  transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+}
+
 /* ── Smooth scrolling ─────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
@@ -58,23 +253,28 @@ html {
   color: #ede8df;
 }
 
-/* ── Custom Luxury Dark Scrollbar ─────────────────────────────────────── */
+[data-theme="light"] ::selection {
+  background-color: rgba(150, 120, 72, 0.25);
+  color: #1a1918;
+}
+
+/* ── Custom Luxury Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b0b0a;
+  background: var(--brand-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(237, 232, 223, 0.15);
+  background: var(--brand-border);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(183, 154, 100, 0.4);
+  background: var(--brand-accent);
 }
 
 /* ── Editorial Utility Classes ────────────────────────────────────────── */
@@ -110,11 +310,20 @@ html {
   background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.4) 80%);
 }
 
+[data-theme="light"] .image-stage {
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.7) 0%, rgba(220, 214, 203, 0.4) 100%);
+}
+
 /* Subtle atmospheric backdrop blur */
 .glass-panel {
   background: rgba(18, 18, 17, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--brand-border);
+}
+
+[data-theme="light"] .glass-panel {
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--brand-border);
 }
 

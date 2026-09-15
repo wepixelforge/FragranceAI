@@ -7,7 +7,7 @@ interface FooterProps {
 
 export default function Footer({ brand }: FooterProps) {
   return (
-    <footer className="border-t border-brand-border bg-[#0B0B0A] text-[#EDE8DF]">
+    <footer className="border-t border-brand-border bg-brand-surface text-brand-text">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
           {/* Brand Column */}

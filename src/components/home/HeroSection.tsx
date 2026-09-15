@@ -55,7 +55,7 @@ export default function HeroSection({ brand }: HeroSectionProps) {
   };
 
   return (
-    <section className="relative min-h-[82vh] lg:min-h-[88vh] flex items-center overflow-hidden bg-[#0B0B0A] border-b border-[rgba(237,232,223,0.06)] py-16 lg:py-24">
+    <section className="relative min-h-[82vh] lg:min-h-[88vh] flex items-center overflow-hidden bg-brand-bg border-b border-brand-border-light py-16 lg:py-24">
       {/* Subtle Atmospheric Light Stage */}
       <div className="absolute inset-0 pointer-events-none">
         <div
@@ -85,12 +85,12 @@ export default function HeroSection({ brand }: HeroSectionProps) {
             </div>
 
             {/* Confident Large Headline */}
-            <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-[#EDE8DF] leading-[1.08]">
+            <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-brand-text leading-[1.08]">
               {getHeroTitle()}
             </h1>
 
             {/* Poetic Subtitle */}
-            <p className="mt-6 text-sm sm:text-base lg:text-lg text-[#A0998F] max-w-xl font-light leading-relaxed">
+            <p className="mt-6 text-sm sm:text-base lg:text-lg text-brand-text-muted max-w-xl font-light leading-relaxed">
               {getHeroSubtitle()}
             </p>
 
@@ -98,22 +98,22 @@ export default function HeroSection({ brand }: HeroSectionProps) {
             <div className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
               <Link
                 href={`/${brand.slug}/finder`}
-                className="border border-[#B79A64] bg-[#B79A64] text-[#0B0B0A] hover:bg-transparent hover:text-[#EDE8DF] px-8 py-4 text-[11px] font-medium tracking-[0.22em] uppercase transition-all duration-300 text-center shadow-lg hover:shadow-[#B79A64]/10"
+                className="border border-brand-accent bg-brand-accent text-brand-primary-fg hover:bg-transparent hover:text-brand-text px-8 py-4 text-[11px] font-medium tracking-[0.22em] uppercase transition-all duration-300 text-center shadow-lg hover:shadow-brand-accent/10 cursor-pointer"
               >
                 Find My Fragrance
               </Link>
               <Link
                 href={`/${brand.slug}/shop`}
-                className="border border-[rgba(237,232,223,0.18)] hover:border-[#B79A64] text-[#EDE8DF] hover:text-[#B79A64] px-8 py-4 text-[11px] font-medium tracking-[0.22em] uppercase transition-all duration-300 text-center"
+                className="border border-brand-border hover:border-brand-accent text-brand-text hover:text-brand-accent px-8 py-4 text-[11px] font-medium tracking-[0.22em] uppercase transition-all duration-300 text-center"
               >
                 Explore Collection →
               </Link>
             </div>
 
             {/* Quiet Heritage Markers */}
-            <div className="mt-12 pt-8 border-t border-[rgba(237,232,223,0.08)] flex items-center gap-8 sm:gap-12">
+            <div className="mt-12 pt-8 border-t border-brand-border-light flex items-center gap-8 sm:gap-12">
               <div>
-                <span className="block font-serif text-xl sm:text-2xl text-[#EDE8DF] font-light">
+                <span className="block font-serif text-xl sm:text-2xl text-brand-text font-light">
                   {brand.designVariant === 'oriental-artisanal'
                     ? '100%'
                     : brand.designVariant === 'luxury-editorial'
@@ -122,7 +122,7 @@ export default function HeroSection({ brand }: HeroSectionProps) {
                     ? '10ml'
                     : '30%'}
                 </span>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-[#A0998F]">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-brand-text-muted">
                   {brand.designVariant === 'oriental-artisanal'
                     ? 'Pure Attar Oil'
                     : brand.designVariant === 'luxury-editorial'
@@ -132,21 +132,21 @@ export default function HeroSection({ brand }: HeroSectionProps) {
                     : 'Oil Strength'}
                 </span>
               </div>
-              <div className="h-8 w-px bg-[rgba(237,232,223,0.08)]" />
+              <div className="h-8 w-px bg-brand-border-light" />
               <div>
-                <span className="block font-serif text-xl sm:text-2xl text-[#EDE8DF] font-light">
+                <span className="block font-serif text-xl sm:text-2xl text-brand-text font-light">
                   {brand.designVariant === 'discovery-niche' ? '42°C' : '10-12h'}
                 </span>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-[#A0998F]">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-brand-text-muted">
                   {brand.designVariant === 'discovery-niche' ? 'Heat Resilience' : 'Endurance'}
                 </span>
               </div>
-              <div className="h-8 w-px bg-[rgba(237,232,223,0.08)]" />
+              <div className="h-8 w-px bg-brand-border-light" />
               <div>
-                <span className="block font-serif text-xl sm:text-2xl text-[#EDE8DF] font-light">
+                <span className="block font-serif text-xl sm:text-2xl text-brand-text font-light">
                   {brand.designVariant === 'discovery-niche' ? '₹149' : 'Private'}
                 </span>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-[#A0998F]">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-brand-text-muted">
                   {brand.designVariant === 'discovery-niche' ? 'Trials First' : 'Consultation'}
                 </span>
               </div>
@@ -158,7 +158,7 @@ export default function HeroSection({ brand }: HeroSectionProps) {
             <div className="lg:col-span-5 flex justify-center">
               <Link
                 href={`/${brand.slug}/product/${heroProduct.slug}`}
-                className="group relative w-full max-w-[360px] sm:max-w-[420px] aspect-[3/4] flex flex-col items-center justify-between p-8 rounded-none border border-[rgba(237,232,223,0.08)] bg-[#121211]/60 backdrop-blur-sm hover:border-[#B79A64]/40 transition-all duration-700 overflow-hidden"
+                className="group relative w-full max-w-[360px] sm:max-w-[420px] aspect-[3/4] flex flex-col items-center justify-between p-8 rounded-none border border-brand-border bg-brand-surface/70 backdrop-blur-sm hover:border-brand-accent/40 transition-all duration-700 overflow-hidden shadow-sm"
               >
                 {/* Subtle Radial Glow */}
                 <div
@@ -166,9 +166,9 @@ export default function HeroSection({ brand }: HeroSectionProps) {
                 />
 
                 {/* Top Badge */}
-                <div className="relative z-10 w-full flex justify-between items-center text-[10px] tracking-[0.2em] uppercase text-[#A0998F]">
+                <div className="relative z-10 w-full flex justify-between items-center text-[10px] tracking-[0.2em] uppercase text-brand-text-muted">
                   <span>Featured Blend</span>
-                  <span className="text-[#B79A64]">₹{heroProduct.price}</span>
+                  <span className="text-brand-accent">₹{heroProduct.price}</span>
                 </div>
 
                 {/* Hero Bottle Focal Point */}
@@ -177,14 +177,14 @@ export default function HeroSection({ brand }: HeroSectionProps) {
                 </div>
 
                 {/* Bottom Product Monograph */}
-                <div className="relative z-10 w-full text-center border-t border-[rgba(237,232,223,0.08)] pt-4">
-                  <h3 className="font-serif text-lg font-normal text-[#EDE8DF] tracking-wide group-hover:text-[#B79A64] transition-colors">
+                <div className="relative z-10 w-full text-center border-t border-brand-border-light pt-4">
+                  <h3 className="font-serif text-lg font-normal text-brand-text tracking-wide group-hover:text-brand-accent transition-colors">
                     {heroProduct.name}
                   </h3>
-                  <p className="text-[11px] text-[#A0998F] mt-1 capitalize font-light">
+                  <p className="text-[11px] text-brand-text-muted mt-1 capitalize font-light">
                     {heroProduct.fragranceFamily.slice(0, 2).join(' · ')} &mdash; {heroProduct.intensity} presence
                   </p>
-                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#B79A64] mt-2 block opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-brand-accent mt-2 block opacity-0 group-hover:opacity-100 transition-opacity">
                     Discover Details →
                   </span>
                 </div>

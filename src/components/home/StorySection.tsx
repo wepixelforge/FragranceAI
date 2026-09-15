@@ -72,7 +72,7 @@ export default function StorySection({ brand }: StorySectionProps) {
 
           {/* Right / Visual Monogram Seal Frame */}
           <div className="lg:col-span-5 flex justify-center">
-            <div className="relative w-full max-w-sm aspect-[4/5] rounded-2xl hairline-border bg-gradient-to-b from-[#161615] via-[#0E0E0D] to-[#0B0B0A] p-8 sm:p-10 flex flex-col items-center justify-between text-center shadow-2xl">
+            <div className="relative w-full max-w-sm aspect-[4/5] rounded-2xl hairline-border bg-gradient-to-b from-brand-surface via-brand-surface-hover to-brand-bg p-8 sm:p-10 flex flex-col items-center justify-between text-center shadow-2xl">
               <div className="w-full flex justify-between items-center text-[9px] uppercase tracking-widest text-brand-text-muted/60 font-mono">
                 <span>ESTABLISHED</span>
                 <span>AUTHENTIC</span>

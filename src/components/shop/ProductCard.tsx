@@ -34,17 +34,17 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
   return (
     <Link
       href={`/${brand.slug}/product/${product.slug}`}
-      className="group block relative flex flex-col h-full bg-[#121211] border border-[rgba(237,232,223,0.08)] hover:border-[#B79A64]/40 transition-all duration-500 overflow-hidden"
+      className="group block relative flex flex-col h-full bg-brand-surface border border-brand-border hover:border-brand-accent/40 transition-all duration-500 overflow-hidden shadow-xs"
     >
       {/* Product Image Stage */}
-      <div className="relative aspect-[3/4] overflow-hidden bg-[#0F0F0E] flex items-center justify-center p-6 sm:p-8">
+      <div className="relative aspect-[3/4] overflow-hidden bg-brand-stage flex items-center justify-center p-6 sm:p-8">
         {/* Soft Ambient Radial Underglow */}
         <div
           className="absolute inset-0 bg-gradient-to-b from-transparent via-white/[0.015] to-transparent pointer-events-none"
         />
 
         {/* Minimalist Olfactory Badge on Hover */}
-        <div className="absolute top-4 left-4 z-20 text-[9px] uppercase tracking-[0.22em] text-[#A0998F] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="absolute top-4 left-4 z-20 text-[9px] uppercase tracking-[0.22em] text-brand-text-muted opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           {product.intensity} presence
         </div>
 
@@ -55,38 +55,38 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
       </div>
 
       {/* Editorial Content Presentation */}
-      <div className="p-5 sm:p-6 flex-1 flex flex-col justify-between border-t border-[rgba(237,232,223,0.06)] bg-[#121211]">
+      <div className="p-5 sm:p-6 flex-1 flex flex-col justify-between border-t border-brand-border-light bg-brand-surface">
         <div>
           {/* Scent Family / Character */}
-          <span className="text-[10px] uppercase tracking-[0.22em] text-[#B79A64] font-medium block">
+          <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
             {product.fragranceFamily.slice(0, 2).join(' · ')}
           </span>
 
           {/* Product Title */}
-          <h3 className="font-serif text-lg sm:text-xl font-normal text-[#EDE8DF] group-hover:text-[#B79A64] transition-colors mt-1.5 leading-snug line-clamp-1">
+          <h3 className="font-serif text-lg sm:text-xl font-normal text-brand-text group-hover:text-brand-accent transition-colors mt-1.5 leading-snug line-clamp-1">
             {product.name}
           </h3>
 
           {/* Concise Poetic Descriptor */}
-          <p className="mt-2 text-xs text-[#A0998F] line-clamp-2 font-light leading-relaxed">
+          <p className="mt-2 text-xs text-brand-text-muted line-clamp-2 font-light leading-relaxed">
             {getDescriptor()}
           </p>
         </div>
 
         {/* Price & Action */}
-        <div className="mt-5 pt-4 border-t border-[rgba(237,232,223,0.06)] flex items-baseline justify-between">
+        <div className="mt-5 pt-4 border-t border-brand-border-light flex items-baseline justify-between">
           <div>
-            <span className="font-serif text-base text-[#EDE8DF] font-normal">
+            <span className="font-serif text-base text-brand-text font-normal">
               {formatPrice(product.price)}
             </span>
             {isDiscovery && (
-              <span className="text-[10px] text-[#A0998F] block mt-0.5 font-light">
+              <span className="text-[10px] text-brand-text-muted block mt-0.5 font-light">
                 10ml trial from ₹149
               </span>
             )}
           </div>
 
-          <span className="text-[10px] font-medium tracking-[0.2em] uppercase text-[#B79A64] group-hover:translate-x-0.5 transition-transform duration-300">
+          <span className="text-[10px] font-medium tracking-[0.2em] uppercase text-brand-accent group-hover:translate-x-0.5 transition-transform duration-300">
             {getCtaLabel()}
           </span>
         </div>

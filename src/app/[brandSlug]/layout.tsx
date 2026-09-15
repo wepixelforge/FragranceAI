@@ -28,8 +28,8 @@ export default async function BrandLayout({ children, params }: BrandLayoutProps
 
   return (
     <div
-      className="flex min-h-screen flex-col bg-brand-bg"
-      style={cssVars as React.CSSProperties}
+      data-brand={brand.slug}
+      className="flex min-h-screen flex-col bg-brand-bg text-brand-text"
     >
       <ScentFinderProvider brand={brand} products={products}>
         <Header brand={brand} />
