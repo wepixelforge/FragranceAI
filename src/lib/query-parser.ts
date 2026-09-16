@@ -221,6 +221,8 @@ export function parseQuery(raw: string): ParsedQuery {
     'cedar': 'woody',
     'oud': 'oud',
     'oudh': 'oud',
+    'oud-ish': 'oud',
+    'oudish': 'oud',
     'agarwood': 'oud',
     'floral': 'floral',
     'flowers': 'floral',
@@ -298,9 +300,11 @@ export function parseQuery(raw: string): ParsedQuery {
     query.includes('brother') ||
     query.includes('father') ||
     query.includes('dad') ||
-    query.includes('male')
+    query.includes('male') ||
+    /\b(manly|masculine|gentlemanly|mens)\b/i.test(query)
   ) {
     preferences.category = 'men';
+    preferences.gender = 'men';
   } else if (query.includes('unisex') || query.includes('gender neutral')) {
     preferences.category = 'unisex';
   }

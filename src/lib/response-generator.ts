@@ -425,6 +425,7 @@ CRITICAL RULES:
    - SHOW_ALTERNATIVES: Present the fresh alternatives provided in CANONICAL RANKED PRODUCTS. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
    - PARTIAL_MATCH:
       * Lead directly with the closest option (e.g. "The closest option is [Product].").
+      * This is a nearest-neighbour match when the exact family/category is not in the catalogue. Say that honestly in one clause, then why this scent is the closest (woody/resinous, masculine, etc.).
       * NEVER start with a negative database statement like "I couldn't find a fragrance that matches both..." or "I don't have...".
       * Ground your explanation in the trade-off provided: explain what it keeps/satisfies and what differs (e.g. "It keeps the refreshing character but offers moderate intensity rather than strong.").
       * Never call it "Best Match". Never claim characteristics the product lacks.

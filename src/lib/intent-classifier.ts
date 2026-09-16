@@ -118,6 +118,19 @@ export function normalizeIntent(raw: string): CanonicalIntent {
   }
 }
 
+export function extractGenderFromMessage(lower: string): 'men' | 'women' | null {
+  if (/\b(not\s+(?:too\s+|overly\s+)?(?:masculine|manly)|not\s+for\s+men)\b/i.test(lower)) {
+    return null;
+  }
+  if (/\b(manly|masculine|gentlemanly|for\s+men|for\s+him|\bmens\b)\b/i.test(lower)) {
+    return 'men';
+  }
+  if (/\b(feminine|for\s+women|for\s+her|\bwomens\b)\b/i.test(lower)) {
+    return 'women';
+  }
+  return null;
+}
+
 /**
  * Fuzzy search helper for product identification in catalogue.
  */
@@ -1110,6 +1123,16 @@ export function validateAndEnforcePolarity(
       res.style = 'sophisticated';
       if (!res.updates.some(u => u.field === 'style')) {
         res.updates.push({ field: 'style', operation: 'SET', value: 'sophisticated' });
+      }
+    }
+  }
+
+  if (!res.gender) {
+    const inferredGender = extractGenderFromMessage(lower);
+    if (inferredGender) {
+      res.gender = inferredGender;
+      if (!res.updates.some((u) => u.field === 'gender')) {
+        res.updates.push({ field: 'gender', operation: 'SET', value: inferredGender });
       }
     }
   }
@@ -2838,6 +2861,9 @@ export function fallbackIntentClassifier(
   if (warmth) updates.push({ field: 'warmth', operation: 'SET', value: warmth });
   if (warmthMax) updates.push({ field: 'warmthMax', operation: 'SET', value: warmthMax });
   if (freshness) updates.push({ field: 'freshness', operation: 'SET', value: freshness });
+  const gender = extractGenderFromMessage(lower);
+  if (gender) updates.push({ field: 'gender', operation: 'SET', value: gender });
+  const preferredNotes = families.includes('oud') ? ['oud'] : [];
 
   const isNew = !activeConsultationExists;
   const requestedChanges: string[] = [];
@@ -2853,7 +2879,7 @@ export function fallbackIntentClassifier(
     occasion,
     season,
     fragrance_families: families, // Strictly contains ONLY non-negated families!
-    preferred_notes: [],
+    preferred_notes: preferredNotes,
     excluded_notes: mustExcludeNotes,
     excluded_families: mustExcludeFamilies,
     intensity,
@@ -2864,13 +2890,16 @@ export function fallbackIntentClassifier(
     warmthMax,
     freshness,
     style,
+    gender,
     budget: { min: null, max: bMax },
     needs_recommendations: true,
     needs_clarification: false,
     preferences: {
       occasion,
       season,
+      gender,
       fragrance_families: families,
+      preferred_notes: preferredNotes,
       avoid_families: mustExcludeFamilies,
       avoid_notes: mustExcludeNotes,
       intensity,

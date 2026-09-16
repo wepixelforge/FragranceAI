@@ -10,6 +10,7 @@ import {
 } from '@/types/product';
 import { parseQuery } from './query-parser';
 import { enrichProduct } from './product-enricher';
+import { mlSimilarityScore } from './fragrance-similarity';
 
 /**
  * Score weights for deterministic soft ranking.
@@ -29,7 +30,51 @@ const WEIGHTS = {
   sweetness: 20,
   budgetComfortBonus: 10,
   relativeCheaperBonus: 25,
+  relatedFamily: 16,
+  relatedNote: 12,
+  masculineCharacter: 12,
+  mlSimilarity: 48,
 };
+
+/** Soft stand-ins when a requested family is missing from the catalogue. */
+const FAMILY_NEIGHBORS: Record<string, string[]> = {
+  oud: ['woody', 'oriental', 'spicy'],
+  woody: ['oud', 'spicy', 'oriental', 'musky'],
+  oriental: ['oud', 'woody', 'spicy'],
+  spicy: ['woody', 'oud', 'oriental'],
+  musky: ['woody', 'oriental'],
+  fresh: ['citrus', 'aquatic'],
+  citrus: ['fresh', 'aquatic'],
+  aquatic: ['fresh', 'citrus'],
+  floral: ['sweet', 'oriental'],
+  sweet: ['gourmand', 'floral', 'oriental'],
+  gourmand: ['sweet', 'oriental'],
+};
+
+function relatedFamiliesFor(requested: string[]): string[] {
+  const related = new Set<string>();
+  for (const fam of requested) {
+    for (const neighbor of FAMILY_NEIGHBORS[fam.toLowerCase()] || []) {
+      if (!requested.some((r) => r.toLowerCase() === neighbor)) {
+        related.add(neighbor);
+      }
+    }
+  }
+  return Array.from(related);
+}
+
+function productNoteHaystack(product: Product): string {
+  return [
+    ...product.topNotes,
+    ...product.heartNotes,
+    ...product.baseNotes,
+    ...product.tags,
+    product.name,
+    product.description,
+  ]
+    .join(' ')
+    .toLowerCase();
+}
 
 export interface RemovedCandidateDetail {
   id: string;
@@ -376,6 +421,14 @@ export function buildPartialMatchTradeOff(
     }
   }
 
+  if (preferences.gender === 'men' || preferences.category === 'men') {
+    if (product.gender === 'men' || product.gender === 'unisex') {
+      matchedPreferences.push('masculine wear');
+    } else {
+      unmetPreferences.push('masculine wear');
+    }
+  }
+
   // Deterministic trade-off text generation based on genuine contributions
   let tradeOff = '';
 
@@ -397,6 +450,9 @@ export function buildPartialMatchTradeOff(
     }
   } else if (requestedStrong && isControlledSillage) {
     tradeOff = `It delivers defined presence while staying refined and controlled rather than overpowering.`;
+  } else if (unmetPreferences.some((item) => item.includes('oud'))) {
+    const standIn = product.fragranceFamily.slice(0, 2).join(' and ') || 'woody';
+    tradeOff = `We don't have a true oud match in this collection, so ${product.name} is the closest stand-in with a ${standIn} character.`;
   } else if (unmetPreferences.length > 0) {
     const matchedSummary =
       matchedPreferences.length > 0
@@ -764,10 +820,12 @@ export function getRecommendations(
     return 0;
   });
 
-  // Candidate must have a positive score showing genuine affinity
+  // Prefer scored affinity, but never leave the shopper empty when hard-valid
+  // products exist — closest related families / gender still count.
   const viablePartial = scoredPartial.filter((r) => r.score > 0);
+  const closestPool = viablePartial.length > 0 ? viablePartial : scoredPartial;
 
-  if (viablePartial.length === 0) {
+  if (closestPool.length === 0) {
     const failedConstraints = [...excludedConstraints, ...appliedConstraints];
     if (requiresStrongWithControlledSillage) {
       failedConstraints.push('Strong intensity with controlled projection (not loud)');
@@ -809,15 +867,19 @@ export function getRecommendations(
   }
 
   // Pick the single closest product (topN = 1)
-  const closest = viablePartial[0];
+  const closest = closestPool[0];
   const tradeOffData = buildPartialMatchTradeOff(closest.product, preferences);
 
   closest.matchTier = 'Closest Match';
   closest.explanation = `${closest.product.name} is the closest match in this collection: ${tradeOffData.tradeOff}`;
-  closest.detailedReasons = [
-    { category: 'Profile', text: tradeOffData.tradeOff },
-    ...closest.detailedReasons.filter((d) => d.category !== 'Profile'),
-  ];
+  const mlPercent = mlSimilarityScore(closest.product, preferences).percent;
+  if (mlPercent > 0) {
+    closest.detailedReasons = [
+      { category: 'Profile', text: tradeOffData.tradeOff },
+      { category: 'Inspiration', text: `Nearest-neighbour match at ${mlPercent}% scent similarity.` },
+      ...closest.detailedReasons.filter((d) => d.category !== 'Profile' && d.category !== 'Inspiration'),
+    ];
+  }
 
   const partialCanonical: CanonicalRecommendationResult = {
     recommendation_id: `rec-${Date.now()}`,
@@ -878,6 +940,17 @@ function scoreProduct(product: Product, prefs: StructuredPreferences): Recommend
   const matchReasons: MatchReason[] = [];
   let score = 0;
 
+  const ml = mlSimilarityScore(product, prefs);
+  if (ml.percent >= 12) {
+    const mlPts = Math.round(ml.similarity * WEIGHTS.mlSimilarity);
+    score += mlPts;
+    matchReasons.push({
+      type: 'similar',
+      label: `Scent similarity ${ml.percent}%`,
+      score: mlPts,
+    });
+  }
+
   // 1. Fragrance Family Matching
   if (prefs.fragranceFamilies && prefs.fragranceFamilies.length > 0) {
     const matchedFamilies = prefs.fragranceFamilies.filter((f) =>
@@ -900,6 +973,31 @@ function scoreProduct(product: Product, prefs: StructuredPreferences): Recommend
           label: 'Combines multiple requested scent profiles',
           score: WEIGHTS.multiFamilyBonus,
         });
+      }
+    } else {
+      const related = relatedFamiliesFor(prefs.fragranceFamilies);
+      const matchedRelated = related.filter((f) =>
+        product.fragranceFamily.some((pf) => pf.toLowerCase() === f)
+      );
+      const haystack = productNoteHaystack(product);
+      const requestedHint = prefs.fragranceFamilies.some((fam) => haystack.includes(fam.toLowerCase()));
+      if (matchedRelated.length > 0 || requestedHint) {
+        score += WEIGHTS.relatedFamily;
+        matchReasons.push({
+          type: 'fragrance-family',
+          label: `Closest to ${prefs.fragranceFamilies.join(', ')} (${product.fragranceFamily.join(', ')})`,
+          score: WEIGHTS.relatedFamily,
+        });
+      }
+      if (prefs.fragranceFamilies.some((f) => f.toLowerCase() === 'oud')) {
+        if (haystack.match(/agarwood|oudh|incense|leather|sandalwood|amber/)) {
+          score += WEIGHTS.relatedNote;
+          matchReasons.push({
+            type: 'notes',
+            label: 'Warm woods and resins in an oud-like direction',
+            score: WEIGHTS.relatedNote,
+          });
+        }
       }
     }
   }
@@ -953,13 +1051,31 @@ function scoreProduct(product: Product, prefs: StructuredPreferences): Recommend
   }
 
   // 5. Gender Category Matching
-  if (prefs.gender) {
-    if (product.gender === prefs.gender || product.gender === 'unisex') {
+  const wantsMasculine =
+    prefs.gender === 'men' ||
+    prefs.category === 'men' ||
+    Boolean(prefs.vibes?.some((v) => /manly|masculine|gentleman/i.test(v)));
+  if (prefs.gender || prefs.category) {
+    const targetGender = prefs.gender || prefs.category;
+    if (product.gender === targetGender || product.gender === 'unisex') {
       score += WEIGHTS.gender;
       matchReasons.push({
         type: 'gender',
         label: `${product.gender === 'unisex' ? 'Versatile unisex' : product.gender} profile`,
         score: WEIGHTS.gender,
+      });
+    }
+  }
+  if (wantsMasculine) {
+    const masculineCue =
+      product.tags.some((t) => /masculine|gentleman|manly|woody|leather/i.test(t)) ||
+      product.fragranceFamily.some((f) => ['woody', 'oud', 'spicy', 'aromatic'].includes(f));
+    if (masculineCue) {
+      score += WEIGHTS.masculineCharacter;
+      matchReasons.push({
+        type: 'tag',
+        label: 'Masculine woody character',
+        score: WEIGHTS.masculineCharacter,
       });
     }
   }

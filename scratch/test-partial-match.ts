@@ -255,6 +255,28 @@ async function runPartialMatchTests() {
     assert('Test 13: Product info intent', s.intent === 'PRODUCT_INFO');
   }
 
+  // TEST 14: Missing family still suggests a closest masculine/woody stand-in
+  console.log('\n--- TEST 14: OUD-ISH + MANLY WITH NO OUD IN CATALOGUE ---');
+  {
+    const state = createInitialConversationState('tmperfumehouse');
+    const query = 'give me something oud-ish and manly';
+    const stage1 = await classifyIntentAndExtractPreferences(query, tmBrand, tmProducts, [], state);
+    const updatedState = updateConversationState(state, stage1, query);
+    const prefs = toStructuredPreferences(updatedState, query);
+    const noOudCatalogue = tmProducts.filter((p) => !p.fragranceFamily.includes('oud'));
+    const recs = getRecommendations(prefs, noOudCatalogue);
+
+    assert('Test 14: Intent is recommendation-like', stage1.intent === 'RECOMMENDATION' || stage1.needs_recommendations === true);
+    assert('Test 14: Oud family extracted', (stage1.fragrance_families || []).includes('oud') || (prefs.fragranceFamilies || []).includes('oud'));
+    assert('Test 14: Suggests at least one product', recs.results.length >= 1, `status=${recs.canonicalResult.status} count=${recs.results.length}`);
+    assert('Test 14: Not a hard failure', recs.hardConstraintFailed === false);
+    assert('Test 14: Partial or success status', recs.canonicalResult.status === 'PARTIAL_MATCH' || recs.canonicalResult.status === 'SUCCESS');
+    if (recs.results[0]) {
+      console.log('Closest stand-in:', recs.results[0].product.name, recs.results[0].product.fragranceFamily.join('/'));
+      console.log('Trade-off:', recs.tradeOff);
+    }
+  }
+
   console.log('\n================================================================');
   console.log(`📊 FINAL RESULTS: ${passed} / ${total} TESTS PASSED`);
   console.log('================================================================');
