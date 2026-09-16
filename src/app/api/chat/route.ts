@@ -35,6 +35,11 @@ import {
   buildRecommendationPresentation,
   previousProductsFromState,
 } from '@/lib/response-grounding';
+import {
+  loadLangChainSession,
+  sessionHistoryAsChat,
+  appendSessionTurn,
+} from '@/lib/langchain-session';
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,7 +48,9 @@ export async function POST(req: NextRequest) {
       message,
       brandSlug,
       conversationState,
-      history = [],
+      history: clientHistory = [],
+      sessionId,
+      resetSession = false,
       contextProductSlug,
       isAlternativeRequest = false,
     } = body;
@@ -64,7 +71,16 @@ export async function POST(req: NextRequest) {
     }
 
     const startTime = Date.now();
-    const activeState = conversationState || createInitialConversationState();
+    const langchainSession = await loadLangChainSession({
+      sessionId,
+      brandSlug,
+      incomingHistory: clientHistory,
+      incomingState: conversationState,
+      reset: resetSession,
+    });
+    const history = await sessionHistoryAsChat(langchainSession);
+    const activeState =
+      langchainSession.conversationState || conversationState || createInitialConversationState();
 
     // Context product seeding
     if (contextProductSlug && !activeState.shownProductIds?.includes(contextProductSlug)) {
@@ -754,12 +770,20 @@ export async function POST(req: NextRequest) {
       needsClarification: Boolean(stage1.needs_clarification || stage1.intent === 'CLARIFICATION'),
     });
 
+    await appendSessionTurn(
+      langchainSession,
+      cleanMessage,
+      sequentialMessages.join('\n') || reply,
+      updatedState
+    );
+
     const responsePayload: ChatApiResponse = {
       reply,
       messages: sequentialMessages,
       intent: stage1.intent,
       results: hasValidRecommendations ? recommendationResults : [],
       updatedState,
+      sessionId: langchainSession.id,
       needsRecommendations: hasValidRecommendations,
       suggestedChips: stage1.suggested_chips || undefined,
       cartAction: cartActionPayload,

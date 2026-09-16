@@ -8,6 +8,7 @@ import {
   Longevity,
   ParsedQuery,
 } from '@/types/product';
+import { resolveStyleFamilies } from './style-aliases';
 
 /**
  * Known reference designer / niche perfumes for deep inspiration matching.
@@ -257,6 +258,13 @@ export function parseQuery(raw: string): ParsedQuery {
     }
   }
   if (families.length > 0) preferences.fragranceFamilies = families;
+
+  const styleFamilies = resolveStyleFamilies(query);
+  if (styleFamilies.length > 0) {
+    preferences.fragranceFamilies = Array.from(
+      new Set([...(preferences.fragranceFamilies || []), ...styleFamilies])
+    ) as FragranceFamily[];
+  }
 
   // ── 5. Reference Perfumes Detection ───────────────────────────────────────
   const referencePerfumes: string[] = [];

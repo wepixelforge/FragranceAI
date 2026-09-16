@@ -155,6 +155,8 @@ export interface ChatApiRequest {
   brandSlug: string;
   conversationState?: ConversationState;
   history?: ChatMessage[];
+  sessionId?: string;
+  resetSession?: boolean;
   contextProductSlug?: string;
   isAlternativeRequest?: boolean;
   cart?: {
@@ -296,6 +298,7 @@ export interface ChatApiResponse {
   intent: UserIntent;
   results: RecommendationResult[];
   updatedState: ConversationState;
+  sessionId?: string;
   needsRecommendations: boolean;
   suggestedFollowUps?: string[];
   suggestedChips?: string[];

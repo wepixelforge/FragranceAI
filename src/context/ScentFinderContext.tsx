@@ -9,6 +9,14 @@ import { getBrandWelcomeMessage } from '@/lib/brand-utils';
 import { useCart } from './CartContext';
 import { serializeCartRequestPayload } from '@/lib/live-cart-context';
 
+function sessionStorageKey(brandSlug: string) {
+  return `fragrance-ai-session:${brandSlug}`;
+}
+
+function createBrowserSessionId() {
+  return `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export interface ConversationMessage {
   id: string;
   type: 'user' | 'assistant' | 'recommendations';
@@ -59,6 +67,9 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
   const [isCompactOpen, setIsCompactOpen] = useState(false);
   const [hasOpenedConsultant, setHasOpenedConsultant] = useState(false);
   const activeTimers = useRef<NodeJS.Timeout[]>([]);
+  const sessionIdRef = useRef(createBrowserSessionId());
+  const resetSessionRef = useRef(false);
+  const hydratedRef = useRef(false);
 
   // Cart integration — always read the live store at request time (never a stale sendMessage closure)
   const cart = useCart(brand.slug);
@@ -101,21 +112,62 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
     setIsCompactOpen(false);
   }, []);
 
-  // Keep track of brand to reset when brand changes
   const activeBrandSlug = useRef(brand.slug);
   useEffect(() => {
-    if (activeBrandSlug.current !== brand.slug) {
+    const brandChanged = activeBrandSlug.current !== brand.slug;
+    if (brandChanged) {
       activeBrandSlug.current = brand.slug;
       clearPendingTimers();
-      setMessages([]);
-      setConversationState(undefined);
-      setActivePreferences(null);
-      setLatestDebugInfo(null);
       setIsTyping(false);
-      setHasOpenedConsultant(false);
       setIsCompactOpen(false);
     }
+
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(sessionStorageKey(brand.slug));
+      if (!raw) {
+        sessionIdRef.current = createBrowserSessionId();
+        if (brandChanged) {
+          setMessages([]);
+          setConversationState(undefined);
+          setActivePreferences(null);
+          setLatestDebugInfo(null);
+          setHasOpenedConsultant(false);
+        }
+        return;
+      }
+      const saved = JSON.parse(raw) as {
+        sessionId?: string;
+        messages?: ConversationMessage[];
+        conversationState?: ConversationState;
+      };
+      if (saved.sessionId) sessionIdRef.current = saved.sessionId;
+      if (saved.conversationState) setConversationState(saved.conversationState);
+      if (saved.messages && saved.messages.length > 0) {
+        setMessages(saved.messages);
+        setHasOpenedConsultant(true);
+      }
+    } catch {
+      sessionIdRef.current = createBrowserSessionId();
+    }
+    hydratedRef.current = true;
   }, [brand.slug, clearPendingTimers]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hydratedRef.current) return;
+    try {
+      window.sessionStorage.setItem(
+        sessionStorageKey(brand.slug),
+        JSON.stringify({
+          sessionId: sessionIdRef.current,
+          messages,
+          conversationState,
+        })
+      );
+    } catch {
+      // Ignore quota / private mode failures
+    }
+  }, [brand.slug, messages, conversationState]);
 
   const resetConversation = useCallback(() => {
     clearPendingTimers();
@@ -125,6 +177,11 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
     setIsTyping(false);
     setMessages([createCanonicalWelcomeMessage(brand)]);
     setHasOpenedConsultant(false);
+    sessionIdRef.current = createBrowserSessionId();
+    resetSessionRef.current = true;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(sessionStorageKey(brand.slug));
+    }
   }, [brand, clearPendingTimers, createCanonicalWelcomeMessage]);
 
   const sendMessage = useCallback(
@@ -154,7 +211,7 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
         // Build history from current messages
         const historyPayload = messages
           .filter((m) => m.type === 'user' || m.type === 'assistant')
-          .slice(-6)
+          .slice(-24)
           .map((m) => ({
             role: m.type === 'user' ? ('user' as const) : ('assistant' as const),
             content: m.text || '',
@@ -178,6 +235,8 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
             brandSlug: brand.slug,
             conversationState,
             history: historyPayload,
+            sessionId: sessionIdRef.current,
+            resetSession: resetSessionRef.current,
             contextProductSlug,
             isAlternativeRequest,
             cart: cartPayload,
@@ -189,6 +248,10 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
         }
 
         const data: ChatApiResponse = await res.json();
+        resetSessionRef.current = false;
+        if (data.sessionId) {
+          sessionIdRef.current = data.sessionId;
+        }
 
         // If assistant executed a cart action, apply it to the client cart store
         if (data.cartAction) {

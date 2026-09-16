@@ -462,7 +462,7 @@ ${options.actionContext ? `\nSTRUCTURED APPLICATION CONTEXT & POLICIES:\n${JSON.
 
   const messagesPayload = [
     { role: 'system' as const, content: systemPrompt },
-    ...history.slice(-4).map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+    ...history.map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user' as const, content: message },
   ];
 

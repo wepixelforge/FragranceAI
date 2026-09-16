@@ -10,6 +10,7 @@ import {
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
 import { parseQuery } from './query-parser';
+import { resolveStyleFamilies, isKnownStyleWord, isAffirmativeReply } from './style-aliases';
 import {
   extractCartEntitiesWithGroq,
   extractCartProductReferences,
@@ -129,6 +130,30 @@ export function extractGenderFromMessage(lower: string): 'men' | 'women' | null 
     return 'women';
   }
   return null;
+}
+
+function buildStyleRecommendation(
+  families: string[],
+  currentState?: ConversationState
+): Stage1IntentOutput {
+  const unique = Array.from(new Set(families));
+  const active = hasActiveConsultation(currentState);
+  return {
+    intent: 'RECOMMENDATION',
+    request_type: active ? 'refinement' : 'new_consultation',
+    is_new_request: !active,
+    is_refinement: active,
+    fragrance_families: unique,
+    preferred_notes: unique.includes('oud') ? ['oud'] : [],
+    excluded_notes: [],
+    excluded_families: [],
+    warmth: unique.includes('oud') || unique.includes('oriental') ? 'warmer' : null,
+    needs_recommendations: true,
+    needs_clarification: false,
+    requires_product_data: true,
+    preferences: { fragrance_families: unique },
+    updates: [{ field: 'fragrance_families', operation: 'SET', value: unique }],
+  };
 }
 
 /**
@@ -493,6 +518,20 @@ export function detectAmbiguousDescriptor(
   if (/\b(aquatic|marine|ocean)\b/i.test(lower)) knownFamilies.push('aquatic');
   if (/\b(oud|agarwood)\b/i.test(lower)) knownFamilies.push('oud');
   if (/\b(musk|musky)\b/i.test(lower)) knownFamilies.push('musky');
+  if (/\b(oriental|amber|ambery)\b/i.test(lower)) knownFamilies.push('oriental');
+  resolveStyleFamilies(lower).forEach((family) => {
+    if (!knownFamilies.includes(family)) knownFamilies.push(family);
+  });
+
+  // Style language like "arabian" is a real scent direction — recommend, don't quiz.
+  if (resolveStyleFamilies(lower).length > 0) {
+    return null;
+  }
+
+  // Already asking a follow-up — never stack another clarification on "yes" / short replies.
+  if (state?.pendingClarification) {
+    return null;
+  }
 
   // Check specific known ambiguous terms
   const hasOff = /\b(off)\b/i.test(lower) && !/\b(take\s+off|turn\s+off|cut\s+off|knock\s+off|show\s+off)\b/i.test(lower);
@@ -602,9 +641,9 @@ export function detectAmbiguousDescriptor(
   if (discoveryMatch) {
     const word = discoveryMatch[1];
     const isKnownWord =
-      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger)\b/i.test(
+      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger|arabian|arabic|attar|bakhoor)\b/i.test(
         word
-      );
+      ) || isKnownStyleWord(word);
     if (!isKnownWord && word.length > 2) {
       return {
         term: word,
@@ -834,6 +873,35 @@ export function validateAndEnforcePolarity(
   }
   const clean = normalizeText(rawMessage);
   const lower = clean.toLowerCase();
+
+  const styleFamilies = resolveStyleFamilies(lower);
+  if (styleFamilies.length > 0) {
+    res.intent = 'RECOMMENDATION';
+    res.needs_clarification = false;
+    res.needs_recommendations = true;
+    res.requires_product_data = true;
+    res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), ...styleFamilies]));
+    if (!res.updates.some((u) => u.field === 'fragrance_families')) {
+      res.updates.push({ field: 'fragrance_families', operation: 'SET', value: res.fragrance_families });
+    }
+  }
+
+  if (currentState?.pendingClarification && (isAffirmativeReply(lower) || styleFamilies.length > 0)) {
+    const originalFamilies = resolveStyleFamilies(currentState.pendingClarification.originalQuery || '');
+    const families = Array.from(
+      new Set([
+        ...(res.fragrance_families || []),
+        ...styleFamilies,
+        ...(originalFamilies.length > 0 ? originalFamilies : ['oud', 'oriental', 'spicy']),
+      ])
+    );
+    res.intent = 'RECOMMENDATION';
+    res.needs_clarification = false;
+    res.needs_recommendations = true;
+    res.requires_product_data = true;
+    res.fragrance_families = families;
+    return res;
+  }
 
   // Check for ambiguous / unknown descriptors (UNKNOWN ≠ NO_MATCH)
   const ambig = detectAmbiguousDescriptor(clean, currentState);
@@ -1325,6 +1393,25 @@ export async function classifyIntentAndExtractPreferences(
     return result;
   }
 
+  const styleFamilies = resolveStyleFamilies(effectiveQuery);
+  if (styleFamilies.length > 0) {
+    const rec = buildStyleRecommendation(styleFamilies, currentState);
+    rec.requires_product_data = true;
+    return rec;
+  }
+
+  if (currentState?.pendingClarification) {
+    const originalFamilies = resolveStyleFamilies(currentState.pendingClarification.originalQuery || '');
+    if (isAffirmativeReply(effectiveQuery) || originalFamilies.length > 0 && isAffirmativeReply(effectiveQuery)) {
+      const rec = buildStyleRecommendation(
+        originalFamilies.length > 0 ? originalFamilies : ['oud', 'oriental', 'spicy'],
+        currentState
+      );
+      rec.requires_product_data = true;
+      return rec;
+    }
+  }
+
   // 1. Try Groq Stage 1
   const groqResult = await callGroqStage1(effectiveQuery, brand, products, history, currentState);
   if (groqResult) {
@@ -1502,11 +1589,14 @@ CRITICAL RULES:
      -> intent: "GENERAL_CONVERSATION", needs_recommendations: false.
 
    CLARIFICATION — AMBIGUOUS, VAGUE, OR UNKNOWN LANGUAGE:
-   When the user's primary preference uses ambiguous, vague, subjective terminology (e.g. "melty", "off", "weird", "sexy", "addictive"):
+   When the user's primary preference uses truly vague terminology (e.g. "melty", "off", "weird"):
    - DO NOT guess or silently map (e.g. do NOT map "melty" to sweet).
    - DO NOT classify as OUT_OF_SCOPE.
    - Set: intent: "CLARIFICATION", needs_clarification: true, needs_recommendations: false.
-   - Provide clarification_question (e.g. "When you say 'melty', what kind of feeling do you mean?") and clarification_reason.
+   - Provide clarification_question and clarification_reason.
+   NEVER use CLARIFICATION for recognized style language. Map immediately and recommend:
+   - "arabian" / "arabic" / "middle eastern" / "attar" / "bakhoor" / "oriental" -> fragrance_families: ["oud","oriental","spicy"], intent: "RECOMMENDATION", needs_recommendations: true.
+   If a clarification was already asked and the user replies "yes", "sure", "ok", or picks one of the options, do NOT ask again. Set intent "RECOMMENDATION" and recommend using the original request (for Arabian: oud / oriental / spicy).
 
 Active Consultation: ${JSON.stringify(currentState?.activeRequest || currentState?.currentConsultation || {})}
 Background Preferences: ${JSON.stringify(currentState?.backgroundContext || currentState?.backgroundPreferences || {})}
@@ -1516,7 +1606,7 @@ Return ONLY valid JSON matching the schema.`;
 
   const messagesPayload = [
     { role: 'system' as const, content: systemPrompt },
-    ...history.slice(-4).map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+    ...history.map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user' as const, content: message },
   ];
 
@@ -1742,13 +1832,14 @@ export function fallbackIntentClassifier(
   // 0a. CLARIFICATION FOLLOW-UP (Resolving pending clarification)
   if (currentState?.pendingClarification) {
     const isClarificationAnswer =
-      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean)\b/i.test(lower) ||
+      isAffirmativeReply(lower) ||
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|oud|oriental|amber|arabian|arabic)\b/i.test(lower) ||
       lower.startsWith('something ') ||
       lower.startsWith('i mean ') ||
       lower.startsWith('more of ');
 
     if (isClarificationAnswer) {
-      const fams: string[] = [];
+      const fams: string[] = [...resolveStyleFamilies(lower), ...resolveStyleFamilies(currentState.pendingClarification.originalQuery || '')];
       const updates: PreferenceUpdateItem[] = [];
       let warmthVal: 'warmer' | null = null;
       let sweetnessVal: 'sweeter' | null = null;
@@ -1770,6 +1861,11 @@ export function fallbackIntentClassifier(
       if (/\b(woody|cedar|sandalwood)\b/i.test(lower)) {
         fams.push('woody');
         updates.push({ field: 'fragrance_families', operation: 'SET', value: ['woody'] });
+      }
+      if (/\b(oud|oriental|amber|arabian|arabic|spicy)\b/i.test(lower) || isAffirmativeReply(lower)) {
+        if (fams.length === 0) {
+          fams.push('oud', 'oriental', 'spicy');
+        }
       }
 
       const prevFams = currentState.activeRequest?.families || [];
@@ -2739,6 +2835,9 @@ export function fallbackIntentClassifier(
   if (sweetPol.isPositive) families.push('sweet');
   if (oudPol.isPositive) families.push('oud');
   if (muskPol.isPositive) families.push('musky');
+  resolveStyleFamilies(lower).forEach((family) => {
+    if (!families.includes(family)) families.push(family);
+  });
 
   let occasion: string | null = null;
   if (/\b(going\s+out\s+with\s+someone|going\s+out|date|date\s+night|romantic)\b/i.test(lower)) occasion = 'date-night';
