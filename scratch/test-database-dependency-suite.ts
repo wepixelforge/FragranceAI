@@ -126,12 +126,13 @@ async function runTests() {
     const t5 = await sendChat('what is the capital of France?');
     record(
       t5.results.length === 0 &&
-      t5.reply.toLowerCase().includes('paris') &&
+      !t5.reply.toLowerCase().includes('paris') &&
+      (t5.reply.toLowerCase().includes('perfume') || t5.reply.toLowerCase().includes('fragrance')) &&
       !t5.reply.toLowerCase().includes('database') &&
       t5.debugInfo?.requiresProductData === false &&
       t5.debugInfo?.productRetrievalStatus === 'SKIPPED',
       5,
-      'OUT_OF_SCOPE ("what is the capital of France?") bypasses product retrieval',
+      'OUT_OF_SCOPE ("what is the capital of France?") bypasses product retrieval and politely refuses without answering',
       `reply="${t5.reply.slice(0, 60)}", retrieval=${t5.debugInfo?.productRetrievalStatus}`
     );
 

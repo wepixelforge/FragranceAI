@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BrandConfig } from '@/types/brand';
 import { Product } from '@/types/product';
-import { formatPrice } from '@/lib/brand-utils';
+import { formatPrice, getBrandWelcomeMessage } from '@/lib/brand-utils';
 import BottleVisual from '@/components/shop/BottleVisual';
 import { useScentFinder } from '@/context/ScentFinderContext';
 
@@ -20,7 +20,9 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
     messages,
     isTyping,
     isCompactOpen: isOpen,
-    setIsCompactOpen: setIsOpen,
+    hasOpenedConsultant,
+    openConsultant,
+    closeConsultant,
     sendMessage,
     resetConversation,
   } = useScentFinder();
@@ -41,24 +43,19 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
     }
   }, [isOpen, messages, isTyping]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        closeConsultant();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, closeConsultant]);
+
   if (isDedicatedFinderPage) {
     return null;
   }
-
-  const getPillLabel = () => {
-    switch (brand.slug) {
-      case 'tmperfumehouse':
-        return '✦ Scent Concierge (380+ Scents)';
-      case 'almaham':
-        return '✦ Atelier Sommelier';
-      case 'worldofperfumers':
-        return '✦ Scent Lab · 10ml Trials';
-      case 'arabianaroma':
-        return '✦ Attar Advisor';
-      default:
-        return '✦ Scent Concierge';
-    }
-  };
 
   const handleSend = (queryText: string) => {
     const trimmed = queryText.trim();
@@ -100,12 +97,12 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
               <Link
                 href={`/${brand.slug}/finder`}
                 className="text-[10px] tracking-[0.18em] uppercase text-brand-accent hover:underline px-2 py-1"
-                onClick={() => setIsOpen(false)}
+                onClick={closeConsultant}
               >
                 Full Studio ↗
               </Link>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={closeConsultant}
                 className="h-6 w-6 flex items-center justify-center text-brand-text-muted hover:text-brand-text text-xs cursor-pointer ml-1"
                 aria-label="Close"
               >
@@ -203,7 +200,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
                               <Link
                                 href={`/${brand.slug}/product/${r.product.slug}`}
                                 className="text-[10px] uppercase tracking-[0.15em] text-brand-accent hover:underline"
-                                onClick={() => setIsOpen(false)}
+                                onClick={closeConsultant}
                               >
                                 View →
                               </Link>
@@ -256,15 +253,71 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
         </div>
       )}
 
-      {/* Collapsed Minimalist Luxury Pill */}
-      <button
-        onClick={() => setIsOpen((prev: boolean) => !prev)}
-        className="pointer-events-auto group border border-brand-accent/40 bg-brand-bg/95 backdrop-blur-md px-5 py-3 text-[11px] font-medium tracking-[0.22em] uppercase text-brand-text shadow-2xl hover:border-brand-accent hover:bg-brand-surface transition-all duration-300 flex items-center gap-2.5 cursor-pointer"
-        aria-label="Open Scent Concierge"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-accent" />
-        <span>{getPillLabel()}</span>
-      </button>
+      {/* Floating Circular Assistant & Attached Speech Bubble */}
+      {!isOpen && (
+        <div className="pointer-events-auto flex items-center gap-3 sm:gap-3.5 select-none animate-fade-in">
+          {/* Speech Bubble */}
+          {!hasOpenedConsultant && !messages.some((m) => m.type === 'user') && (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openConsultant}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openConsultant();
+                }
+              }}
+              aria-label="Open fragrance consultant"
+              className="group relative cursor-pointer border border-brand-border bg-brand-surface/95 backdrop-blur-md px-4 py-2.5 sm:px-5 sm:py-3.5 rounded-2xl sm:rounded-[20px] shadow-[0_4px_24px_rgba(0,0,0,0.18)] hover:border-brand-accent/60 hover:shadow-[0_6px_28px_rgba(0,0,0,0.25)] transition-all duration-300 max-w-[210px] sm:max-w-[270px] text-left"
+            >
+              {/* Small Triangle Pointer towards circle */}
+              <div
+                aria-hidden="true"
+                className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 border-t border-r border-brand-border bg-brand-surface group-hover:border-brand-accent/60 transition-colors"
+              />
+
+              <p className="relative z-10 text-[12px] sm:text-[13px] font-sans text-brand-text leading-snug tracking-wide font-normal">
+                {getBrandWelcomeMessage(brand)}
+              </p>
+            </div>
+          )}
+
+          {/* Circular Assistant Avatar Button */}
+          <button
+            type="button"
+            onClick={openConsultant}
+            aria-label="Open fragrance consultant"
+            className="relative group cursor-pointer w-14 h-14 sm:w-16 sm:h-16 md:w-[70px] md:h-[70px] rounded-full p-[3px] bg-gradient-to-br from-brand-accent/60 via-brand-border to-brand-accent/30 hover:from-brand-accent hover:via-brand-accent/70 hover:to-brand-accent/50 shadow-[0_4px_24px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_32px_rgba(183,154,100,0.35)] transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent"
+          >
+            {/* Inner Circular Image Container */}
+            <div className="w-full h-full rounded-full overflow-hidden bg-brand-stage relative flex items-center justify-center border border-black/40">
+              <img
+                src="/images/concierge-avatar.jpg"
+                alt={brand.finder?.assistantName || 'Fragrance Assistant'}
+                className="w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-110"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              {/* Fallback Icon if image fails */}
+              <div className="absolute inset-0 flex items-center justify-center text-brand-accent font-serif text-lg pointer-events-none -z-10">
+                ✦
+              </div>
+            </div>
+
+            {/* Subtle Notification Badge: Gold circle with "1" */}
+            {!hasOpenedConsultant && !messages.some((m) => m.type === 'user') && (
+              <div
+                aria-label="1 unread notification"
+                className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full bg-brand-accent text-brand-primary-fg font-sans font-semibold text-[10px] sm:text-[11px] flex items-center justify-center shadow-md border-2 border-brand-bg transition-transform duration-300 group-hover:scale-110"
+              >
+                1
+              </div>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

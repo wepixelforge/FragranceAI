@@ -234,9 +234,10 @@ async function runTestSuite() {
     record(
       (t14.intent === 'OUT_OF_SCOPE' || t14.intent === 'unsupported_request') &&
       t14.results.length === 0 &&
-      t14.reply.toLowerCase().includes('paris'),
+      !t14.reply.toLowerCase().includes('paris') &&
+      (t14.reply.toLowerCase().includes('perfume') || t14.reply.toLowerCase().includes('fragrance')),
       14,
-      'OUT_OF_SCOPE handled concisely with no product recommendations',
+      'OUT_OF_SCOPE handled concisely with no product recommendations and no unrelated answer',
       `intent=${t14.intent}, reply=${t14.reply.slice(0, 50)}`
     );
 

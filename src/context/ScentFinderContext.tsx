@@ -5,6 +5,9 @@ import { BrandConfig } from '@/types/brand';
 import { Product, RecommendationResult, StructuredPreferences } from '@/types/product';
 import { ConversationState, ChatApiResponse, ConsultationDebugInfo } from '@/types/chat';
 import { toStructuredPreferences } from '@/lib/state-manager';
+import { getBrandWelcomeMessage } from '@/lib/brand-utils';
+import { useCart } from './CartContext';
+import { serializeCartRequestPayload } from '@/lib/live-cart-context';
 
 export interface ConversationMessage {
   id: string;
@@ -27,6 +30,10 @@ export interface ScentFinderContextValue {
   isTyping: boolean;
   isCompactOpen: boolean;
   setIsCompactOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  hasOpenedConsultant: boolean;
+  setHasOpenedConsultant: React.Dispatch<React.SetStateAction<boolean>>;
+  openConsultant: () => void;
+  closeConsultant: () => void;
   sendMessage: (
     rawText: string,
     isAlternativeRequest?: boolean,
@@ -50,7 +57,13 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
   const [latestDebugInfo, setLatestDebugInfo] = useState<ConsultationDebugInfo | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isCompactOpen, setIsCompactOpen] = useState(false);
+  const [hasOpenedConsultant, setHasOpenedConsultant] = useState(false);
   const activeTimers = useRef<NodeJS.Timeout[]>([]);
+
+  // Cart integration — always read the live store at request time (never a stale sendMessage closure)
+  const cart = useCart(brand.slug);
+  const liveCartRef = useRef(cart);
+  liveCartRef.current = cart;
 
   const clearPendingTimers = useCallback(() => {
     activeTimers.current.forEach((t) => clearTimeout(t));
@@ -61,6 +74,32 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
   useEffect(() => {
     return () => clearPendingTimers();
   }, [clearPendingTimers]);
+
+  const createCanonicalWelcomeMessage = useCallback(
+    (brandConfig: BrandConfig): ConversationMessage => {
+      return {
+        id: `welcome-${brandConfig.slug}`,
+        type: 'assistant',
+        text: getBrandWelcomeMessage(brandConfig),
+        suggestedChips: brandConfig.finder?.examplePrompts?.slice(0, 3) || [],
+        timestamp: new Date(),
+      };
+    },
+    []
+  );
+
+  const openConsultant = useCallback(() => {
+    setHasOpenedConsultant(true);
+    setIsCompactOpen(true);
+    setMessages((prev) => {
+      if (prev.length > 0) return prev;
+      return [createCanonicalWelcomeMessage(brand)];
+    });
+  }, [brand, createCanonicalWelcomeMessage]);
+
+  const closeConsultant = useCallback(() => {
+    setIsCompactOpen(false);
+  }, []);
 
   // Keep track of brand to reset when brand changes
   const activeBrandSlug = useRef(brand.slug);
@@ -73,20 +112,27 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
       setActivePreferences(null);
       setLatestDebugInfo(null);
       setIsTyping(false);
+      setHasOpenedConsultant(false);
+      setIsCompactOpen(false);
     }
   }, [brand.slug, clearPendingTimers]);
 
   const resetConversation = useCallback(() => {
     clearPendingTimers();
-    setMessages([]);
     setConversationState(undefined);
     setActivePreferences(null);
     setLatestDebugInfo(null);
     setIsTyping(false);
-  }, [clearPendingTimers]);
+    setMessages([createCanonicalWelcomeMessage(brand)]);
+    setHasOpenedConsultant(false);
+  }, [brand, clearPendingTimers, createCanonicalWelcomeMessage]);
 
   const sendMessage = useCallback(
-    async (rawText: string, isAlternativeRequest = false, contextProductSlug?: string) => {
+    async (
+      rawText: string,
+      isAlternativeRequest = false,
+      contextProductSlug?: string
+    ) => {
       const trimmed = rawText.trim();
       if (!trimmed || isTyping) return;
 
@@ -114,6 +160,16 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
             content: m.text || '',
           }));
 
+        const liveCart = liveCartRef.current;
+        const cartPayload = serializeCartRequestPayload(
+          brand.slug,
+          liveCart.getBrandItems(brand.slug).map((item) => ({
+            productId: item.productId,
+            brandSlug: item.brandSlug || brand.slug,
+            quantity: item.quantity,
+          }))
+        );
+
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -124,6 +180,7 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
             history: historyPayload,
             contextProductSlug,
             isAlternativeRequest,
+            cart: cartPayload,
           }),
         });
 
@@ -132,6 +189,31 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
         }
 
         const data: ChatApiResponse = await res.json();
+
+        // If assistant executed a cart action, apply it to the client cart store
+        if (data.cartAction) {
+          const actionItems =
+            data.cartAction.items && data.cartAction.items.length > 0
+              ? data.cartAction.items
+              : data.cartAction.productId
+                ? [
+                    {
+                      productId: data.cartAction.productId,
+                      brandSlug: data.cartAction.brandSlug || brand.slug,
+                      quantity: data.cartAction.quantity || 1,
+                    },
+                  ]
+                : [];
+          if (data.cartAction.action === 'ADD_TO_CART') {
+            for (const item of actionItems) {
+              liveCartRef.current.addItem(item.productId, item.brandSlug || brand.slug, item.quantity || 1);
+            }
+          } else if (data.cartAction.action === 'REMOVE_FROM_CART') {
+            for (const item of actionItems) {
+              liveCartRef.current.removeItem(item.productId, item.brandSlug || brand.slug);
+            }
+          }
+        }
 
         // Update accumulated conversation state & structured preferences
         setConversationState(data.updatedState);
@@ -235,6 +317,10 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
         isTyping,
         isCompactOpen,
         setIsCompactOpen,
+        hasOpenedConsultant,
+        setHasOpenedConsultant,
+        openConsultant,
+        closeConsultant,
         sendMessage,
         resetConversation,
       }}

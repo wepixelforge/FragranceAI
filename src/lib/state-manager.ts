@@ -131,6 +131,8 @@ export function createInitialConversationState(): ConversationState {
     backgroundContext,
     shownProductIds: [],
     lastRecommendationIds: [],
+    lastCanonicalProductSet: [],
+    lastDiscussedProductSet: [],
     currentConsultation,
     backgroundPreferences,
     preferences: buildUnifiedPreferences(currentConsultation, backgroundPreferences),
@@ -204,6 +206,18 @@ export function updateConversationState(
         ambiguousTerm: stage1.ambiguous_term || undefined,
         question: stage1.clarification_question || undefined,
       },
+    };
+  }
+
+  // 1c. OUT OF SCOPE, PURCHASE ASSISTANCE & CART ASSISTANCE — PRESERVE ACTIVE CONSULTATION UNTOUCHED
+  if (
+    stage1.intent === 'OUT_OF_SCOPE' ||
+    stage1.intent === 'PURCHASE_ASSISTANCE' ||
+    stage1.intent === 'CART_ASSISTANCE'
+  ) {
+    return {
+      ...base,
+      turnCount: (base.turnCount || 0) + 1,
     };
   }
 
@@ -745,6 +759,8 @@ export function updateConversationState(
     backgroundContext,
     shownProductIds: updatedShown,
     lastRecommendationIds: isNewConsultation ? [] : (base.lastRecommendationIds || []),
+    lastCanonicalProductSet: isNewConsultation ? [] : (base.lastCanonicalProductSet || []),
+    lastDiscussedProductSet: isNewConsultation ? [] : (base.lastDiscussedProductSet || []),
     currentConsultation,
     backgroundPreferences,
     preferences: buildUnifiedPreferences(currentConsultation, backgroundPreferences, stage1.target_product_names),

@@ -49,6 +49,7 @@ export const almaham: BrandConfig = {
     subtitle: 'Share an evocative mood, a black-tie setting, or a hybrid concept combining scents you love. We will curate the few that truly matter.',
     assistantName: 'Al-Maham Fragrance Consultant',
     assistantTitle: 'Private Atelier Sommelier',
+    welcomeMessage: 'Let me help you discover your next signature fragrance.',
     examplePrompts: [
       'I want something dark, mysterious, and commanding for an evening gala',
       'An inspired expression of Roja Elysium with crisp citrus and cedar',

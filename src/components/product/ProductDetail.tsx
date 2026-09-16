@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
+import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/brand-utils';
 import BottleVisual from '@/components/shop/BottleVisual';
 import ProductCard from '@/components/shop/ProductCard';
@@ -15,8 +17,11 @@ interface ProductDetailProps {
 }
 
 export default function ProductDetail({ product, brand, similarProducts }: ProductDetailProps) {
-  const [addedToCollection, setAddedToCollection] = useState(false);
+  const router = useRouter();
+  const { isInCart, addItem } = useCart(brand.slug);
   const [selectedFormat, setSelectedFormat] = useState<'standard' | 'trial'>('standard');
+
+  const inCart = isInCart(product.id, brand.slug);
 
   const isOriental = brand.designVariant === 'oriental-artisanal';
   const isLuxury = brand.designVariant === 'luxury-editorial';
@@ -211,12 +216,17 @@ export default function ProductDetail({ product, brand, similarProducts }: Produ
               {/* Primary Action Button */}
               <div className="mt-8 space-y-3">
                 <button
-                  onClick={() => setAddedToCollection(true)}
-                  disabled={addedToCollection}
-                  className="w-full border border-brand-accent bg-brand-accent text-brand-primary-fg hover:bg-transparent hover:text-brand-text py-4 text-xs font-medium tracking-[0.22em] uppercase transition-all duration-300 disabled:opacity-50 cursor-pointer shadow-lg"
+                  onClick={() => {
+                    if (inCart) {
+                      router.push(`/${brand.slug}/cart`);
+                    } else {
+                      addItem(product.id, brand.slug);
+                    }
+                  }}
+                  className="w-full border border-brand-accent bg-brand-accent text-brand-primary-fg hover:bg-transparent hover:text-brand-text py-4 text-xs font-medium tracking-[0.22em] uppercase transition-all duration-300 cursor-pointer shadow-lg"
                 >
-                  {addedToCollection
-                    ? '✓ Added to Allocation'
+                  {inCart
+                    ? 'GO TO CART →'
                     : isDiscovery && selectedFormat === 'trial'
                     ? 'Acquire 10ml Pocket Trial (₹149)'
                     : 'Acquire Full Bottle'}

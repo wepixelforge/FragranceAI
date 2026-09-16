@@ -49,6 +49,7 @@ export const arabianaroma: BrandConfig = {
     subtitle: 'Looking for a traditional oud, an alcohol-free daily roll-on, or an opulent evening amber? Describe the feeling you want to evoke.',
     assistantName: 'Arabian Aroma Scent Advisor',
     assistantTitle: 'Traditional Attar & Oriental Scent Advisor',
+    welcomeMessage: 'Hi, let me help you find your signature attar.',
     examplePrompts: [
       'Something warm and elegant for a special evening',
       'Fresh and alcohol-free for everyday office wear',

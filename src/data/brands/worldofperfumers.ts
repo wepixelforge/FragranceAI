@@ -49,6 +49,7 @@ export const worldofperfumers: BrandConfig = {
     subtitle: "Tell us what you usually wear or the vibe you're in the mood for. We'll recommend 3 formulas you can test in 10ml pocket sprays before committing to a full bottle.",
     assistantName: 'WOP Scent Guide',
     assistantTitle: 'Discovery & Trial Consultant',
+    welcomeMessage: 'Looking for a scent? I can help you explore.',
     examplePrompts: [
       'I usually wear fresh perfumes for college & daily commute',
       'Recommend 3 fragrances I should test in a 10ml trial set',

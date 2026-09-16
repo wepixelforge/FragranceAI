@@ -10,6 +10,15 @@ import {
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
 import { parseQuery } from './query-parser';
+import {
+  extractCartEntitiesWithGroq,
+  extractCartProductReferences,
+  inferCartActionType,
+  isExplicitCartActionQuery,
+  emptyCartStage1,
+  normalizeProductReferencesList,
+  findNamedProductsInText,
+} from './cart-action-resolver';
 
 /**
  * Normalizes any string intent to the CanonicalIntent enum.
@@ -79,7 +88,31 @@ export function normalizeIntent(raw: string): CanonicalIntent {
     case 'PURCHASE_ASSISTANCE':
     case 'PURCHASE_HESITATION':
     case 'BUYING_HELP':
+    case 'purchase_intent':
+    case 'PURCHASE_QUESTION':
+    case 'HOW_TO_BUY':
       return 'PURCHASE_ASSISTANCE';
+    case 'CART_ASSISTANCE':
+    case 'CART_ACTION':
+    case 'cart_action':
+    case 'ADD_TO_CART':
+    case 'REMOVE_FROM_CART':
+    case 'VIEW_CART':
+      return 'CART_ASSISTANCE';
+    case 'FRAGRANCE_DISCOVERY':
+      return 'RECOMMENDATION';
+    case 'FRAGRANCE_REFINEMENT':
+      return 'REFINE_RECOMMENDATION';
+    case 'PRODUCT_INFORMATION':
+      return 'PRODUCT_INFO';
+    case 'PRODUCT_COMPARISON':
+      return 'COMPARE_PRODUCTS';
+    case 'ALTERNATIVES':
+      return 'SHOW_ALTERNATIVES';
+    case 'WEBSITE_ASSISTANCE':
+      return 'BRAND_CONVERSATION';
+    case 'COMPETITOR_DISCUSSION':
+      return 'CUSTOMER_OBJECTION';
     default:
       return 'RECOMMENDATION';
   }
@@ -258,6 +291,7 @@ export function doesIntentRequireProducts(
     case 'GENERAL_CONVERSATION':
     case 'BRAND_CONVERSATION':
     case 'PURCHASE_ASSISTANCE':
+    case 'CART_ASSISTANCE':
       return false;
 
     case 'CUSTOMER_OBJECTION':
@@ -568,6 +602,208 @@ export function detectAmbiguousDescriptor(
   }
 
   return null;
+}
+
+export interface ScopeAnalysisResult {
+  isPureOutOfScope: boolean;
+  isMixedIntent: boolean;
+  isFragranceRelated: boolean;
+  fragranceQuery: string;
+  outOfScopeQuery: string;
+  detectedSignals: string[];
+}
+
+export const OUT_OF_SCOPE_PATTERNS: RegExp[] = [
+  // Geography, capitals, continents, countries
+  /\b(capital\s+of|population\s+of|continent\s+of|where\s+is\s+(?:bhutan|france|india|japan|germany|canada|brazil|egypt|china|australia|italy|spain|russia|usa|uk|america|london|paris|tokyo|delhi))\b/i,
+  /\b(what\s+(?:is|was)\s+the\s+capital|tell\s+me\s+the\s+capital)\b/i,
+  // Mathematics & calculations
+  /\b(solve\s+(?:this\s+)?(?:math|equation|problem)|calculate|square\s+root|derivative\s+of|integral\s+of)\b/i,
+  /\b\d+\s*[\+\-\*\/×÷]\s*\d+\b/,
+  // Coding, programming & IT
+  /\b(write\s+(?:me\s+)?(?:a\s+)?(?:python|javascript|typescript|java|c\+\+|code|script|program|function|regex|sql|html|css)|sort\s+a\s+list|debug\s+(?:this|my\s+code)|parse\s+(?:csv|json|xml)|coding|programming)\b/i,
+  // Politics & world leaders
+  /\b(president\s+of|prime\s+minister\s+of|who\s+(?:is|was)\s+(?:the\s+)?(?:president|prime\s+minister|king|queen|governor|mayor)|who\s+won\s+the\s+election)\b/i,
+  // General trivia & science
+  /\b(who\s+(?:invented|discovered|painted|built)|quantum\s+physics|theory\s+of\s+relativity|speed\s+of\s+light|photosynthesis|distance\s+to\s+the\s+moon|how\s+far\s+is\s+the\s+sun)\b/i,
+  /\b(what\s+(?:is|are)\s+(?:the\s+)?(?:tallest|biggest|fastest|longest|deepest)\s+(?:mountain|river|ocean|animal|building|planet))\b/i,
+  // Weather & forecasting
+  /\b(weather\s+today|what(?:'s|\s+is)\s+the\s+weather|forecast\s+for|temperature\s+in|will\s+it\s+rain)\b/i,
+  // News & current events
+  /\b(in\s+today(?:'s)?\s+news|what\s+happened\s+in\s+(?:the\s+)?news|breaking\s+news|current\s+events)\b/i,
+  // Humor, creative writing, non-fragrance general tasks
+  /\b(tell\s+me\s+a\s+joke|make\s+me\s+laugh|write\s+(?:me\s+)?(?:a\s+)?(?:poem|story|essay|resume|cv|email|letter|cover\s+letter)|translate\s+(?:this|paragraph|text))\b/i,
+  // Sports & matches
+  /\b(who\s+won\s+the\s+(?:cricket|football|match|game|world\s+cup|super\s+bowl|ipl|championship)|cricket\s+score|match\s+score)\b/i,
+  // Non-fragrance hardware / consumer products / media
+  /\b(what\s+laptop|best\s+smartphone|which\s+(?:phone|car|tv|camera|computer)\s+(?:should\s+i|to)\s+buy|recommend\s+a\s+(?:movie|book|restaurant|hotel|flight))\b/i,
+];
+
+export const FRAGRANCE_TERMS_PATTERN =
+  /\b(perfumes?|fragrances?|scents?|colognes?|attars?|extraits?|edp|edt|parfums?|flacons?|bottles?|sprays?|oils?|aromas?|olfactory|smell|smells|smelling|sniff|blend|blends|formulation|formulations|notes?|accords?|sillage|projection|longevity|intensity|wear\s+time|drydown|opening)\b/i;
+
+/**
+ * Robust application-level scope analyzer.
+ * Determines whether an inquiry is fragrance/store related, pure out-of-scope, or mixed intent.
+ */
+export function analyzeMessageScope(
+  message: string,
+  products: Product[] = [],
+  currentState?: ConversationState
+): ScopeAnalysisResult {
+  const trimmed = message.trim();
+  const lower = trimmed.toLowerCase();
+
+  // 1. Check for explicit out-of-scope patterns
+  let hasOutOfScopePattern = false;
+  let matchedOutOfScopeTopic = '';
+  for (const pattern of OUT_OF_SCOPE_PATTERNS) {
+    const match = lower.match(pattern);
+    if (match) {
+      hasOutOfScopePattern = true;
+      matchedOutOfScopeTopic = match[0];
+      break;
+    }
+  }
+
+  // 2. Check for fragrance signals
+  const detectedSignals: string[] = [];
+
+  if (FRAGRANCE_TERMS_PATTERN.test(lower)) {
+    detectedSignals.push('fragrance_terminology');
+  }
+
+  const hasOccasionOrSeasonOrGender =
+    /\b(date\s*night|office|work|daily|casual|gym|party|evening|wedding|clubbing|summer|winter|spring|autumn|monsoon|heat|unisex|men(?:'s)?|mens|women(?:'s)?|womens|masculine|feminine|gift|trial|pocket\s*spray|sample)\b/i.test(lower);
+  if (hasOccasionOrSeasonOrGender) {
+    detectedSignals.push('occasion_season_gender');
+  }
+
+  const hasCompetitor =
+    /\b(zara|dior|sauvage|chanel|bleu\s+de\s+chanel|fraganote|bella\s+vita|creed|aventus|tom\s+ford|baccarat|br540|versace|eros|ysl|gucci|armani)\b/i.test(lower);
+  if (hasCompetitor) {
+    detectedSignals.push('competitor_brand');
+  }
+
+  const hasBudgetOrPrice =
+    /\b(under\s+₹?\s*\d+|₹\s*\d+|\d+\s*bucks|\d+\s*rs|budget|cheaper|expensive|how\s+much\s+(?:does|is))\b/i.test(lower);
+  if (hasBudgetOrPrice) {
+    detectedSignals.push('budget_price');
+  }
+
+  // Check product names from catalogue
+  for (const p of products) {
+    const pName = p.name.toLowerCase();
+    if (lower.includes(pName) || (pName.length > 4 && lower.includes(pName.slice(0, -1)))) {
+      detectedSignals.push(`product:${p.name}`);
+      break;
+    }
+  }
+
+  // Check fragrance families / notes / attributes
+  for (const [attr, kws] of Object.entries(ATTRIBUTE_KEYWORDS)) {
+    for (const kw of kws) {
+      const kwRegex = new RegExp(`\\b${kw}\\b`, 'i');
+      if (kwRegex.test(lower)) {
+        detectedSignals.push(`attribute:${attr}`);
+        break;
+      }
+    }
+  }
+
+  // Check ambiguous fragrance descriptors (melty, etc.)
+  if (detectAmbiguousDescriptor(trimmed, currentState)) {
+    detectedSignals.push('ambiguous_fragrance_descriptor');
+  }
+
+  // Check ongoing consultation context
+  const hasActive = Boolean(
+    currentState?.activeRequest?.families?.length ||
+    currentState?.activeRequest?.budget?.max !== null ||
+    currentState?.activeRequest?.occasion ||
+    currentState?.currentConsultation?.fragrance_families?.length ||
+    currentState?.lastRecommendationIds?.length
+  );
+
+  const isContextualRefinement = hasActive && (
+    /\b(warmer|fresher|cooler|sweeter|stronger|lighter|cheaper|another|different|else|alternatives?|options?|more|less|avoid|forget|reset|change|make\s+it)\b/i.test(lower)
+  );
+
+  if (isContextualRefinement) {
+    detectedSignals.push('contextual_refinement');
+  }
+
+  // Check store conversational meta
+  const isStoreMeta =
+    /^(hi|hello|hey|greetings|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+(help|do)|how\s+can\s+you\s+help|thanks?|thank\s+you|bye|goodbye|take\s+care)\b/i.test(lower.trim());
+  if (isStoreMeta) {
+    detectedSignals.push('store_meta');
+  }
+
+  // Check purchase or cart inquiry signals
+  const isPurchaseOrCart =
+    /\b(order|buy|purchase|cart|checkout|acquire|how\s+(?:can|do)\s+i\s+(?:order|buy|purchase|get)|place\s+(?:an\s+)?order|where\s+can\s+i\s+buy)\b/i.test(lower);
+  if (isPurchaseOrCart) {
+    detectedSignals.push('purchase_cart');
+  }
+
+  const hasFragranceSignals = detectedSignals.length > 0;
+
+  // 3. Mixed Intent Separation
+  if (hasOutOfScopePattern && hasFragranceSignals) {
+    // Attempt to separate the non-fragrance question from the fragrance request
+    const segments = trimmed
+      .split(/(?<=[.?!;])\s+|\s+(?:and(?:\s+also)?|also|plus|then|while)\s+/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const fragranceParts: string[] = [];
+    const outOfScopeParts: string[] = [];
+
+    for (const seg of segments) {
+      const segLower = seg.toLowerCase();
+      const segMatchesOutOfScope = OUT_OF_SCOPE_PATTERNS.some((p) => p.test(segLower));
+      if (segMatchesOutOfScope) {
+        outOfScopeParts.push(seg);
+      } else {
+        fragranceParts.push(seg);
+      }
+    }
+
+    const cleanFragranceQuery = fragranceParts.join(' ').trim() || trimmed;
+    const cleanOutOfScopeQuery = outOfScopeParts.join(' ').trim() || matchedOutOfScopeTopic;
+
+    return {
+      isPureOutOfScope: false,
+      isMixedIntent: true,
+      isFragranceRelated: true,
+      fragranceQuery: cleanFragranceQuery,
+      outOfScopeQuery: cleanOutOfScopeQuery,
+      detectedSignals,
+    };
+  }
+
+  // 4. Pure Out-of-Scope
+  if (hasOutOfScopePattern && !hasFragranceSignals) {
+    return {
+      isPureOutOfScope: true,
+      isMixedIntent: false,
+      isFragranceRelated: false,
+      fragranceQuery: '',
+      outOfScopeQuery: trimmed,
+      detectedSignals: [],
+    };
+  }
+
+  // 5. In-scope / normal query
+  return {
+    isPureOutOfScope: false,
+    isMixedIntent: false,
+    isFragranceRelated: true,
+    fragranceQuery: trimmed,
+    outOfScopeQuery: '',
+    detectedSignals,
+  };
 }
 
 /**
@@ -930,6 +1166,20 @@ export function validateAndEnforcePolarity(
     }
   }
 
+  // 10. Enforce OUT_OF_SCOPE purity: zero recommendations, zero product data, zero updates
+  if (res.intent === 'OUT_OF_SCOPE') {
+    res.needs_recommendations = false;
+    res.requires_product_data = false;
+    res.fragrance_families = [];
+    res.preferred_notes = [];
+    res.excluded_notes = [];
+    res.excluded_families = [];
+    res.budget = { min: null, max: null };
+    res.updates = [];
+    res.preferences = {};
+    res.out_of_scope_answer = "I'm here specifically to help with perfumes and fragrance discovery. I can't help with that topic, but I can help you find a scent if you'd like.";
+  }
+
   return res;
 }
 
@@ -1000,16 +1250,68 @@ export async function classifyIntentAndExtractPreferences(
     };
   }
 
+  // 0. Application-Level Scope Enforcement & Mixed Intent Routing
+  const scopeAnalysis = analyzeMessageScope(cleanMessage, products, currentState);
+
+  if (scopeAnalysis.isPureOutOfScope) {
+    return {
+      intent: 'OUT_OF_SCOPE',
+      request_type: 'other',
+      is_new_request: false,
+      is_refinement: false,
+      requires_product_data: false,
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: false,
+      updates: [],
+      preferences: {},
+      out_of_scope_answer: "I'm here specifically to help with perfumes and fragrance discovery. I can't help with that topic, but I can help you find a scent if you'd like.",
+    };
+  }
+
+  const effectiveQuery = scopeAnalysis.isMixedIntent
+    ? scopeAnalysis.fragranceQuery
+    : trimmed;
+
+  // 0. Deterministic CART_ASSISTANCE gate for explicit cart actions
+  if (isExplicitCartActionQuery(effectiveQuery, products)) {
+    const action = inferCartActionType(effectiveQuery);
+    const fallbackRefs = extractCartProductReferences(effectiveQuery, products);
+    let references = fallbackRefs;
+    if (fallbackRefs.length === 0 && action !== 'VIEW_CART') {
+      const groqEntities = await extractCartEntitiesWithGroq({
+        message: effectiveQuery,
+        brand,
+        products,
+        canonicalSet: currentState?.lastCanonicalProductSet || [],
+      });
+      references = normalizeProductReferencesList(
+        groqEntities?.product_references,
+        effectiveQuery,
+        products
+      );
+      const result = emptyCartStage1(groqEntities?.cart_action || action, references);
+      result.requires_product_data = false;
+      return result;
+    }
+    const result = emptyCartStage1(action, references);
+    result.requires_product_data = false;
+    return result;
+  }
+
   // 1. Try Groq Stage 1
-  const groqResult = await callGroqStage1(trimmed, brand, products, history, currentState);
+  const groqResult = await callGroqStage1(effectiveQuery, brand, products, history, currentState);
   if (groqResult) {
-    const validated = validateAndEnforcePolarity(groqResult, trimmed, currentState);
+    const validated = validateAndEnforcePolarity(groqResult, effectiveQuery, currentState);
     validated.requires_product_data = doesIntentRequireProducts(validated.intent, validated);
     return validated;
   }
 
   // 2. Deterministic Fallback Classifier
-  const fallbackResult = fallbackIntentClassifier(trimmed, brand, products, currentState);
+  const fallbackResult = fallbackIntentClassifier(effectiveQuery, brand, products, currentState);
   fallbackResult.requires_product_data = doesIntentRequireProducts(fallbackResult.intent, fallbackResult);
   return fallbackResult;
 }
@@ -1031,10 +1333,17 @@ async function callGroqStage1(
   const systemPrompt = `You are the Structured Intent & Fragrance Preference Engine for "${brand.name}".
 Brand context: ${brand.tagline}. Assistant name: "${brand.finder?.assistantName || 'Fragrance Consultant'}".
 Available Catalogue Products: [${productNames}].
+Latest recommended products (ordered, for contextual cart references; do NOT invent IDs): ${(currentState?.lastCanonicalProductSet || currentState?.lastRecommendationIds || []).length
+    ? (currentState?.lastCanonicalProductSet?.map((p, i) => `${i + 1}. ${p.name}`).join(', ') || currentState?.lastRecommendationIds?.join(', '))
+    : '(none)'}.
+
+You are a specialized fragrance shopping and consultation assistant for this website.
+Your purpose is to help users discover, understand, compare, and purchase fragrances available through this website.
+You are NOT a general-purpose assistant.
 
 Your task is to analyze the user's message in context and return a JSON object strictly adhering to this schema:
 {
-  "intent": "GREETING | IDENTITY | CAPABILITY | RECOMMENDATION | REFINE_RECOMMENDATION | PRODUCT_INFO | COMPARE_PRODUCTS | SIMILAR_TO_REFERENCE | SHOW_ALTERNATIVES | BUDGET_CHANGE | PREFERENCE_UPDATE | RESET_CONSULTATION | OUT_OF_SCOPE | CLARIFICATION | GENERAL_CONVERSATION | BRAND_CONVERSATION | CUSTOMER_OBJECTION | PURCHASE_ASSISTANCE",
+  "intent": "GREETING | IDENTITY | CAPABILITY | RECOMMENDATION | REFINE_RECOMMENDATION | PRODUCT_INFO | COMPARE_PRODUCTS | SIMILAR_TO_REFERENCE | SHOW_ALTERNATIVES | BUDGET_CHANGE | PREFERENCE_UPDATE | RESET_CONSULTATION | OUT_OF_SCOPE | CLARIFICATION | GENERAL_CONVERSATION | BRAND_CONVERSATION | CUSTOMER_OBJECTION | PURCHASE_ASSISTANCE | CART_ASSISTANCE",
   "request_type": "new_consultation | refinement | other",
   "is_new_request": boolean,
   "is_refinement": boolean,
@@ -1069,6 +1378,10 @@ Your task is to analyze the user's message in context and return a JSON object s
   "sweetness": "sweeter" | null,
   "requested_changes": string[],
   "target_product_names": string[],
+  "product_reference": string or null,
+  "product_references": string[],
+  "cart_action": "ADD_TO_CART | REMOVE_FROM_CART | VIEW_CART" or null,
+  "confidence": number,
   "needs_recommendations": boolean,
   "needs_clarification": boolean,
   "clarification_reason": string or null,
@@ -1080,17 +1393,43 @@ Your task is to analyze the user's message in context and return a JSON object s
 }
 
 CRITICAL RULES:
-1. INTENTS:
+1. SPECIALIZED SCOPE & OUT-OF-SCOPE:
    - "hi", "hello" -> intent: "GREETING", needs_recommendations: false.
    - "who are you?" -> intent: "IDENTITY", needs_recommendations: false.
    - "what can you help me with?" -> intent: "CAPABILITY", needs_recommendations: false.
-   - "What is the capital of France?" -> intent: "OUT_OF_SCOPE", out_of_scope_answer: "The capital of France is Paris. If you'd like, I can help you find a perfume.", needs_recommendations: false.
-   - "Tell me about [Product]" -> intent: "PRODUCT_INFO", target_product_names: ["[Product]"], needs_recommendations: false.
-   - "Compare [Product A] and [Product B]" -> intent: "COMPARE_PRODUCTS", target_product_names: ["[Product A]", "[Product B]"], needs_recommendations: false.
-    - "Show me options", "Show options", "Give me options", "Show me something else", "Show me different ones", "Give me other options", "Anything else?", "More options", "Something different", "other options", "different options", "give me alternatives", "another option" -> intent: "SHOW_ALTERNATIVES", request_type: "refinement", is_refinement: true, needs_recommendations: true.
+   - Out-of-scope topics (general knowledge, geography, capitals, coding, math, weather, news, jokes, resumes, sports, translations, e.g. "What is the capital of Bhutan?", "What is 25 * 18?", "Write Python code", "Tell me a joke", "What's the weather today?"):
+     -> intent: "OUT_OF_SCOPE", needs_recommendations: false, product_reference: null, cart_action: null. NEVER answer the unrelated non-fragrance question! Do not call recommendations.
+   - Mixed intent (e.g. "What is the capital of France and recommend a fresh perfume under ₹1000" or "Tell me a joke and recommend something woody"):
+     -> IGNORE the non-fragrance part completely. Classify and extract preferences ONLY for the fragrance part ("recommend a fresh perfume under ₹1000" -> RECOMMENDATION with fresh and budget max 1000).
 
-2. NEGATIVE PREFERENCES (MUST NEVER BECOME POSITIVE):
-   - "I don't like sweet perfumes" / "I hate sweet" / "Anything but sweet" / "Nothing sugary" / "Don't show me vanilla-heavy fragrances" / "Anything but sugary scents":
+2. PURCHASE & CART ASSISTANCE (CRITICAL — PURCHASE ≠ RECOMMENDATION):
+   - General purchase inquiries ("How can I order a perfume?", "How do I buy a perfume?", "How do I place an order?", "How can I checkout?"):
+     -> intent: "PURCHASE_ASSISTANCE", product_reference: null, needs_recommendations: false.
+   - Product purchase inquiries ("How can I order Royal Oud?", "I want to buy Royal Oud", "I want to purchase Royal Oud", "Can I order Royal Oud?", "How do I purchase this?", "Where can I buy this?"):
+     -> intent: "PURCHASE_ASSISTANCE", product_reference: "[Product]" (or "this"), target_product_names: ["[Product]"], product_references: ["[Product]"], needs_recommendations: false.
+     Multi-product purchase ("I want to buy Ocean Breeze and White Musk") -> product_references: ["Ocean Breeze", "White Musk"]. NEVER join names with "and" into one string.
+     Do NOT treat as a recommendation request. Do NOT return random recommendations!
+   - Cart actions ("Add Royal Oud to my cart", "Put Royal Oud in my cart", "Add this to cart"):
+     -> intent: "CART_ASSISTANCE", cart_action: "ADD_TO_CART", product_references: ["[Product]"] (or ["THIS"]), needs_recommendations: false.
+     Multiple named products ("Add Ocean Breeze and White Musk to my cart") -> product_references: ["Ocean Breeze", "White Musk"]. NEVER return "Ocean Breeze and White Musk" as a single product_reference.
+     Commas ("Add Ocean Breeze, White Musk and Fresh Linen") -> three separate product_references.
+     Contextual: "add all 3" / "add all of them" -> ["ALL"] or ["ALL:3"]. "add both" -> ["BOTH"]. "add 1 and 3" / "add the first and third" -> ["POSITION:1", "POSITION:3"]. "add the first two" -> ["FIRST_N:2"]. "add this" -> ["THIS"].
+     Do NOT invent product IDs.
+   - Cart removals ("Remove Royal Oud from my cart", "Remove Ocean Breeze and White Musk"):
+     -> intent: "CART_ASSISTANCE", cart_action: "REMOVE_FROM_CART", product_references: ["[Product]", ...], needs_recommendations: false.
+   - Cart inquiries ("What's in my cart?", "What is in my cart?", "Show my cart", "How many perfumes are in my cart?", "How much is my cart?", "What's my subtotal?", "Do I have anything in my cart?"):
+     -> intent: "CART_ASSISTANCE", cart_action: "VIEW_CART", needs_recommendations: false.
+
+3. PRODUCT INFO & COMPARISON:
+   - "Tell me about [Product]", "What are the notes in [Product]?", "How long does [Product] last?":
+     -> intent: "PRODUCT_INFO", target_product_names: ["[Product]"], needs_recommendations: false.
+   - "Compare [Product A] and [Product B]":
+     -> intent: "COMPARE_PRODUCTS", target_product_names: ["[Product A]", "[Product B]"], needs_recommendations: false.
+   - "Show me options", "Show options", "Give me options", "Show me something else", "Give me other options", "More options", "different options", "give me alternatives":
+     -> intent: "SHOW_ALTERNATIVES", request_type: "refinement", is_refinement: true, needs_recommendations: true.
+
+4. NEGATIVE PREFERENCES (MUST NEVER BECOME POSITIVE):
+   - "I don't like sweet perfumes" / "I hate sweet" / "Anything but sweet" / "Nothing sugary" / "Don't show me vanilla-heavy fragrances":
      -> excluded_families: ["sweet", "gourmand"], excluded_notes: ["vanilla", "sugar"], sweetness: null. NEVER set sweetness to "sweeter".
    - "I don't want oud" / "I hate oud":
      -> excluded_notes: ["oud"], excluded_families: ["oud"].
@@ -1099,17 +1438,17 @@ CRITICAL RULES:
    - "Actually I like sweet perfumes now":
      -> requested_changes: ["remove_sweet_exclusion"], updates: [{ "field": "excluded_families", "operation": "REMOVE", "value": ["sweet", "gourmand"] }].
 
-3. RELATIVE PRICE (NEVER INVENT NUMERIC VALUES):
+5. RELATIVE PRICE (NEVER INVENT NUMERIC VALUES):
    - "same kind of fragrance, but something cheaper" / "something cheaper":
      -> intent: "REFINE_RECOMMENDATION", request_type: "refinement", is_refinement: true, relative_price: "cheaper", budget: { "min": null, "max": null }, updates: [{ "field": "relative_price", "operation": "SET", "value": "cheaper" }].
      DO NOT invent budget = 600! Leave numeric budget as null!
 
-4. BUDGET CHANGES & REMOVAL:
+6. BUDGET CHANGES & REMOVAL:
    - "I have ₹500" / "500 is my limit" -> budget: { "max": 500 }, updates: [{ "field": "budget.max", "operation": "SET", "value": 500 }].
    - "Keep it below seven hundred bucks" -> budget: { "max": 700 }, updates: [{ "field": "budget.max", "operation": "SET", "value": 700 }].
    - "I don't have a budget" / "no budget" -> remove_budget: true, budget: { "min": null, "max": null }, updates: [{ "field": "remove_budget", "operation": "REMOVE", "value": true }].
 
-5. REFINEMENT VS NEW REQUEST:
+7. REFINEMENT VS NEW REQUEST:
    - When an active consultation exists:
      * "I have ₹500" -> REFINEMENT (keep occasion/fresh, change budget).
      * "Make it warmer" -> REFINEMENT (warmth: "warmer").
@@ -1118,53 +1457,33 @@ CRITICAL RULES:
    - Completely new direction:
      * "I want something light and fresh for summer" after "spicy for a date" -> NEW REQUEST (is_new_request: true, request_type: "new_consultation"). Clear spicy and date!
 
-6. REFERENCE PERFUMES:
+8. REFERENCE PERFUMES:
    - "I usually wear Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: false, needs_recommendations: false.
    - "Give me something similar to Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: true, needs_recommendations: true.
 
-7. CONVERSATION GATE — NON-RECOMMENDATION INTENTS (CRITICAL — STATEMENT ≠ REQUEST):
-   A user making a statement, expressing doubt, asking about the brand, or raising an objection is NOT asking for a product recommendation.
-   These messages must NEVER trigger product retrieval or the recommendation engine.
-
+9. CONVERSATION GATE — NON-RECOMMENDATION INTENTS:
    CUSTOMER_OBJECTION — Competitive statements, quality doubts, value challenges:
-   - Pure objection without stated preference (e.g. "other brands have better scents", "TM Perfume House has better scents", "these perfumes smell cheap", "your fragrances don't last long"):
-     -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false, out_of_scope_answer: a confident, non-defensive response that acknowledges the customer's perspective without attacking competitors or making unsupported claims.
-   - Objection COMBINED with a stated preference or scent family (e.g. "TM Perfume House has better scents. I like fresh perfumes." or "Other brands are better. Show me something woody."):
+   - Pure objection without stated preference (e.g. "other brands have better scents", "TM Perfume House has better scents", "these perfumes smell cheap"):
+     -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false.
+   - Objection COMBINED with a stated preference (e.g. "Other brands are better. Show me something woody."):
      -> intent: "CUSTOMER_OBJECTION", needs_recommendations: true, fragrance_families: [extracted family], request_type: "new_consultation", is_new_request: true.
    - Objection COMBINED with similarity request (e.g. "Fraganote has better scents. Show me something similar."):
      -> intent: "SIMILAR_TO_REFERENCE", reference_perfume: "Fraganote", is_similarity_request: true, needs_recommendations: true.
 
    BRAND_CONVERSATION — Questions about the brand, returns, shipping, ingredients, sourcing:
-   - "where are your perfumes made?" / "what ingredients do you use?" / "do you do returns?" / "how long does shipping take?" / "tell me about your brand" / "is this brand cruelty free?":
+   - "where are your perfumes made?" / "do you do returns?" / "how long does shipping take?":
      -> intent: "BRAND_CONVERSATION", needs_recommendations: false.
 
-   PURCHASE_ASSISTANCE — Buying hesitation, decision anxiety, sizing questions:
-   - "I'm not sure which one to pick" / "is it worth the price?" / "should I get the 30ml or the 50ml?" / "I'm still thinking" / "I need more time to decide" / "which one lasts the longest?":
-     -> intent: "PURCHASE_ASSISTANCE", needs_recommendations: false.
-     The response should explain the previously recommended product's strengths instead of dumping new product cards.
-
-   GENERAL_CONVERSATION — Chit-chat, thank-you, compliments, goodbyes, opinions:
-   - "thank you" / "thanks" / "you're helpful" / "nice talking to you" / "okay" / "cool" / "interesting" / "I see" / "that's nice" / "goodbye" / "bye":
+   GENERAL_CONVERSATION — Chit-chat, thank-you, compliments, goodbyes:
+   - "thank you" / "thanks" / "you're helpful" / "goodbye" / "bye":
      -> intent: "GENERAL_CONVERSATION", needs_recommendations: false.
 
-   CLARIFICATION — AMBIGUOUS, VAGUE, OR UNKNOWN LANGUAGE (CRITICAL — UNKNOWN ≠ NO_MATCH):
-   When the user's primary preference uses ambiguous, vague, subjective, or unsupported terminology that cannot be confidently mapped to concrete fragrance families, notes, occasions, or intensities (e.g. "off", "melty", "weird", "sexy", "addictive", "expensive", "impossible", "bizarre"):
-   - DO NOT guess or silently map (e.g. do NOT map "melty" to sweet, do NOT map "off" to unusual, do NOT map "expensive" to woody).
-   - DO NOT classify as NO_MATCH or say "I don't have a fragrance that matches".
+   CLARIFICATION — AMBIGUOUS, VAGUE, OR UNKNOWN LANGUAGE:
+   When the user's primary preference uses ambiguous, vague, subjective terminology (e.g. "melty", "off", "weird", "sexy", "addictive"):
+   - DO NOT guess or silently map (e.g. do NOT map "melty" to sweet).
+   - DO NOT classify as OUT_OF_SCOPE.
    - Set: intent: "CLARIFICATION", needs_clarification: true, needs_recommendations: false.
    - Provide clarification_question (e.g. "When you say 'melty', what kind of feeling do you mean?") and clarification_reason.
-   - If the user uses a known term alongside an ambiguous term (e.g. "I want something unusual and woody"):
-     * Keep the known term in fragrance_families: ["woody"].
-     * Set intent: "CLARIFICATION", needs_clarification: true, needs_recommendations: false.
-     * Ask clarification on the ambiguous term: "When you say 'unusual', what kind of twist are you looking for alongside woody?"
-
-   CLARIFICATION FOLLOW-UP:
-   - When the previous message was a clarification question (e.g. the assistant asked what the user meant by 'melty'):
-     * If user answers with concrete preferences (e.g. "Warm and creamy" or "Creamy and soft"):
-     * Classify as intent: "RECOMMENDATION", needs_recommendations: true, needs_clarification: false.
-     * Extract the clarified attributes (e.g. warmth: "warmer", sweetness: "sweeter" or fragrance_families: ["gourmand"]).
-
-   REMEMBER: If the user's message does NOT contain a request, question, or refinement that would require showing products, it is conversational. Do NOT default to RECOMMENDATION.
 
 Active Consultation: ${JSON.stringify(currentState?.activeRequest || currentState?.currentConsultation || {})}
 Background Preferences: ${JSON.stringify(currentState?.backgroundContext || currentState?.backgroundPreferences || {})}
@@ -1281,14 +1600,51 @@ Return ONLY valid JSON matching the schema.`;
       else if (lower.includes('bleu de chanel')) refPerfume = 'Bleu de Chanel';
       else if (lower.includes('aventus')) refPerfume = 'Creed Aventus';
       else if (lower.includes('baccarat')) refPerfume = 'Baccarat Rouge 540';
+      else if (lower.includes('tobacco vanille') || lower.includes('tom ford')) refPerfume = 'Tom Ford Tobacco Vanille';
     }
     const isSimReq = Boolean(
       parsed.is_similarity_request ||
       (refPerfume && (lower.includes('similar') || lower.includes('like ')))
     );
 
+    const resolvedIntent = refPerfume && isSimReq && effectiveIntent === 'RECOMMENDATION' ? 'SIMILAR_TO_REFERENCE' : effectiveIntent;
+
+    const isNonRecIntent =
+      resolvedIntent === 'PURCHASE_ASSISTANCE' ||
+      resolvedIntent === 'CART_ASSISTANCE' ||
+      resolvedIntent === 'OUT_OF_SCOPE' ||
+      resolvedIntent === 'PRODUCT_INFO' ||
+      resolvedIntent === 'COMPARE_PRODUCTS' ||
+      resolvedIntent === 'GREETING' ||
+      resolvedIntent === 'IDENTITY' ||
+      resolvedIntent === 'CAPABILITY' ||
+      resolvedIntent === 'GENERAL_CONVERSATION' ||
+      resolvedIntent === 'BRAND_CONVERSATION' ||
+      resolvedIntent === 'CLARIFICATION';
+
+    const needs_recommendations = isNonRecIntent ? false : Boolean(parsed.needs_recommendations || isRefinement);
+    const parsedRefs: string[] = Array.isArray(parsed.product_references)
+      ? parsed.product_references.map((r: unknown) => String(r).trim()).filter(Boolean)
+      : [];
+    const namedTargets: string[] = Array.isArray(parsed.target_product_names)
+      ? parsed.target_product_names.map((r: unknown) => String(r).trim()).filter(Boolean)
+      : [];
+    const productRef =
+      parsedRefs[0] ||
+      parsed.product_reference ||
+      namedTargets[0] ||
+      null;
+    const productReferences =
+      parsedRefs.length > 0
+        ? parsedRefs
+        : namedTargets.length > 0
+          ? namedTargets
+          : productRef
+            ? [productRef]
+            : [];
+
     return {
-      intent: refPerfume && isSimReq && effectiveIntent === 'RECOMMENDATION' ? 'SIMILAR_TO_REFERENCE' : effectiveIntent,
+      intent: resolvedIntent,
       request_type,
       is_new_request: isRefinement ? false : (parsed.is_new_request ?? (request_type === 'new_consultation')),
       is_refinement: isRefinement,
@@ -1313,8 +1669,12 @@ Return ONLY valid JSON matching the schema.`;
       freshness: parsed.freshness || null,
       sweetness: parsed.sweetness || null,
       requested_changes: parsed.requested_changes || [],
-      target_product_names: parsed.target_product_names || [],
-      needs_recommendations: Boolean(parsed.needs_recommendations || isRefinement),
+      target_product_names: namedTargets.length > 0 ? namedTargets : (productRef ? [productRef] : []),
+      product_reference: productRef,
+      product_references: productReferences,
+      cart_action: parsed.cart_action || null,
+      confidence: parsed.confidence || 0.95,
+      needs_recommendations,
       needs_clarification: Boolean(parsed.needs_clarification),
       clarification_reason: parsed.clarification_reason || null,
       clarification_question: parsed.clarification_question || null,
@@ -1513,12 +1873,27 @@ export function fallbackIntentClassifier(
     };
   }
 
-  // 0c. CONVERSATION GATE — PURCHASE ASSISTANCE (hesitation, decision anxiety)
-  const isPurchaseAssistance =
+  // 0c1. CART ASSISTANCE (add to cart, view cart, remove from cart)
+  if (isExplicitCartActionQuery(lower, products)) {
+    const action = inferCartActionType(lower);
+    const references = extractCartProductReferences(message, products);
+    return emptyCartStage1(action, references);
+  }
+
+  // 0c2. PURCHASE ASSISTANCE (ordering questions, buy intent, sizing, hesitation)
+  const isPurchaseOrderIntent =
+    /\b(how\s+(?:can|do)\s+i\s+(?:order|buy|purchase|place\s+an\s+order|get|checkout)|i\s+want\s+to\s+(?:buy|purchase|order|acquire)|can\s+i\s+(?:order|buy|purchase)|where\s+can\s+i\s+buy|i\s+want\s+this\s+perfume|how\s+do\s+i\s+place\s+an\s+order|acquire\s+(?:a\s+)?(?:full\s+)?bottle|order\s+(?:a\s+)?bottle)\b/i.test(lower);
+
+  const isPurchaseHesitation =
     /\b(i'?m\s+not\s+sure\s+which|is\s+it\s+worth|should\s+i\s+get\s+the|i'?m\s+still\s+thinking|need\s+more\s+time|can'?t\s+decide|hard\s+to\s+choose|torn\s+between|which\s+one\s+should|worth\s+the\s+price|too\s+expensive|can\s+i\s+afford|is\s+this\s+a\s+good\s+deal|30ml\s+or\s+(the\s+)?50ml|50ml\s+or\s+(the\s+)?100ml|which\s+size|help\s+me\s+(decide|choose|pick))\b/i.test(lower) &&
     !lower.includes('recommend') && !lower.includes('show me') && !lower.includes('find me') && !lower.includes('give me');
 
-  if (isPurchaseAssistance) {
+  if (isPurchaseOrderIntent || isPurchaseHesitation) {
+    const named = findNamedProductsInText(message, products);
+    const refs = named.length > 0
+      ? named.map((p) => p.name)
+      : (lower.includes('this') || lower.includes('it') ? ['THIS'] : []);
+
     return {
       intent: 'PURCHASE_ASSISTANCE',
       request_type: 'other',
@@ -1528,6 +1903,10 @@ export function fallbackIntentClassifier(
       preferred_notes: [],
       excluded_notes: [],
       excluded_families: [],
+      product_reference: refs[0] || null,
+      product_references: refs,
+      target_product_names: refs.filter((r) => r !== 'THIS'),
+      confidence: 0.97,
       needs_recommendations: false,
       needs_clarification: false,
       preferences: {},
@@ -1554,20 +1933,9 @@ export function fallbackIntentClassifier(
     };
   }
 
-  // 1. OUT OF SCOPE (TEST 5)
-  const isOutOfScope =
-    lower.includes('capital of france') ||
-    lower.includes('python') ||
-    lower.includes('cricket') ||
-    lower.includes('weather today') ||
-    lower.includes('write code') ||
-    lower.includes('who won');
-
-  if (isOutOfScope) {
-    let ans = "I specialize in fragrance discovery and finding your ideal perfume. If you'd like, tell me the vibe, occasion, or notes you enjoy!";
-    if (lower.includes('capital of france')) {
-      ans = "The capital of France is Paris. If you'd like, I can also help you find a perfume.";
-    }
+  // 1. OUT OF SCOPE
+  const scopeCheck = analyzeMessageScope(message, products, currentState);
+  if (scopeCheck.isPureOutOfScope) {
     return {
       intent: 'OUT_OF_SCOPE',
       request_type: 'other',
@@ -1579,7 +1947,7 @@ export function fallbackIntentClassifier(
       excluded_families: [],
       needs_recommendations: false,
       needs_clarification: false,
-      out_of_scope_answer: ans,
+      out_of_scope_answer: "I'm here specifically to help with perfumes and fragrance discovery. I can't help with that topic, but I can help you find a scent if you'd like.",
       preferences: {},
     };
   }

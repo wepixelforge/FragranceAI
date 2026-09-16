@@ -337,8 +337,8 @@ async function runAudit() {
     {
       key: 'Q',
       msg: 'What is the capital of France?',
-      check: (res) => res.intent === 'OUT_OF_SCOPE' && res.results.length === 0 && res.reply.toLowerCase().includes('paris'),
-      desc: 'Out of scope question: Paris answer without products',
+      check: (res) => res.intent === 'OUT_OF_SCOPE' && res.results.length === 0 && !res.reply.toLowerCase().includes('paris') && (res.reply.toLowerCase().includes('perfume') || res.reply.toLowerCase().includes('fragrance')),
+      desc: 'Out of scope question: polite fragrance refusal without answering Paris',
     },
     {
       key: 'R',

@@ -137,6 +137,14 @@ export function normalizeAssistantMessages(
     ];
   }
 
+  // 1b. OUT_OF_SCOPE Archetype: 2 crisp polite refusal thoughts
+  if (intent === 'OUT_OF_SCOPE') {
+    return [
+      "I'm here specifically to help with perfumes and fragrance discovery.",
+      "I can't help with that topic, but I can help you find a scent if you'd like.",
+    ];
+  }
+
   // 2. RESET Archetype: 2 crisp thoughts
   if (intent === 'RESET_CONSULTATION') {
     return [

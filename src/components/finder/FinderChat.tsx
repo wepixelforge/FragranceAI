@@ -45,6 +45,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
     activePreferences,
     latestDebugInfo,
     isTyping,
+    setHasOpenedConsultant,
     sendMessage,
     resetConversation,
   } = useScentFinder();
@@ -52,6 +53,10 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef<boolean>(false);
   const initialQueryHandled = useRef(false);
+
+  useEffect(() => {
+    setHasOpenedConsultant(true);
+  }, [setHasOpenedConsultant]);
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;

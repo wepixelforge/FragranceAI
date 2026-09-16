@@ -49,6 +49,7 @@ export const tmperfumehouse: BrandConfig = {
     subtitle: "Tell us what you usually wear, your budget, or your occasion. We'll search our entire library and recommend the 3 closest matches.",
     assistantName: 'TM Scent Finder',
     assistantTitle: 'Catalogue Navigation Concierge',
+    welcomeMessage: 'Hi, I can help you find the fragrance you like.',
     examplePrompts: [
       'I like Dior Sauvage but want something warmer',
       'Show me fresh perfumes for office under ₹800',

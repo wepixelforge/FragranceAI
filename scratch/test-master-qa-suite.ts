@@ -74,7 +74,8 @@ async function main() {
   data = await postMessage("what's the capital of France?");
   assert(data.intent === 'OUT_OF_SCOPE', 'Intent is OUT_OF_SCOPE', data.intent);
   assert(data.results.length === 0, 'No products returned for out-of-scope', data.results.length);
-  assert(data.reply.toLowerCase().includes('paris'), 'Answer mentions Paris', data.reply);
+  assert(!data.reply.toLowerCase().includes('paris'), 'Does NOT answer Paris', data.reply);
+  assert(data.reply.toLowerCase().includes('perfume') || data.reply.toLowerCase().includes('fragrance'), 'Politely redirects to fragrance', data.reply);
   assert(!data.updatedState.activeRequest?.occasion, 'No occasion preference mutated', data.updatedState.activeRequest);
 
   // ==========================================

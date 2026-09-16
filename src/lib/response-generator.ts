@@ -8,10 +8,70 @@ import {
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
 import { getVerifiedBrandDifferentiator } from './message-sequencer';
+import { formatPrice, STOREFRONT_CURRENCY } from './brand-utils';
+import {
+  buildRecommendationPresentation,
+  evaluateRecommendationGrounding,
+  ComparativeContext,
+  RecommendationPresentation,
+} from './response-grounding';
+
+export interface ResponseActionContext {
+  intent: string;
+  product?: {
+    id: string;
+    name: string;
+    price: number;
+    size: string;
+    fragranceFamily?: string[];
+  } | null;
+  available_actions?: string[];
+  purchase_flow?: Record<string, string>;
+  cart?: {
+    itemCount: number;
+    items?: {
+      productId?: string;
+      brandSlug?: string;
+      name: string;
+      quantity: number;
+      unitPrice?: number;
+      unitPriceFormatted?: string;
+      price?: number;
+    }[];
+    subtotal?: number;
+    subtotalFormatted?: string;
+    isEmpty?: boolean;
+    currency?: {
+      code: string;
+      symbol: string;
+      locale: string;
+    };
+  };
+  currency?: {
+    code: string;
+    symbol: string;
+    locale: string;
+  };
+  cart_action?: {
+    action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART';
+    productId?: string;
+    productName?: string;
+    success: boolean;
+    added?: string[];
+    failed?: string[];
+    partial?: boolean;
+    needsClarification?: boolean;
+  };
+  response_policy?: Record<string, any>;
+}
 
 export interface ResponseGeneratorOptions {
   hardConstraintFailed?: boolean;
   status?: string;
+  actionContext?: ResponseActionContext;
+  recommendationPresentation?: RecommendationPresentation;
+  comparativeContext?: ComparativeContext | null;
+  catalogueProducts?: Product[];
 }
 
 /**
@@ -37,7 +97,7 @@ export function sanitizeUserFacingResponse(rawText: string): string {
 
   // 4. Remove accidental internal reasoning headers if any leaked without tags
   cleaned = cleaned.replace(/^(Here'?s\s+(a\s+)?thinking\s+process:?|Thinking\s+Process:?|Internal\s+Reasoning:?|Chain\s+of\s+Thought:?)[\s\S]*?\n\n/i, '');
-  cleaned = cleaned.replace(/^(active\s+context:?|canonical\s+ranked\s+products:?|system\s+instructions:?)[\s\S]*?\n\n/i, '');
+  cleaned = cleaned.replace(/\/[a-z0-9-]+\/cart\b/gi, 'the cart');
 
   // 5. If output is wrapped in a JSON envelope string like `{"response": "..."}` or ````json ... ````
   cleaned = cleaned.replace(/^```(json)?\s*/i, '').replace(/\s*```$/i, '').trim();
@@ -138,17 +198,15 @@ export async function generateConversationalResponse(
   history: ChatMessage[] = [],
   options: ResponseGeneratorOptions = {}
 ): Promise<string> {
-  // Fast path for non-recommendation conversational intents and pure preference updates
+  // Fast path for simple conversational metadata and objections without recommendations
   if (
     stage1.intent === 'GREETING' ||
     stage1.intent === 'IDENTITY' ||
     stage1.intent === 'CAPABILITY' ||
-    stage1.intent === 'OUT_OF_SCOPE' ||
     stage1.intent === 'RESET_CONSULTATION' ||
     stage1.intent === 'GENERAL_CONVERSATION' ||
     stage1.intent === 'BRAND_CONVERSATION' ||
     stage1.intent === 'CUSTOMER_OBJECTION' ||
-    stage1.intent === 'PURCHASE_ASSISTANCE' ||
     (stage1.intent === 'PREFERENCE_UPDATE' && results.length === 0)
   ) {
     return fallbackResponseGenerator(
@@ -175,7 +233,27 @@ export async function generateConversationalResponse(
   );
 
   if (groqReply && groqReply.trim().length > 0) {
-    return groqReply.trim();
+    const catalogue = options.catalogueProducts?.length ? options.catalogueProducts : results.map((r) => r.product);
+    const recIntents = [
+      'RECOMMENDATION',
+      'REFINE_RECOMMENDATION',
+      'SHOW_ALTERNATIVES',
+      'SIMILAR_TO_REFERENCE',
+      'BUDGET_CHANGE',
+      'PREFERENCE_UPDATE',
+    ];
+    if (recIntents.includes(String(stage1.intent))) {
+      const grounding = evaluateRecommendationGrounding(groqReply, results, catalogue, {
+        intent: String(stage1.intent),
+        status: options.status,
+        contextNames: retrievedProducts.map((p) => p.name),
+      });
+      if (grounding.ok) {
+        return groqReply.trim();
+      }
+    } else {
+      return groqReply.trim();
+    }
   }
 
   // 2. Deterministic Grounded Fallback
@@ -209,9 +287,13 @@ async function callGroqStage2(
   // Format the pre-selected and pre-ranked results strictly
   const rankedItems = results.map((r, idx) => ({
     rank: idx + 1,
+    productId: r.product.id,
+    brandSlug: r.product.brandSlug,
     tier: r.matchTier,
     name: r.product.name,
     price: r.product.price,
+    priceFormatted: formatPrice(r.product.price),
+    currency: STOREFRONT_CURRENCY.code,
     size: r.product.size,
     fragranceFamily: r.product.fragranceFamily,
     topNotes: r.product.topNotes.slice(0, 3),
@@ -238,7 +320,35 @@ async function callGroqStage2(
       break;
   }
 
+  const presentation =
+    options.recommendationPresentation || buildRecommendationPresentation(results, options.status);
+  const comparative = options.comparativeContext;
+
   const systemPrompt = `${brandVoicePrompt}
+
+You are a specialized fragrance shopping and consultation assistant for this website.
+Your purpose is to help users discover, compare, understand, and purchase perfumes and fragrance products available through this website.
+You are NOT a general-purpose assistant.
+Do not answer questions unrelated to perfumes, fragrances, fragrance products, or this website.
+For clearly unrelated questions, politely state that you specialize in fragrance assistance and decline to answer the unrelated question.
+Do not attempt to answer the unrelated question before declining it.
+However, if a user combines an unrelated question with a legitimate perfume request, ignore the unrelated portion and handle the perfume-related portion.
+You may participate in normal greetings and conversational messages, but remain within the context of being a fragrance assistant.
+Never invent product facts, pricing, availability, notes, or catalogue information.
+
+You are responding for a fragrance ecommerce storefront.
+All monetary values supplied by the application are authoritative.
+Use the storefront's supplied currency and locale when mentioning prices.
+Never convert prices into another currency.
+Never invent an exchange rate.
+For this storefront, the supplied currency is INR (₹) and the locale is en-IN.
+When discussing products, cart totals, quantities, or prices, use the exact values supplied by the application, including any priceFormatted / subtotalFormatted strings.
+Never use "$" or "USD" for catalogue or cart prices.
+
+For cart questions, the LIVE CART CONTEXT supplied with the current request is the only source of truth.
+Do not infer current cart contents, quantities, item counts, or subtotals from previous conversation messages, previous add/remove confirmations, or recommended products.
+If live cart isEmpty is true, the cart currently has no products. Do not name products from earlier in the conversation as being in the cart.
+Do not independently add product prices; use the supplied subtotal.
 
 You are generating the final user-facing response.
 
@@ -272,6 +382,11 @@ CRITICAL RULES:
    - ONLY products that have passed all hard constraints are included in the CANONICAL RANKED PRODUCTS list.
    - You MUST explain ONLY these validated canonical products.
    - Do NOT choose, reorder, replace, or invent products.
+   - RECOMMENDATION_COUNT = ${presentation.recommendationCount}. This is the exact number of products the customer will see.
+   - If RECOMMENDATION_COUNT is 1: singular language is correct. Discuss only that product.
+   - If RECOMMENDATION_COUNT is 2 or more: you MUST name the primary/closest match (rank 1) AND also name the other canonical products as additional options. Never write as if only one fragrance is being recommended.
+   - If RECOMMENDATION_COUNT > 0: NEVER say you could not find options, never say you don't have anything, and never contradict the canonical result.
+   - Rank 1 is the primary/closest match. Do not claim a lower-ranked product is the closest match.
    - If STATUS is NO_ALTERNATIVES or no alternatives remain for SHOW_ALTERNATIVES:
      * Explain politely: "I don't have another option that fits all your current preferences. I can relax one of your requirements if you'd like."
      * Do NOT invent, name, or recommend any unvalidated products.
@@ -281,8 +396,25 @@ CRITICAL RULES:
       * If user combined strong intensity with controlled projection/not loud: explain "Nothing in this collection combines strong intensity with controlled projection. I can show you the closest moderate-intensity options or stronger options with more projection."
       * Otherwise, explain politely that no product in our catalogue satisfies all constraints (e.g. avoiding sweet fragrances, budget limit, or requested intensity), and suggest relaxing one constraint.
 
-3. INTENT BEHAVIOR:
-   - OUT_OF_SCOPE: Provide the direct factual answer (e.g. "The capital of France is Paris.") briefly. No products.
+3. INTENT BEHAVIOR & STRUCTURED POLICIES:
+   - OUT_OF_SCOPE:
+     Policy: must_not_answer_original_question = true, must_not_recommend_products = true, briefly_explain_specialized_scope = true, tone = brief, polite, helpful.
+     * Politely explain in your own conversational words that you specialize in fragrance discovery and shopping for this website, decline to answer the unrelated question, and invite the user to explore perfumes.
+     * NEVER answer the unrelated non-fragrance question (do not give the capital, calculate math, write code, tell jokes, forecast weather, etc.).
+     * Do NOT present or recommend any products.
+     * Do NOT use a hardcoded template — generate natural, polite, and helpful wording.
+   - PURCHASE_ASSISTANCE:
+     Policy: explain_actual_purchase_flow = true, do_not_invent_information = true, do_not_recommend_random_products = true.
+     * If a specific product is provided in STRUCTURED APPLICATION CONTEXT (e.g. Royal Oud): naturally explain how to acquire/order it on this website (e.g. clicking 'Acquire Full Bottle' or adding to cart, opening the cart from the header, reviewing items, and proceeding to checkout). Reference the actual product name and details provided. Do NOT invent prices or shipping guarantees. Do NOT recommend random other products.
+     * If no specific product is specified (general purchase question): naturally explain the site's ordering process (browse or consult, select Acquire Full Bottle / Add to Cart, open cart, and proceed to checkout). Do NOT recommend random products.
+   - CART_ASSISTANCE:
+     Policy: confirm_action_naturally = true, do_not_invent_information = true, must_not_print_raw_routes = true, live_cart_is_authoritative = true.
+     * Confirm add/remove using ONLY the actual action result in STRUCTURED APPLICATION CONTEXT (added, failed, partial).
+     * For "what's in my cart" / subtotal / item-count questions: use ONLY LIVE CART CONTEXT. If isEmpty is true, say the cart is empty. Do not mention previously added or recommended products as current cart items.
+     * If several products were added, mention those actual names. If some could not be found, say so naturally.
+     * If ask_clarification is true, ask which products they mean. Do not claim anything was added.
+     * Direct the customer to the cart icon in the header (or View Cart). NEVER print a URL or route such as /tmperfumehouse/cart.
+     * Mention prices only with ₹ / INR using supplied formatted values.
    - GREETING/IDENTITY/CAPABILITY: Respond politely without presenting any products.
    - CLARIFICATION:
       * Ask a thoughtful, friendly fragrance clarification question.
@@ -296,7 +428,11 @@ CRITICAL RULES:
       * NEVER start with a negative database statement like "I couldn't find a fragrance that matches both..." or "I don't have...".
       * Ground your explanation in the trade-off provided: explain what it keeps/satisfies and what differs (e.g. "It keeps the refreshing character but offers moderate intensity rather than strong.").
       * Never call it "Best Match". Never claim characteristics the product lacks.
-   - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: State honestly and politely that no suitable option was found within those constraints, briefly explaining the limiting factor (e.g. budget ceiling or excluded notes). Never present invalid products. Avoid robotic "relax one of your preferences" phrases.
+   - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: State honestly and politely that no suitable option was found within those constraints, briefly explaining the limiting factor (e.g. budget ceiling or excluded notes). Never present invalid products. Avoid robotic "relax one of your preferences" phrases. Use this language ONLY when RECOMMENDATION_COUNT is 0.
+   - COMPARATIVE REFINEMENT (stronger / lighter / warmer / louder / fresher):
+     * Compare against the previous recommendation/request, not against the globally strongest product in the catalogue.
+     * If COMPARATIVE CONTEXT says improved=true and products are present: explain that these options step in that direction. Do NOT say you don't have anything stronger/warmer/etc.
+     * If alreadyAtBound=true: explain that the current options are already at the strongest/warmest available level. Do not invent additional stronger products.
 
 4. EXPLANATION MUST STRICTLY MATCH ACTIVE CONSULTATION STATE:
    - If warmth is "moderate-warm" or warmthMax is "warm": do NOT claim "leaning into a warmer profile" or "deep warmth". Describe it as subtle, balanced, or moderate warmth.
@@ -306,12 +442,22 @@ CRITICAL RULES:
 CANONICAL RANKED PRODUCTS (ALREADY VERIFIED & CHOSEN IN THIS EXACT ORDER):
 ${JSON.stringify(rankedItems, null, 2)}
 
+CANONICAL PRESENTATION (AUTHORITATIVE PRODUCT SET FOR BOTH UI AND THIS RESPONSE):
+${JSON.stringify(presentation, null, 2)}
+
+COMPARATIVE CONTEXT:
+${JSON.stringify(comparative || null, null, 2)}
+
 ACTIVE CONSULTATION CONTEXT:
 ${JSON.stringify(currentState.activeRequest || currentState.currentConsultation || {})}
 
 STATUS: "${options.status || (options.hardConstraintFailed ? 'HARD_CONSTRAINT_FAILED' : 'SUCCESS')}"
 HARD CONSTRAINT FAILED: ${Boolean(options.hardConstraintFailed)}
-USER INTENT: "${stage1.intent}"`;
+USER INTENT: "${stage1.intent}"
+STOREFRONT CURRENCY: ${JSON.stringify(options.actionContext?.currency || STOREFRONT_CURRENCY)}
+LIVE CART CONTEXT (AUTHORITATIVE — IGNORE CART CONTENTS FROM PREVIOUS MESSAGES):
+${JSON.stringify(options.actionContext?.cart || { isEmpty: true, itemCount: 0, items: [], subtotal: 0, subtotalFormatted: formatPrice(0), currency: STOREFRONT_CURRENCY }, null, 2)}
+${options.actionContext ? `\nSTRUCTURED APPLICATION CONTEXT & POLICIES:\n${JSON.stringify(options.actionContext, null, 2)}\n` : ''}`;
 
   const messagesPayload = [
     { role: 'system' as const, content: systemPrompt },
@@ -349,6 +495,8 @@ export function fallbackResponseGenerator(
   currentState: ConversationState,
   options: ResponseGeneratorOptions = {}
 ): string {
+  const presentation =
+    options.recommendationPresentation || buildRecommendationPresentation(results, options.status);
   const activeReq = currentState.activeRequest || {
     occasion: currentState.currentConsultation?.occasion,
     families: currentState.currentConsultation?.fragrance_families || [],
@@ -357,12 +505,55 @@ export function fallbackResponseGenerator(
     intensity: currentState.currentConsultation?.intensity,
   };
 
-  // 1. OUT OF SCOPE (TEST 5)
+  // 1. OUT OF SCOPE
   if (stage1.intent === 'OUT_OF_SCOPE') {
     return (
       stage1.out_of_scope_answer ||
-      "The capital of France is Paris. If you'd like, I can also help you discover a fragrance!"
+      `I specialize exclusively in fragrance shopping and consultation for ${brand.name}. While I can't assist with unrelated topics, I'd be glad to help you find your next fragrance.`
     );
+  }
+
+  // 1b. CART ASSISTANCE
+  if (stage1.intent === 'CART_ASSISTANCE') {
+    const action = options.actionContext?.cart_action?.action;
+    const added = options.actionContext?.cart_action?.added;
+    const failed = options.actionContext?.cart_action?.failed;
+    const prodName = options.actionContext?.cart_action?.productName || options.actionContext?.product?.name;
+    const names = added && added.length > 0 ? added.join(', ') : prodName;
+    if (options.actionContext?.response_policy?.ask_clarification) {
+      return (
+        options.actionContext.response_policy.clarification_question ||
+        'Which fragrances would you like me to add? I can use the latest recommendations or a product name from this collection.'
+      );
+    }
+    if (action === 'ADD_TO_CART') {
+      if (!options.actionContext?.cart_action?.success && failed?.length && !added?.length) {
+        return `I couldn’t find ${failed.join(', ')} in this collection, so nothing was added. You can browse the current brand’s fragrances or tell me another name.`;
+      }
+      if (names && failed?.length) {
+        return `I’ve added ${names} to your cart. I couldn’t find ${failed.join(', ')} in this collection. You can review everything from the cart icon in the header.`;
+      }
+      return names
+        ? `I have added ${names} to your cart. You can review your items anytime from the cart icon in the header.`
+        : `I've added the fragrance to your cart. You can review your items anytime by opening the cart.`;
+    }
+    if (action === 'REMOVE_FROM_CART') {
+      return names
+        ? `I've removed ${names} from your cart.`
+        : `I've updated your cart and removed the selected fragrance.`;
+    }
+    const count = options.actionContext?.cart?.itemCount ?? 0;
+    const isEmpty = options.actionContext?.cart?.isEmpty ?? count === 0;
+    if (isEmpty) {
+      return `Your cart is currently empty. Tell me what fragrance profiles, notes, or occasions you enjoy, and I'll find something tailored for you!`;
+    }
+    const cartNames = options.actionContext?.cart?.items
+      ?.map((i) => `${i.name}${i.quantity > 1 ? ` × ${i.quantity}` : ''} (${i.unitPriceFormatted || formatPrice(i.unitPrice || i.price || 0)})`)
+      .join(', ');
+    const subtotalText =
+      options.actionContext?.cart?.subtotalFormatted ||
+      formatPrice(options.actionContext?.cart?.subtotal || 0);
+    return `You currently have ${count} fragrance${count > 1 ? 's' : ''} in your cart${cartNames ? ` (${cartNames})` : ''}. Subtotal: ${subtotalText}. Open the cart from the header to proceed to checkout.`;
   }
 
   // 2. GREETING (TEST 1, 4)
@@ -433,9 +624,18 @@ export function fallbackResponseGenerator(
     );
   }
 
-  // 5e. PURCHASE ASSISTANCE — Reinforce previously recommended products without dumping new cards
+  // 5e. PURCHASE ASSISTANCE — Ordering instructions and purchase hesitation
   if (stage1.intent === 'PURCHASE_ASSISTANCE') {
+    if (options.actionContext?.product) {
+      const p = options.actionContext.product;
+      return `To order ${p.name} (${p.size}, ₹${p.price}), select "Acquire Full Bottle" on its page or ask me to add it to your cart, then open your cart in the header to review and checkout.`;
+    }
     const lower = message.toLowerCase();
+    const isOrderingQuestion =
+      /\b(how\s+(?:can|do)\s+i\s+(?:order|buy|purchase|place\s+an\s+order|get|checkout)|where\s+can\s+i\s+buy)\b/i.test(lower);
+    if (isOrderingQuestion) {
+      return `To order a perfume, simply select "Acquire Full Bottle" on any fragrance page to add it to your cart, then click the cart icon in the header to review your order and checkout.`;
+    }
     const lastRecs = currentState.lastRecommendationIds || [];
     if (lower.includes('size') || lower.includes('30ml') || lower.includes('50ml') || lower.includes('100ml')) {
       return `If you're trying a new scent for the first time, a smaller size lets you wear it for a few weeks before committing. Once you know you love it, the larger size gives better value per ml. Would you like more details on any specific product?`;
@@ -446,7 +646,7 @@ export function fallbackResponseGenerator(
     if (lastRecs.length > 0) {
       return `Take your time — there's no rush. If you'd like, I can walk you through the differences between the options we discussed, or I can narrow things down based on what matters most to you.`;
     }
-    return `No pressure at all. When you're ready, I can help narrow things down based on what you're looking for — whether it's occasion, scent family, or budget.`;
+    return `To order any fragrance, you can add it to your cart and proceed to checkout anytime from the cart icon in the header.`;
   }
 
   // 5f. GENERAL CONVERSATION — Polite acknowledgements, chit-chat, goodbyes
@@ -496,10 +696,28 @@ export function fallbackResponseGenerator(
     const tradeOff =
       closest.detailedReasons?.find((d) => d.category === 'Profile')?.text ||
       closest.explanation;
+    if (results.length >= 2) {
+      const others = results.slice(1).map((r) => r.product.name).join(' and ');
+      return `The closest option is ${closest.product.name}. ${tradeOff} I've also included ${others}.`;
+    }
     return `The closest option is ${closest.product.name}. ${tradeOff}`;
   }
 
-  // 7. HARD CONSTRAINT FAILURE / NO_VALID_MATCH
+  // PRODUCT INFO - No "Best Match" language; never treat as a recommendation set
+  if (stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
+    const p = retrievedProducts[0];
+    return `${p.name} is a ${p.size} ${p.fragranceFamily.join('/')} fragrance priced at ₹${p.price}. Key top notes: ${p.topNotes.slice(0, 3).join(', ')}, heart: ${p.heartNotes.slice(0, 2).join(', ')}, base: ${p.baseNotes.slice(0, 2).join(', ')}. Performance is ${p.intensity} intensity with ${p.longevity.replace('-', ' ')} longevity, well suited for ${p.occasion.slice(0, 2).map((o) => o.replace('-', ' ')).join(' and ')}.`;
+  }
+
+  // COMPARE PRODUCTS - No "Best Match" language!
+  if (stage1.intent === 'COMPARE_PRODUCTS' && retrievedProducts.length >= 2) {
+    const [p1, p2] = retrievedProducts;
+    return `Here is a factual comparison between ${p1.name} and ${p2.name}:
+• ${p1.name} (₹${p1.price}, ${p1.size}): ${p1.fragranceFamily.join('/')} profile with ${p1.topNotes.slice(0, 2).join(', ')} opening and ${p1.baseNotes.slice(0, 2).join(', ')} base. Sillage: ${p1.intensity}, longevity: ${p1.longevity.replace('-', ' ')}.
+• ${p2.name} (₹${p2.price}, ${p2.size}): ${p2.fragranceFamily.join('/')} profile with ${p2.topNotes.slice(0, 2).join(', ')} opening and ${p2.baseNotes.slice(0, 2).join(', ')} base. Sillage: ${p2.intensity}, longevity: ${p2.longevity.replace('-', ' ')}.`;
+  }
+
+  // HARD CONSTRAINT FAILURE / NO_VALID_MATCH
   if (options.hardConstraintFailed || (results.length === 0 && stage1.needs_recommendations)) {
     const isStrongControlledSillage =
       (activeReq.intensity === 'strong' || currentState.activeRequest?.intensity === 'strong') &&
@@ -532,21 +750,7 @@ export function fallbackResponseGenerator(
     return `I couldn't find a suitable option within those constraints.`;
   }
 
-  // 7. PRODUCT INFO (TEST 26) - No "Best Match" language!
-  if (stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
-    const p = retrievedProducts[0];
-    return `${p.name} is a ${p.size} ${p.fragranceFamily.join('/')} fragrance priced at ₹${p.price}. Key top notes: ${p.topNotes.slice(0, 3).join(', ')}, heart: ${p.heartNotes.slice(0, 2).join(', ')}, base: ${p.baseNotes.slice(0, 2).join(', ')}. Performance is ${p.intensity} intensity with ${p.longevity.replace('-', ' ')} longevity, well suited for ${p.occasion.slice(0, 2).map((o) => o.replace('-', ' ')).join(' and ')}.`;
-  }
-
-  // 8. COMPARE PRODUCTS (TEST 27) - No "Best Match" language!
-  if (stage1.intent === 'COMPARE_PRODUCTS' && retrievedProducts.length >= 2) {
-    const [p1, p2] = retrievedProducts;
-    return `Here is a factual comparison between ${p1.name} and ${p2.name}:
-• ${p1.name} (₹${p1.price}, ${p1.size}): ${p1.fragranceFamily.join('/')} profile with ${p1.topNotes.slice(0, 2).join(', ')} opening and ${p1.baseNotes.slice(0, 2).join(', ')} base. Sillage: ${p1.intensity}, longevity: ${p1.longevity.replace('-', ' ')}.
-• ${p2.name} (₹${p2.price}, ${p2.size}): ${p2.fragranceFamily.join('/')} profile with ${p2.topNotes.slice(0, 2).join(', ')} opening and ${p2.baseNotes.slice(0, 2).join(', ')} base. Sillage: ${p2.intensity}, longevity: ${p2.longevity.replace('-', ' ')}.`;
-  }
-
-  // 9. GROUNDED RECOMMENDATIONS & REFINEMENT EXPLANATIONS
+  // GROUNDED RECOMMENDATIONS & REFINEMENT EXPLANATIONS
   if (results.length > 0) {
     const primary = results[0];
     const alts = results.slice(1);
@@ -605,10 +809,32 @@ export function fallbackResponseGenerator(
     }
 
     const whyPrimary = `Why: its ${primary.product.fragranceFamily.join('/')} profile with ${primary.product.topNotes.slice(0, 2).join(', ')} opening and ${primary.product.baseNotes.slice(0, 2).join(', ')} base fits the direction at ₹${primary.product.price}.`;
+    const comparative = options.comparativeContext;
+    if (comparative?.type === 'stronger' && comparative.alreadyAtBound) {
+      intro = `You're already at the strongest intensity available in this collection. ${primary.product.name} remains the most pronounced option`;
+    } else if (comparative?.type === 'stronger' && comparative.improved) {
+      const from = comparative.previousProductNames[0] || 'the previous recommendation';
+      intro =
+        alts.length > 0
+          ? `If you want more intensity, these options step up from ${from}. ${primary.product.name} is the closest stronger match`
+          : `If you want more intensity, this option steps up from ${from}. ${primary.product.name} is the closest stronger match`;
+    } else if (comparative?.type === 'warmer' && (comparative.improved || results.length > 0)) {
+      intro =
+        alts.length > 0
+          ? `Here are warmer options that keep your current direction. ${primary.product.name} is the closest match`
+          : `${primary.product.name} is the warmer option that keeps your current direction`;
+    } else if (comparative?.type === 'louder') {
+      intro =
+        alts.length > 0
+          ? `If you want more projection, these options step up. ${primary.product.name} is the closest match`
+          : `If you want more projection, ${primary.product.name} steps up from the previous recommendation`;
+    } else if (alts.length > 0 && presentation.recommendationCount >= 2 && !intro.toLowerCase().includes('here are')) {
+      intro = `${intro}, and I've included ${presentation.recommendationCount} options`;
+    }
 
     if (alts.length > 0) {
       const altNames = alts.map((a) => `${a.product.name} (₹${a.product.price})`).join(' and ');
-      return `${intro}.\n\n${whyPrimary}\n\nAlso worth considering: ${altNames}.`;
+      return `${intro}.\n\n${whyPrimary}\n\nAlso included: ${altNames}.`;
     }
 
     return `${intro}.\n\n${whyPrimary}`;

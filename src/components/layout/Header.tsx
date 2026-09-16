@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { BrandConfig } from '@/types/brand';
+import { useCart } from '@/context/CartContext';
 import ThemeToggle from './ThemeToggle';
 
 interface HeaderProps {
@@ -12,6 +13,7 @@ interface HeaderProps {
 export default function Header({ brand }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const { itemCount } = useCart(brand.slug);
   const variant = brand.designVariant;
 
   useEffect(() => {
@@ -130,6 +132,32 @@ export default function Header({ brand }: HeaderProps) {
           {/* Theme Switcher Toggle */}
           <ThemeToggle />
 
+          {/* Cart Icon & Item Badge */}
+          <Link
+            href={`/${brand.slug}/cart`}
+            className="relative p-2 text-brand-text hover:text-brand-accent transition-colors flex items-center justify-center"
+            aria-label={`Shopping Cart with ${itemCount} items`}
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.3}
+                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+              />
+            </svg>
+            {itemCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand-accent text-[9px] font-medium text-brand-primary-fg shadow-xs">
+                {itemCount}
+              </span>
+            )}
+          </Link>
+
           {/* Minimal Mobile Trigger */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -162,6 +190,19 @@ export default function Header({ brand }: HeaderProps) {
                 {l.label}
               </Link>
             ))}
+            <Link
+              key="m-cart"
+              href={`/${brand.slug}/cart`}
+              onClick={() => setIsMenuOpen(false)}
+              className="text-xs uppercase tracking-[0.25em] text-brand-text-muted hover:text-brand-text transition-colors flex items-center justify-between"
+            >
+              <span>Shopping Cart</span>
+              {itemCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-brand-accent text-[10px] text-brand-primary-fg font-medium">
+                  {itemCount}
+                </span>
+              )}
+            </Link>
             <div className="pt-4 border-t border-brand-border">
               <Link
                 href={`/${brand.slug}/finder`}

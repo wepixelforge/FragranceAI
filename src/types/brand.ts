@@ -55,6 +55,7 @@ export interface BrandConfig {
     subtitle: string;
     assistantName: string;
     assistantTitle: string;
+    welcomeMessage?: string;
     examplePrompts: string[];
     starterPrompts?: string[];
   };

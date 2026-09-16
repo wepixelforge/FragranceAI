@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Playfair_Display } from 'next/font/google';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { CartProvider } from '@/context/CartContext';
+import CartToast from '@/components/layout/CartToast';
 import './globals.css';
 
 const geistSans = Geist({
@@ -46,7 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <CartProvider>
+            {children}
+            <CartToast />
+          </CartProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

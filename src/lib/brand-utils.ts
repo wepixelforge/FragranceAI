@@ -20,11 +20,17 @@ export function getBrandCssVars(brand: BrandConfig): Record<string, string> {
   };
 }
 
+export const STOREFRONT_CURRENCY = {
+  code: 'INR' as const,
+  symbol: '₹',
+  locale: 'en-IN',
+};
+
 /**
- * Format price in Indian Rupees.
+ * Format price in Indian Rupees (matches catalogue and cart UI).
  */
 export function formatPrice(price: number): string {
-  return `₹${price.toLocaleString('en-IN')}`;
+  return `₹${Number(price || 0).toLocaleString(STOREFRONT_CURRENCY.locale)}`;
 }
 
 /**
@@ -47,4 +53,25 @@ export function getProductPlaceholderGradient(productName: string): string {
   ];
 
   return gradients[hash % gradients.length];
+}
+
+/**
+ * Return canonical welcome message for a brand's fragrance consultant.
+ */
+export function getBrandWelcomeMessage(brand: BrandConfig): string {
+  if (brand.finder?.welcomeMessage) {
+    return brand.finder.welcomeMessage;
+  }
+  switch (brand.slug) {
+    case 'tmperfumehouse':
+      return 'Hi, I can help you find the fragrance you like.';
+    case 'worldofperfumers':
+      return 'Looking for a scent? I can help you explore.';
+    case 'almaham':
+      return 'Let me help you discover your next signature fragrance.';
+    case 'arabianaroma':
+      return 'Hi, let me help you find your signature attar.';
+    default:
+      return 'Hi, I can help you find the fragrance you like.';
+  }
 }

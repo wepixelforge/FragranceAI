@@ -49,3 +49,35 @@ export function getFeaturedProducts(brandSlug: string): Product[] {
 export function getAllBrandSlugs(): string[] {
   return Object.keys(brands);
 }
+
+export function getAllProducts(): Product[] {
+  return Object.values(productsByBrand).flat();
+}
+
+export function getProductById(productId: string): { product: Product; brand: BrandConfig } | undefined {
+  for (const [slug, prods] of Object.entries(productsByBrand)) {
+    const found = prods.find((p) => p.id === productId);
+    if (found) {
+      return { product: found, brand: brands[slug] };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Authoritative, brand-scoped product resolver.
+ * Ensures products are only resolved within their intended storefront catalogue.
+ */
+export function getProductByBrandAndId(
+  brandSlug: string,
+  productId: string
+): { product: Product; brand: BrandConfig } | undefined {
+  const brand = brands[brandSlug];
+  if (!brand) return undefined;
+  const prods = productsByBrand[brandSlug] ?? [];
+  const found = prods.find((p) => p.id === productId || p.slug === productId);
+  if (found) {
+    return { product: found, brand };
+  }
+  return undefined;
+}

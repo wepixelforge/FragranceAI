@@ -18,7 +18,15 @@ export type CanonicalIntent =
   | 'GENERAL_CONVERSATION'
   | 'BRAND_CONVERSATION'
   | 'CUSTOMER_OBJECTION'
-  | 'PURCHASE_ASSISTANCE';
+  | 'PURCHASE_ASSISTANCE'
+  | 'CART_ASSISTANCE'
+  | 'FRAGRANCE_DISCOVERY'
+  | 'FRAGRANCE_REFINEMENT'
+  | 'PRODUCT_INFORMATION'
+  | 'PRODUCT_COMPARISON'
+  | 'ALTERNATIVES'
+  | 'WEBSITE_ASSISTANCE'
+  | 'COMPETITOR_DISCUSSION';
 
 export type UserIntent =
   | CanonicalIntent
@@ -35,7 +43,9 @@ export type UserIntent =
   | 'follow_up'
   | 'clarification_needed'
   | 'goodbye'
-  | 'unsupported_request';
+  | 'unsupported_request'
+  | 'cart_action'
+  | 'purchase_intent';
 
 export interface ActiveRequest {
   gender: string | null;
@@ -108,12 +118,20 @@ export interface ConversationPreferences extends ActiveConsultation {
   target_products?: string[];
 }
 
+export interface CanonicalProductRef {
+  productId: string;
+  brandSlug: string;
+  name: string;
+}
+
 export interface ConversationState {
   intent?: CanonicalIntent;
   activeRequest: ActiveRequest;
   backgroundContext: BackgroundContext;
   shownProductIds: string[];
   lastRecommendationIds: string[];
+  lastCanonicalProductSet?: CanonicalProductRef[];
+  lastDiscussedProductSet?: CanonicalProductRef[];
   currentConsultation: ActiveConsultation;
   backgroundPreferences: BackgroundPreferences;
   preferences: ConversationPreferences;
@@ -139,6 +157,11 @@ export interface ChatApiRequest {
   history?: ChatMessage[];
   contextProductSlug?: string;
   isAlternativeRequest?: boolean;
+  cart?: {
+    items: { productId: string; brandSlug?: string; quantity: number }[];
+    itemCount: number;
+    subtotal?: number;
+  };
 }
 
 export interface PreferenceUpdateItem {
@@ -240,6 +263,33 @@ export interface ConsultationDebugInfo {
   notes?: string;
 }
 
+export interface CartActionItem {
+  productId: string;
+  brandSlug: string;
+  productName: string;
+  quantity?: number;
+}
+
+export interface CartActionFailure {
+  reference: string;
+  reason: string;
+}
+
+export interface CartActionPayload {
+  action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART';
+  productId?: string;
+  brandSlug?: string;
+  productName?: string;
+  quantity?: number;
+  success: boolean;
+  message?: string;
+  items?: CartActionItem[];
+  added?: CartActionItem[];
+  removed?: CartActionItem[];
+  failed?: CartActionFailure[];
+  needsClarification?: boolean;
+}
+
 export interface ChatApiResponse {
   reply: string;
   messages?: string[];
@@ -254,6 +304,7 @@ export interface ChatApiResponse {
   unmetPreferences?: string[];
   matchedPreferences?: string[];
   tradeOff?: string;
+  cartAction?: CartActionPayload;
 }
 
 export interface Stage1IntentOutput {
@@ -286,6 +337,10 @@ export interface Stage1IntentOutput {
   sweetness?: 'sweeter' | null;
   requested_changes?: string[];
   target_product_names?: string[];
+  product_reference?: string | null;
+  product_references?: string[];
+  cart_action?: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | null;
+  confidence?: number;
   needs_recommendations: boolean;
   needs_clarification: boolean;
   clarification_reason?: string | null;

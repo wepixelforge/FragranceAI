@@ -6,6 +6,7 @@ import {
   ChatApiResponse,
   UserIntent,
   ConsultationDebugInfo,
+  CartActionPayload,
 } from '@/types/chat';
 import {
   classifyIntentAndExtractPreferences,
@@ -19,8 +20,21 @@ import {
   createInitialConversationState,
 } from '@/lib/state-manager';
 import { getRecommendations } from '@/lib/recommendation-engine';
-import { generateConversationalResponse } from '@/lib/response-generator';
+import { generateConversationalResponse, ResponseActionContext } from '@/lib/response-generator';
 import { normalizeAssistantMessages } from '@/lib/message-sequencer';
+import {
+  buildCartActionPayload,
+  normalizeProductReferencesList,
+  resolveCartProductReferences,
+  toCanonicalProductSet,
+} from '@/lib/cart-action-resolver';
+import { buildLiveCartContext, toResponseCartContext } from '@/lib/live-cart-context';
+import { STOREFRONT_CURRENCY } from '@/lib/brand-utils';
+import {
+  buildComparativeContext,
+  buildRecommendationPresentation,
+  previousProductsFromState,
+} from '@/lib/response-grounding';
 
 export async function POST(req: NextRequest) {
   try {
@@ -311,6 +325,8 @@ export async function POST(req: NextRequest) {
 
         if (discussedProductIds.length > 0) {
           updatedState.lastRecommendationIds = [...discussedProductIds];
+          updatedState.lastCanonicalProductSet = toCanonicalProductSet(retrievedProducts, brandSlug);
+          updatedState.lastDiscussedProductSet = [...updatedState.lastCanonicalProductSet];
         }
       }
 
@@ -319,20 +335,233 @@ export async function POST(req: NextRequest) {
           new Set([...(updatedState.shownProductIds || []), ...discussedProductIds])
         );
         updatedState.previously_discussed_products = [...updatedState.shownProductIds];
+        if (stage1.intent === 'PRODUCT_INFO' || stage1.intent === 'COMPARE_PRODUCTS') {
+          updatedState.lastDiscussedProductSet = toCanonicalProductSet(retrievedProducts, brandSlug);
+        }
       }
     }
 
-    // ── STAGE 4: CONVERSATIONAL RESPONSE GENERATION (GROQ EXPLAINS CANONICAL RESULT) ──
-    const reply = await generateConversationalResponse(
-      cleanMessage,
-      brand,
-      stage1,
-      retrievedProducts,
-      recommendationResults,
-      updatedState,
-      history,
-      { hardConstraintFailed, status: canonicalResult.status }
-    );
+    // ── STAGE 3B: ACTION CONTEXT RESOLUTION (PURCHASE & CART ACTIONS) ───────
+    let actionContext: ResponseActionContext | undefined = undefined;
+    let cartActionPayload: CartActionPayload | undefined = undefined;
+    const liveCart = buildLiveCartContext(brandSlug, body.cart);
+    const liveCartView = toResponseCartContext(liveCart);
+
+    const matchProduct = (query: string): Product | undefined => {
+      if (!query) return undefined;
+      const clean = query.toLowerCase().trim();
+      const exact = brandProducts.find(
+        (p) => p.name.toLowerCase() === clean || p.slug.toLowerCase() === clean
+      );
+      if (exact) return exact;
+      return findProductByNameOrFuzzy(query, brandProducts);
+    };
+
+    const resolvePurchaseProduct = (): Product | null => {
+      const refs = stage1.product_references?.length
+        ? stage1.product_references
+        : stage1.target_product_names?.length
+          ? stage1.target_product_names
+          : stage1.product_reference
+            ? [stage1.product_reference]
+            : [];
+      for (const ref of refs) {
+        if (ref && ref !== 'this' && ref !== 'THIS' && ref !== 'it') {
+          const found = matchProduct(ref);
+          if (found) return found;
+        }
+      }
+      if (contextProductSlug) {
+        const found = brandProducts.find((p) => p.slug === contextProductSlug || p.id === contextProductSlug);
+        if (found) return found;
+      }
+      if (activeState.shownProductIds && activeState.shownProductIds.length > 0) {
+        for (let i = activeState.shownProductIds.length - 1; i >= 0; i--) {
+          const id = activeState.shownProductIds[i];
+          const found = brandProducts.find((p) => p.id === id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    if (stage1.intent === 'PURCHASE_ASSISTANCE') {
+      const referencedProd = resolvePurchaseProduct();
+      actionContext = {
+        intent: 'PURCHASE_ASSISTANCE',
+        product: referencedProd
+          ? {
+              id: referencedProd.id,
+              name: referencedProd.name,
+              price: referencedProd.price,
+              size: referencedProd.size,
+              fragranceFamily: referencedProd.fragranceFamily,
+            }
+          : null,
+        currency: STOREFRONT_CURRENCY,
+        cart: liveCartView,
+        available_actions: referencedProd
+          ? ['ADD_TO_CART', 'VIEW_PRODUCT_PAGE', 'VIEW_CART', 'CHECKOUT']
+          : ['VIEW_CART', 'BROWSE_CATALOGUE'],
+        purchase_flow: {
+          product_page: referencedProd ? `product page for ${referencedProd.name}` : 'brand shop',
+          cart_navigation: 'header cart icon or View Cart',
+          checkout_modal: 'demo_checkout_modal',
+        },
+        response_policy: {
+          must_not_claim_completed_purchase: true,
+          must_not_send_to_recommendation_ranking: true,
+          must_provide_concrete_next_step: true,
+          must_not_print_raw_routes: true,
+          currency_is_inr: true,
+        },
+      };
+    } else if (stage1.intent === 'CART_ASSISTANCE') {
+      const cartActionType = stage1.cart_action || 'VIEW_CART';
+      const references = normalizeProductReferencesList(
+        stage1.product_references?.length
+          ? stage1.product_references
+          : stage1.target_product_names?.length
+            ? stage1.target_product_names
+            : stage1.product_reference
+              ? [stage1.product_reference]
+              : [],
+        cleanMessage,
+        brandProducts
+      );
+      const resolution = resolveCartProductReferences({
+        references,
+        action: cartActionType,
+        brandProducts,
+        brandSlug,
+        state: updatedState,
+        contextProductSlug,
+      });
+
+      if (resolution.needsClarification) {
+        actionContext = {
+          intent: 'CART_ASSISTANCE',
+          product: null,
+          cart_action: {
+            action: cartActionType,
+            success: false,
+            needsClarification: true,
+          },
+          cart: liveCartView,
+          currency: STOREFRONT_CURRENCY,
+          response_policy: {
+            ask_clarification: true,
+            do_not_mutate_cart: true,
+            must_not_print_raw_routes: true,
+            live_cart_is_authoritative: true,
+            clarification_question: resolution.clarificationQuestion,
+          },
+        };
+      } else if (cartActionType === 'VIEW_CART') {
+        actionContext = {
+          intent: 'CART_ASSISTANCE',
+          cart_action: {
+            action: 'VIEW_CART',
+            success: true,
+          },
+          cart: liveCartView,
+          currency: STOREFRONT_CURRENCY,
+          response_policy: {
+            show_cart_summary: true,
+            suggest_header_cart: true,
+            must_not_print_raw_routes: true,
+            live_cart_is_authoritative: true,
+            do_not_infer_cart_from_history: true,
+            cart_is_empty: liveCart.isEmpty,
+          },
+        };
+        cartActionPayload = buildCartActionPayload(resolution, brandSlug);
+      } else if (resolution.resolved.length > 0) {
+        cartActionPayload = buildCartActionPayload(resolution, brandSlug);
+        const addedNames = resolution.resolved.map((p) => p.name);
+        const failedNames = resolution.failed.map((f) => f.reference);
+        const first = resolution.resolved[0];
+
+        actionContext = {
+          intent: 'CART_ASSISTANCE',
+          product: {
+            id: first.id,
+            name: first.name,
+            price: first.price,
+            size: first.size,
+            fragranceFamily: first.fragranceFamily,
+          },
+          cart_action: {
+            action: cartActionType,
+            success: resolution.failed.length === 0,
+            productName: addedNames.join(', '),
+            added: addedNames,
+            failed: failedNames,
+            partial: resolution.failed.length > 0,
+          },
+          cart: liveCartView,
+          currency: STOREFRONT_CURRENCY,
+          response_policy: {
+            confirm_item_added: cartActionType === 'ADD_TO_CART',
+            confirm_item_removed: cartActionType === 'REMOVE_FROM_CART',
+            suggest_header_cart: true,
+            must_not_print_raw_routes: true,
+            use_actual_action_result: true,
+            live_cart_is_authoritative: true,
+            partial_success: resolution.failed.length > 0,
+          },
+        };
+      } else {
+        actionContext = {
+          intent: 'CART_ASSISTANCE',
+          product: null,
+          cart_action: {
+            action: cartActionType,
+            success: false,
+            productName: references.join(', ') || stage1.product_reference || 'requested fragrance',
+            failed: resolution.failed.map((f) => f.reference),
+          },
+          cart: liveCartView,
+          currency: STOREFRONT_CURRENCY,
+          response_policy: {
+            item_not_in_brand_catalogue: true,
+            suggest_browsing_brand_collection: true,
+            must_not_print_raw_routes: true,
+            live_cart_is_authoritative: true,
+          },
+        };
+      }
+    } else if (stage1.intent === 'OUT_OF_SCOPE') {
+      actionContext = {
+        intent: 'OUT_OF_SCOPE',
+        response_policy: {
+          must_not_answer_original_question: true,
+          must_not_recommend_products: true,
+          must_clarify_specialized_fragrance_assistant: true,
+          must_invite_fragrance_query: true,
+        },
+      };
+    }
+
+    if (!actionContext) {
+      actionContext = {
+        intent: stage1.intent,
+        cart: liveCartView,
+        currency: STOREFRONT_CURRENCY,
+        response_policy: {
+          live_cart_is_authoritative: true,
+          currency_is_inr: true,
+        },
+      };
+    } else {
+      actionContext.cart = actionContext.cart || liveCartView;
+      actionContext.currency = STOREFRONT_CURRENCY;
+      actionContext.response_policy = {
+        ...(actionContext.response_policy || {}),
+        live_cart_is_authoritative: true,
+        currency_is_inr: true,
+      };
+    }
 
     const isConversationalOnly =
       stage1.intent === 'GREETING' ||
@@ -345,9 +574,10 @@ export async function POST(req: NextRequest) {
       stage1.intent === 'CLARIFICATION' ||
       Boolean(stage1.needs_clarification) ||
       (stage1.intent === 'CUSTOMER_OBJECTION' && !stage1.needs_recommendations) ||
-      stage1.intent === 'PURCHASE_ASSISTANCE';
+      stage1.intent === 'PURCHASE_ASSISTANCE' ||
+      stage1.intent === 'CART_ASSISTANCE';
 
-    const hasValidRecommendations = Boolean(
+    let hasValidRecommendations = Boolean(
       !isConversationalOnly &&
       requiresProducts &&
       !stage1.needs_clarification &&
@@ -358,10 +588,40 @@ export async function POST(req: NextRequest) {
       recommendationResults.length > 0
     );
 
-    // If objection with preference requested recommendations, cap to maximum 2 products
     if (stage1.intent === 'CUSTOMER_OBJECTION' && hasValidRecommendations) {
       recommendationResults = recommendationResults.slice(0, 2);
     }
+
+    const uiRecommendationResults = hasValidRecommendations ? recommendationResults : [];
+    const recommendationPresentation = buildRecommendationPresentation(
+      uiRecommendationResults,
+      canonicalResult.status
+    );
+    const comparativeContext = buildComparativeContext(
+      cleanMessage,
+      stage1,
+      previousProductsFromState(activeState, brandProducts),
+      uiRecommendationResults.map((r) => r.product)
+    );
+
+    // ── STAGE 4: CONVERSATIONAL RESPONSE GENERATION (GROQ EXPLAINS CANONICAL RESULT) ──
+    const reply = await generateConversationalResponse(
+      cleanMessage,
+      brand,
+      stage1,
+      retrievedProducts,
+      uiRecommendationResults,
+      updatedState,
+      history,
+      {
+        hardConstraintFailed,
+        status: canonicalResult.status,
+        actionContext,
+        recommendationPresentation,
+        comparativeContext,
+        catalogueProducts: brandProducts,
+      }
+    );
 
     // Development Debug Info Payload (All 17 Audit Points & Section 10 requirements)
     const rankedIds = hasValidRecommendations ? recommendationResults.map((r) => r.product.id) : [];
@@ -502,6 +762,7 @@ export async function POST(req: NextRequest) {
       updatedState,
       needsRecommendations: hasValidRecommendations,
       suggestedChips: stage1.suggested_chips || undefined,
+      cartAction: cartActionPayload,
       debugInfo,
       isPartialMatch: canonicalResult.isPartialMatch,
       unmetPreferences: canonicalResult.unmetPreferences,
