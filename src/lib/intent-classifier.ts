@@ -801,13 +801,26 @@ export function detectProductAttributeQuestion(message: string, products: Produc
 
 export function detectCompareFollowUp(message: string, currentState?: ConversationState): string[] | null {
   const lower = message.toLowerCase();
-  if (!/\bwhich\s+is\b/.test(lower) && !/\bwhich\s+one\b/.test(lower)) return null;
-  const names =
-    currentState?.lastDiscussedProductSet?.map((p) => p.name).filter(Boolean) ||
-    currentState?.preferences?.target_products ||
-    [];
+  const isWhichFollowUp =
+    /\bwhich\s+is\b/.test(lower) ||
+    /\bwhich\s+one\b/.test(lower) ||
+    /\bwhich\s+(?:of\s+(?:them|these|the\s+two))\b/.test(lower);
+  if (!isWhichFollowUp) return null;
+  const names = Array.from(
+    new Set(
+      [
+        ...(currentState?.lastDiscussedProductSet || []).map((p) => p.name),
+        ...(currentState?.lastCanonicalProductSet || []).map((p) => p.name),
+        ...(currentState?.preferences?.target_products || []),
+      ].filter((n): n is string => Boolean(n))
+    )
+  );
   if (names.length < 2) return null;
-  if (/\b(fresher|sweeter|stronger|better|warmer|woodier|lighter|louder|softer|office|date)\b/.test(lower)) {
+  if (
+    /\b(fresher|sweeter|stronger|better|warmer|woodier|lighter|louder|softer|office|date|suited|sweet|fresh)\b/.test(
+      lower
+    )
+  ) {
     return names.slice(0, 2);
   }
   return null;
@@ -839,7 +852,7 @@ function buildNamedProductInfoStage1(productName: string): Stage1IntentOutput {
     request_type: 'other',
     is_new_request: false,
     is_refinement: false,
-    requires_product_data: false,
+    requires_product_data: true,
     target_product_names: [productName],
     fragrance_families: [],
     preferred_notes: [],
@@ -857,7 +870,7 @@ function buildNamedCompareStage1(names: string[]): Stage1IntentOutput {
     request_type: 'other',
     is_new_request: false,
     is_refinement: false,
-    requires_product_data: false,
+    requires_product_data: true,
     target_product_names: names,
     fragrance_families: [],
     preferred_notes: [],

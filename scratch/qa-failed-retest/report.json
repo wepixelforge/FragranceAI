@@ -1,0 +1,68 @@
+{
+  "total": 10,
+  "passed": 10,
+  "failed": 0,
+  "blocked": 0,
+  "results": [
+    {
+      "id": "P13-retest-1",
+      "action": "what notes does Royal Oud have?",
+      "actual": "intent=PRODUCT_INFO hasOud=true text=Absolutely — we're starting fresh. | What kind of fragrance are you looking for? | Royal Oud opens with Saffron, Rose, Cardamom, heart of Ou",
+      "status": "PASS"
+    },
+    {
+      "id": "P13-retest-2",
+      "action": "is Royal Oud good for office?",
+      "actual": "intent=PRODUCT_INFO hasOud=true text=What kind of fragrance are you looking for? | Royal Oud opens with Saffron, Rose, Cardamom, heart of Oud, Agarwood, Incense, and a base of S",
+      "status": "PASS"
+    },
+    {
+      "id": "P13-retest-3",
+      "action": "is Royal Oud strong?",
+      "actual": "intent=PRODUCT_INFO hasOud=true text=Royal Oud opens with Saffron, Rose, Cardamom, heart of Oud, Agarwood, Incense, and a base of Sandalwood, Amber, Vetiver. | Royal Oud is clos",
+      "status": "PASS"
+    },
+    {
+      "id": "P13-retest-4",
+      "action": "how long does Royal Oud last?",
+      "actual": "intent=PRODUCT_INFO hasOud=true text=Royal Oud is closer to wedding and formal than a typical office scent — strong intensity and oud/woody character. | Royal Oud is strong in i",
+      "status": "PASS"
+    },
+    {
+      "id": "P13-retest-5",
+      "action": "what is Royal Oud inspired by?",
+      "actual": "intent=PRODUCT_INFO hasOud=true text=Royal Oud is strong in intensity/projection, with beast mode longevity. | Royal Oud is formulated for beast mode wear. | Royal Oud is inspir",
+      "status": "PASS"
+    },
+    {
+      "id": "P14-retest-compare",
+      "action": "compare Royal Oud and Amber Nights",
+      "actual": "intent=COMPARE_PRODUCTS text=Here is a factual comparison between Royal Oud and Amber Nights:\n• Royal Oud (₹1499, 50ml EDP): oud/woody profile with S",
+      "status": "PASS"
+    },
+    {
+      "id": "P14-retest-which is fresher?",
+      "action": "which is fresher?",
+      "actual": "intent=COMPARE_PRODUCTS text=Sillage: strong, longevity: beast mode.\n• Amber Nights (₹1099, 50ml EDP): oriental/sweet profile with Saffron, Cinnamon opening and Vanilla,",
+      "status": "PASS"
+    },
+    {
+      "id": "P14-retest-which is sweeter?",
+      "action": "which is sweeter?",
+      "actual": "intent=COMPARE_PRODUCTS text=Sillage: strong, longevity: beast mode. | Between Royal Oud and Amber Nights, Royal Oud is the fresher option (oud/woody; freshness subtle).",
+      "status": "PASS"
+    },
+    {
+      "id": "P14-retest-which is better su",
+      "action": "which is better suited to office?",
+      "actual": "intent=COMPARE_PRODUCTS text=Between Royal Oud and Amber Nights, Royal Oud is the fresher option (oud/woody; freshness subtle). | Between Royal Oud and Amber Nights, Amb",
+      "status": "PASS"
+    },
+    {
+      "id": "P12-retest-alts",
+      "action": "fresh office → something else",
+      "actual": "intent=SHOW_ALTERNATIVES s1=[Ocean Breeze,Fresh Linen,White Musk] s2=[Citrus Sport,Summer Vibes] overlap=0 ui=[Citrus Sport,Summer Vibes]",
+      "status": "PASS"
+    }
+  ]
+}

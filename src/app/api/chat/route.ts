@@ -299,7 +299,19 @@ export async function POST(req: NextRequest) {
           Boolean(isAlternativeRequest);
 
         if (isShowAlternatives) {
-          excludeIds = [...(activeState.lastRecommendationIds || [])];
+          excludeIds = Array.from(
+            new Set([
+              ...(activeState.lastRecommendationIds || []),
+              ...(updatedState.lastRecommendationIds || []),
+              ...(activeState.lastCanonicalProductSet || []).map((p) => p.productId),
+              ...(updatedState.lastCanonicalProductSet || []).map((p) => p.productId),
+              ...(activeState.shownProductIds || []),
+              ...(updatedState.shownProductIds || []),
+            ])
+          );
+          structuredPrefs.excludedProductIds = Array.from(
+            new Set([...(structuredPrefs.excludedProductIds || []), ...excludeIds])
+          );
         } else {
           excludeIds = [];
         }
@@ -542,8 +554,12 @@ export async function POST(req: NextRequest) {
     }
 
     const uiRecommendationResults = hasValidRecommendations ? recommendationResults : [];
+    const explanationResults =
+      stage1.intent === 'PRODUCT_INFO' || stage1.intent === 'COMPARE_PRODUCTS'
+        ? recommendationResults
+        : uiRecommendationResults;
     const recommendationPresentation = buildRecommendationPresentation(
-      uiRecommendationResults,
+      explanationResults,
       canonicalResult.status,
       {
         matchedPreferences: canonicalResult.matchedPreferences,
@@ -556,7 +572,7 @@ export async function POST(req: NextRequest) {
       cleanMessage,
       stage1,
       previousProductsFromState(activeState, brandProducts),
-      uiRecommendationResults.map((r) => r.product)
+      explanationResults.map((r) => r.product)
     );
 
     // ── STAGE 4: CONVERSATIONAL RESPONSE GENERATION (GROQ EXPLAINS CANONICAL RESULT) ──
@@ -565,7 +581,7 @@ export async function POST(req: NextRequest) {
       brand,
       stage1,
       retrievedProducts,
-      uiRecommendationResults,
+      explanationResults,
       updatedState,
       history,
       {

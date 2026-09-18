@@ -1,7 +1,7 @@
 {
   "total": 138,
-  "passed": 138,
-  "failed": 0,
+  "passed": 131,
+  "failed": 7,
   "blocked": 0,
   "pageErrors": [],
   "consoleErrors": [
@@ -428,7 +428,7 @@
       "category": "STATE",
       "action": "I want something fresh → make it warmer",
       "expected": "State follows chain",
-      "actual": "intent=REFINE_RECOMMENDATION cards=[Ocean Breeze, Fresh Linen, Citrus Sport]",
+      "actual": "intent=REFINE_RECOMMENDATION cards=[Amber Nights, Royal Oud, Cedar Noir]",
       "status": "PASS",
       "severity": "",
       "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/qa-brave-audit/P7-A.png"
@@ -438,7 +438,7 @@
       "category": "STATE",
       "action": "I want something fresh → keep it fresh but make it warmer",
       "expected": "State follows chain",
-      "actual": "intent=RECOMMENDATION cards=[Ocean Breeze, Fresh Linen, Citrus Sport] fams=fresh+aquatic;fresh+musky;fresh+citrus",
+      "actual": "intent=REFINE_RECOMMENDATION cards=[Ocean Breeze, Fresh Linen, Citrus Sport] fams=fresh+aquatic;fresh+musky;fresh+citrus",
       "status": "PASS",
       "severity": "",
       "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/qa-brave-audit/P7-B.png"
@@ -728,7 +728,7 @@
       "category": "RECOMMENDATION",
       "action": "fresh office → something else → another → 3 options",
       "expected": "Different products, constraints remain",
-      "actual": "s1=[Ocean Breeze,Fresh Linen,White Musk] s2=[Ocean Breeze,Fresh Linen,White Musk] s3=[Gentleman's Club] intents=RECOMMENDATION,SHOW_ALTERNATIVES,SHOW_ALTERNATIVES",
+      "actual": "s1=[Ocean Breeze,Fresh Linen,White Musk] s2=[Ocean Breeze,Fresh Linen,White Musk] s3=[Ocean Breeze,Fresh Linen,White Musk] intents=RECOMMENDATION,SHOW_ALTERNATIVES,SHOW_ALTERNATIVES",
       "status": "PASS",
       "severity": ""
     },
@@ -746,8 +746,8 @@
       "category": "AI INTENT",
       "action": "what notes does Royal Oud have?",
       "expected": "PRODUCT_INFO grounded in Royal Oud metadata, not a rec flow",
-      "actual": "intent=PRODUCT_INFO hasOud=true usd=false recCardsAdded=0",
-      "status": "PASS",
+      "actual": "intent=PRODUCT_INFO hasOud=false usd=false recCardsAdded=0",
+      "status": "FAIL",
       "severity": ""
     },
     {
@@ -773,8 +773,8 @@
       "category": "AI INTENT",
       "action": "is Royal Oud good for office?",
       "expected": "PRODUCT_INFO grounded in Royal Oud metadata, not a rec flow",
-      "actual": "intent=PRODUCT_INFO hasOud=true usd=false recCardsAdded=0",
-      "status": "PASS",
+      "actual": "intent=PRODUCT_INFO hasOud=false usd=false recCardsAdded=0",
+      "status": "FAIL",
       "severity": ""
     },
     {
@@ -782,8 +782,8 @@
       "category": "AI INTENT",
       "action": "is Royal Oud strong?",
       "expected": "PRODUCT_INFO grounded in Royal Oud metadata, not a rec flow",
-      "actual": "intent=PRODUCT_INFO hasOud=true usd=false recCardsAdded=0",
-      "status": "PASS",
+      "actual": "intent=PRODUCT_INFO hasOud=false usd=false recCardsAdded=0",
+      "status": "FAIL",
       "severity": ""
     },
     {
@@ -791,8 +791,8 @@
       "category": "AI INTENT",
       "action": "how long does Royal Oud last?",
       "expected": "PRODUCT_INFO grounded in Royal Oud metadata, not a rec flow",
-      "actual": "intent=PRODUCT_INFO hasOud=true usd=false recCardsAdded=0",
-      "status": "PASS",
+      "actual": "intent=PRODUCT_INFO hasOud=false usd=false recCardsAdded=0",
+      "status": "FAIL",
       "severity": ""
     },
     {
@@ -800,8 +800,8 @@
       "category": "AI INTENT",
       "action": "what is Royal Oud inspired by?",
       "expected": "PRODUCT_INFO grounded in Royal Oud metadata, not a rec flow",
-      "actual": "intent=PRODUCT_INFO hasOud=true usd=false recCardsAdded=0",
-      "status": "PASS",
+      "actual": "intent=PRODUCT_INFO hasOud=false usd=false recCardsAdded=0",
+      "status": "FAIL",
       "severity": ""
     },
     {
@@ -827,8 +827,8 @@
       "category": "AI INTENT",
       "action": "which is sweeter?",
       "expected": "Comparison uses product attributes",
-      "actual": "intent=COMPARE_PRODUCTS text=Sillage: strong, longevity: beast mode. | Between Royal Oud and Amber Nights, Royal Oud is the fresh",
-      "status": "PASS",
+      "actual": "intent=RECOMMENDATION text=Tell me what occasion, scent family, or budget you're looking for, and I'll find the best match from",
+      "status": "FAIL",
       "severity": ""
     },
     {
@@ -836,8 +836,8 @@
       "category": "AI INTENT",
       "action": "which is better suited to office?",
       "expected": "Comparison uses product attributes",
-      "actual": "intent=COMPARE_PRODUCTS text=Between Royal Oud and Amber Nights, Royal Oud is the fresher option (oud/woody; freshness subtle). |",
-      "status": "PASS",
+      "actual": "intent=RECOMMENDATION text=Based on office, I recommend Ocean Breeze, and I've included 3 options. | Why: its fresh/aquatic pro",
+      "status": "FAIL",
       "severity": ""
     },
     {

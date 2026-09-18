@@ -12,6 +12,7 @@ import { formatPrice, STOREFRONT_CURRENCY } from './brand-utils';
 import {
   buildRecommendationPresentation,
   evaluateRecommendationGrounding,
+  findCatalogueNamesInText,
   ComparativeContext,
   RecommendationPresentation,
 } from './response-grounding';
@@ -255,6 +256,22 @@ export async function generateConversationalResponse(
       if (grounding.ok) {
         return groqReply.trim();
       }
+    } else if (stage1.intent === 'PRODUCT_INFO' || stage1.intent === 'COMPARE_PRODUCTS') {
+      const required = retrievedProducts.map((p) => p.name);
+      const mentioned = findCatalogueNamesInText(
+        groqReply,
+        catalogue.length ? catalogue : retrievedProducts
+      );
+      const mentionedLower = new Set(mentioned.map((n) => n.toLowerCase()));
+      const missing = required.filter((n) => !mentionedLower.has(n.toLowerCase()));
+      const deniesKnownFacts =
+        retrievedProducts.some((p) => p.topNotes.length > 0) &&
+        /\b(don'?t have|do not have|no (note|details)|not (available|listed) in my (current )?data|i don'?t have the note)\b/i.test(
+          groqReply
+        );
+      if (required.length > 0 && missing.length === 0 && !deniesKnownFacts) {
+        return groqReply.trim();
+      }
     } else {
       return groqReply.trim();
     }
@@ -434,8 +451,8 @@ CRITICAL RULES:
       * Ask a thoughtful, friendly fragrance clarification question.
       * E.g. "When you say '[word]', what kind of feeling do you mean? Something creamy and soft, warm and comforting, or something else?"
       * Do NOT present any products. Keep it to 1 to 2 short sentences.
-   - PRODUCT_INFO: Give a factual overview of the requested product. Do NOT call it "Best Match".
-   - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Do NOT call either "Best Match".
+   - PRODUCT_INFO: Give a factual overview of the requested product. Always use the exact product name in the first sentence. Do NOT call it "Best Match".
+   - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Always name both products. Follow-ups like "which is sweeter/fresher/better for office" still compare those same two products — do NOT start a new recommendation. Do NOT call either "Best Match".
    - SHOW_ALTERNATIVES: Present the fresh alternatives provided in CANONICAL RANKED PRODUCTS. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
    - PARTIAL_MATCH:
       * A useful closest product exists. Lead directly with it using natural consultant language ("The closest match is...", "I'd start with...", "The closest option from this collection is...").
@@ -791,12 +808,54 @@ export function fallbackResponseGenerator(
   // PRODUCT INFO - No "Best Match" language; never treat as a recommendation set
   if (stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
     const p = retrievedProducts[0];
+    const q = message.toLowerCase();
+    if (/\bnotes?\b/.test(q)) {
+      return `${p.name} opens with ${p.topNotes.join(', ')}, heart of ${p.heartNotes.join(', ')}, and a base of ${p.baseNotes.join(', ')}.`;
+    }
+    if (/\boffice|workplace|workwear|daily wear\b/.test(q)) {
+      const officeOk = p.occasion.some((o) => /office|daily|casual|travel/i.test(o));
+      return officeOk
+        ? `${p.name} can work for office and daily wear: ${p.intensity} intensity with ${p.longevity.replace('-', ' ')} longevity.`
+        : `${p.name} is closer to ${p.occasion.slice(0, 2).map((o) => o.replace('-', ' ')).join(' and ')} than a typical office scent — ${p.intensity} intensity and ${p.fragranceFamily.join('/')} character.`;
+    }
+    if (/\bstrong|intensity|projection|sillage\b/.test(q)) {
+      return `${p.name} is ${p.intensity} in intensity/projection, with ${p.longevity.replace('-', ' ')} longevity.`;
+    }
+    if (/\blast|longevity\b/.test(q)) {
+      return `${p.name} is formulated for ${p.longevity.replace('-', ' ')} wear.`;
+    }
+    if (/\binspired\b/.test(q)) {
+      const inspired = p.similarTo?.filter(Boolean) || [];
+      return inspired.length > 0
+        ? `${p.name} is inspired by ${inspired.slice(0, 2).join(' and ')}.`
+        : `${p.name} is part of the ${p.fragranceFamily.join('/')} collection at ₹${p.price}; no designer inspiration is listed.`;
+    }
     return `${p.name} is a ${p.size} ${p.fragranceFamily.join('/')} fragrance priced at ₹${p.price}. Key top notes: ${p.topNotes.slice(0, 3).join(', ')}, heart: ${p.heartNotes.slice(0, 2).join(', ')}, base: ${p.baseNotes.slice(0, 2).join(', ')}. Performance is ${p.intensity} intensity with ${p.longevity.replace('-', ' ')} longevity, well suited for ${p.occasion.slice(0, 2).map((o) => o.replace('-', ' ')).join(' and ')}.`;
   }
 
   // COMPARE PRODUCTS - No "Best Match" language!
   if (stage1.intent === 'COMPARE_PRODUCTS' && retrievedProducts.length >= 2) {
     const [p1, p2] = retrievedProducts;
+    const q = message.toLowerCase();
+    if (/\bfresher\b/.test(q)) {
+      const score = (p: Product) =>
+        (p.fragranceFamily.some((f) => ['fresh', 'citrus', 'aquatic'].includes(f)) ? 2 : 0) +
+        (p.freshness === 'very-fresh' ? 2 : p.freshness === 'fresh' ? 1 : 0);
+      const winner = score(p1) >= score(p2) ? p1 : p2;
+      return `Between ${p1.name} and ${p2.name}, ${winner.name} is the fresher option (${winner.fragranceFamily.join('/')}; freshness ${winner.freshness || 'unspecified'}).`;
+    }
+    if (/\bsweeter\b/.test(q)) {
+      const score = (p: Product) =>
+        (p.fragranceFamily.some((f) => ['sweet', 'gourmand', 'floral'].includes(f)) ? 2 : 0) +
+        (p.sweetness === 'very-sweet' ? 2 : p.sweetness === 'sweet' ? 1 : 0);
+      const winner = score(p1) >= score(p2) ? p1 : p2;
+      return `Between ${p1.name} and ${p2.name}, ${winner.name} is sweeter (${winner.fragranceFamily.join('/')}; sweetness ${winner.sweetness || 'unspecified'}).`;
+    }
+    if (/\boffice|suited\b/.test(q)) {
+      const officeScore = (p: Product) => (p.occasion.includes('office') ? 2 : p.occasion.includes('daily') ? 1 : 0);
+      const winner = officeScore(p1) >= officeScore(p2) ? p1 : p2;
+      return `For office wear, ${winner.name} is the better suited of ${p1.name} and ${p2.name} (${winner.occasion.map((o) => o.replace('-', ' ')).join(', ')}; ${winner.intensity} intensity).`;
+    }
     return `Here is a factual comparison between ${p1.name} and ${p2.name}:
 • ${p1.name} (₹${p1.price}, ${p1.size}): ${p1.fragranceFamily.join('/')} profile with ${p1.topNotes.slice(0, 2).join(', ')} opening and ${p1.baseNotes.slice(0, 2).join(', ')} base. Sillage: ${p1.intensity}, longevity: ${p1.longevity.replace('-', ' ')}.
 • ${p2.name} (₹${p2.price}, ${p2.size}): ${p2.fragranceFamily.join('/')} profile with ${p2.topNotes.slice(0, 2).join(', ')} opening and ${p2.baseNotes.slice(0, 2).join(', ')} base. Sillage: ${p2.intensity}, longevity: ${p2.longevity.replace('-', ' ')}.`;

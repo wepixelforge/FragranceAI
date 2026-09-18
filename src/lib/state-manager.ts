@@ -347,8 +347,12 @@ export function updateConversationState(
   const hasRefinementKeyword = refinementKeywords.some((kw) => rawUserText.includes(kw));
   const hasActive = hasActiveConsultation(base);
 
+  const isProductFactualIntent =
+    stage1.intent === 'PRODUCT_INFO' || stage1.intent === 'COMPARE_PRODUCTS';
+
   const isDirectedNewRequest =
     stage1.is_new_request === true &&
+    !isProductFactualIntent &&
     stage1.intent !== 'BUDGET_CHANGE' &&
     stage1.intent !== 'SHOW_ALTERNATIVES' &&
     stage1.intent !== 'REFINE_RECOMMENDATION' &&
@@ -367,7 +371,10 @@ export function updateConversationState(
   const isExplicitReset =
     /\b(forget\s+(?:everything|my\s+preferences|all\s+preferences)|start\s+over|reset|new\s+search|start\s+(?:a\s+)?new\s+search|start\s+fresh|let'?s\s+start\s+fresh)\b/i.test(rawUserText);
 
-  const isNewConsultation = isExplicitReset || isDirectedNewRequest || (!isExplicitRefinement && !hasActive);
+  const isNewConsultation =
+    isExplicitReset ||
+    (!isProductFactualIntent &&
+      (isDirectedNewRequest || (!isExplicitRefinement && !hasActive)));
 
   if (isNewConsultation) {
     // ── NEW REQUEST: WIPE OLD ACTIVE SHOPPING REQUEST ──────────────────────────
