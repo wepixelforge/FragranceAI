@@ -22,7 +22,7 @@ export function normalizeOccasion(raw?: string | null): string | null {
   if (!raw) return null;
   const lower = raw.toLowerCase().trim().replace(/[\s_]+/g, '-');
   if (lower === 'date' || lower === 'datenight' || lower === 'romantic') return 'date-night';
-  if (lower === 'work' || lower === 'meeting' || lower === 'meetings') return 'office';
+  if (lower === 'work' || lower === 'meeting' || lower === 'meetings' || lower === 'official' || lower === 'official-use' || lower === 'professional') return 'office';
   if (lower === 'everyday') return 'daily';
   return lower;
 }
@@ -139,6 +139,7 @@ export function createInitialConversationState(): ConversationState {
     previously_discussed_products: [],
     turnCount: 0,
     pendingClarification: null,
+    pendingCartAction: null,
   };
 }
 
@@ -218,6 +219,7 @@ export function updateConversationState(
     return {
       ...base,
       turnCount: (base.turnCount || 0) + 1,
+      pendingCartAction: base.pendingCartAction || null,
     };
   }
 
@@ -259,8 +261,21 @@ export function updateConversationState(
     },
   };
 
+  const rawUserTextEarly = (
+    typeof discussedProductIdsOrMessage === 'string' ? discussedProductIdsOrMessage : userMessage || ''
+  ).toLowerCase();
+  const messageMentionsSimilarity = /\b(like|similar\s+to|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|i\s+wear)\b/.test(rawUserTextEarly);
+  const isReferenceDroppedEarly = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference|remove\s+(?:that|the)?\s*reference|ignore\s+(?:that|the)?\s*reference)\b/.test(
+    rawUserTextEarly
+  );
+
   // 2. BACKGROUND CONTEXT UPDATES (e.g. "I usually wear Dior Sauvage")
-  if (stage1.reference_perfume) {
+  if (
+    stage1.reference_perfume &&
+    messageMentionsSimilarity &&
+    !isReferenceDroppedEarly &&
+    rawUserTextEarly.includes(stage1.reference_perfume.toLowerCase())
+  ) {
     const ref = stage1.reference_perfume.trim();
     if (ref) {
       backgroundContext.referencePerfume = ref;
@@ -325,27 +340,34 @@ export function updateConversationState(
   const refinementKeywords = [
     'cheaper', 'budget', 'spend', 'more', 'less', 'warmer', 'stronger', 'lighter', 'fresher',
     'another', 'different', 'else', 'alternative', 'avoid', "don't like", "dont like", "hate",
-    'actually', 'remove', 'higher', 'lower', 'under', 'below', 'within', 'bucks', 'rs',
+    'remove', 'higher', 'lower', 'under', 'below', 'within', 'bucks', 'rs',
     'option', 'options', 'alternatives', 'choices', 'instead', 'rather', 'forget', 'switch', 'change',
-    'make it', 'make', 'give me', 'show me', 'woody', 'floral', 'fresh', 'citrus', 'aquatic', 'spicy',
-    'musky', 'oud', 'warm', 'sweet', 'how about', 'what about', 'prefer'
+    'make it', 'how about', 'what about', 'prefer'
   ];
   const hasRefinementKeyword = refinementKeywords.some((kw) => rawUserText.includes(kw));
   const hasActive = hasActiveConsultation(base);
 
+  const isDirectedNewRequest =
+    stage1.is_new_request === true &&
+    stage1.intent !== 'BUDGET_CHANGE' &&
+    stage1.intent !== 'SHOW_ALTERNATIVES' &&
+    stage1.intent !== 'REFINE_RECOMMENDATION' &&
+    stage1.intent !== 'PREFERENCE_UPDATE';
+
   const isExplicitRefinement =
-    stage1.is_refinement === true ||
-    stage1.request_type === 'refinement' ||
-    stage1.intent === 'PREFERENCE_UPDATE' ||
-    stage1.intent === 'BUDGET_CHANGE' ||
-    stage1.intent === 'REFINE_RECOMMENDATION' ||
-    stage1.intent === 'SHOW_ALTERNATIVES' ||
-    (hasActive && hasRefinementKeyword);
+    !isDirectedNewRequest &&
+    (stage1.is_refinement === true ||
+      stage1.request_type === 'refinement' ||
+      stage1.intent === 'PREFERENCE_UPDATE' ||
+      stage1.intent === 'BUDGET_CHANGE' ||
+      stage1.intent === 'REFINE_RECOMMENDATION' ||
+      stage1.intent === 'SHOW_ALTERNATIVES' ||
+      (hasActive && hasRefinementKeyword && !stage1.requested_changes?.includes('replace_family')));
 
   const isExplicitReset =
     /\b(forget\s+(?:everything|my\s+preferences|all\s+preferences)|start\s+over|reset|new\s+search|start\s+(?:a\s+)?new\s+search|start\s+fresh|let'?s\s+start\s+fresh)\b/i.test(rawUserText);
 
-  const isNewConsultation = isExplicitReset || (!isExplicitRefinement && !hasActive);
+  const isNewConsultation = isExplicitReset || isDirectedNewRequest || (!isExplicitRefinement && !hasActive);
 
   if (isNewConsultation) {
     // ── NEW REQUEST: WIPE OLD ACTIVE SHOPPING REQUEST ──────────────────────────
@@ -681,11 +703,17 @@ export function updateConversationState(
       activeRequest.relativePrice = stage1.relative_price;
     }
 
-    if (stage1.is_similarity_request !== undefined) {
-      activeRequest.isSimilarityRequest = Boolean(stage1.is_similarity_request);
+    if (isReferenceDropped) {
+      activeRequest.isSimilarityRequest = false;
+      activeRequest.relativePrice = null;
+      backgroundContext.referencePerfume = null;
+    } else if (stage1.is_similarity_request && messageMentionsSimilarity) {
+      activeRequest.isSimilarityRequest = true;
       if (stage1.reference_perfume) {
         backgroundContext.referencePerfume = stage1.reference_perfume;
       }
+    } else if (!messageMentionsSimilarity) {
+      activeRequest.isSimilarityRequest = false;
     }
 
     if (stage1.fragrance_families && stage1.fragrance_families.length > 0) {
@@ -768,6 +796,7 @@ export function updateConversationState(
     lastIntent: stage1.intent,
     turnCount: base.turnCount + 1,
     pendingClarification: null,
+    pendingCartAction: isNewConsultation ? null : (base.pendingCartAction || null),
   };
 }
 
@@ -888,6 +917,11 @@ export function toStructuredPreferences(
     queryText.toLowerCase().includes('boring') ||
     queryText.toLowerCase().includes('more interesting');
 
+  const lastRecIds =
+    ('lastRecommendationIds' in stateOrPrefs && Array.isArray(stateOrPrefs.lastRecommendationIds)
+      ? stateOrPrefs.lastRecommendationIds
+      : shownIds.slice(-3));
+
   const structured: StructuredPreferences = {
     rawQuery: queryText || '',
     exclusions: {
@@ -897,7 +931,7 @@ export function toStructuredPreferences(
     vibes: activeReq.style ? [activeReq.style] : [],
     relativePrice: activeReq.relativePrice,
     lastRecommendedPrices: prices,
-    excludedProductIds: isAlternativeIntent ? shownIds : [],
+    excludedProductIds: isAlternativeIntent ? lastRecIds : [],
   };
 
   // Hard Budget Constraint

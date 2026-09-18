@@ -163,6 +163,8 @@ export function parseQuery(raw: string): ParsedQuery {
     'professional': 'office',
     'corporate': 'office',
     'meeting': 'office',
+    'official': 'office',
+    'official use': 'office',
     'formal': 'formal',
     'black tie': 'formal',
     'casual': 'casual',
@@ -357,7 +359,10 @@ export function parseQuery(raw: string): ParsedQuery {
     query.includes('long lasting') ||
     query.includes('long-lasting') ||
     query.includes('lasts long') ||
-    query.includes('all day')
+    query.includes('all day') ||
+    query.includes('whole day') ||
+    query.includes('full day') ||
+    query.includes('all-day')
   ) {
     preferences.longevityPreference = 'long-lasting';
   }
@@ -366,7 +371,7 @@ export function parseQuery(raw: string): ParsedQuery {
     query.includes('subtle') ||
     query.includes('intimate') ||
     query.includes('skin scent') ||
-    /\b(light|lighter|soft|gentle)\b/i.test(query) ||
+    /\b(light|lighter)\b/i.test(query) ||
     isNegatedStrong
   ) {
     // Avoid false positive with 'light blue' perfume reference unless explicitly contrasting
@@ -387,6 +392,12 @@ export function parseQuery(raw: string): ParsedQuery {
   }
   if (query.includes('clean')) {
     preferences.vibes?.push('clean');
+  }
+  if (/\bcreamy\b/.test(query)) {
+    preferences.vibes?.push('creamy');
+  }
+  if (/\bsoft\b/.test(query)) {
+    preferences.vibes?.push('soft');
   }
   if (query.includes('gift') || query.includes('gifting')) {
     preferences.vibes?.push('gift');

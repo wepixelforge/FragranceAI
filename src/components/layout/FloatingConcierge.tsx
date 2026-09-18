@@ -59,7 +59,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
 
   const handleSend = (queryText: string) => {
     const trimmed = queryText.trim();
-    if (!trimmed || isTyping) return;
+    if (!trimmed) return;
     setInput('');
     sendMessage(trimmed);
   };
@@ -150,6 +150,11 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
                     <div className="flex justify-end" data-testid="chat-user-message">
                       <div className="max-w-[85%] border border-brand-border bg-brand-user-bubble px-4 py-2.5 text-xs text-brand-text font-light leading-relaxed">
                         {m.text}
+                        {m.queued && (
+                          <span className="mt-1.5 block text-[9px] uppercase tracking-[0.18em] text-brand-text-muted">
+                            Queued
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -237,14 +242,13 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
             <input
               type="text"
               value={input}
-              disabled={isTyping}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isTyping ? "Consultant is replying..." : "Ask the scent consultant..."}
-              className="flex-1 bg-brand-input-bg border border-brand-input-border disabled:opacity-60 px-3 py-2 text-xs text-brand-text placeholder-brand-text-muted/60 outline-none focus:border-brand-accent transition-colors"
+              placeholder="Ask the scent consultant..."
+              className="flex-1 bg-brand-input-bg border border-brand-input-border px-3 py-2 text-xs text-brand-text placeholder-brand-text-muted/60 outline-none focus:border-brand-accent transition-colors"
             />
             <button
               type="submit"
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim()}
               className="border border-brand-accent bg-brand-accent text-brand-primary-fg hover:bg-transparent hover:text-brand-text px-3.5 py-2 text-[10px] uppercase tracking-[0.18em] font-medium disabled:opacity-40 transition-all cursor-pointer"
             >
               Send

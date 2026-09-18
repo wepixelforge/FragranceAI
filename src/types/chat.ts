@@ -124,6 +124,21 @@ export interface CanonicalProductRef {
   name: string;
 }
 
+export interface PendingCartAction {
+  type: 'CLEAR_CART';
+  brandSlug: string;
+  items: {
+    productId: string;
+    brandSlug: string;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+  }[];
+  itemCount: number;
+  subtotal: number;
+  subtotalFormatted: string;
+}
+
 export interface ConversationState {
   intent?: CanonicalIntent;
   activeRequest: ActiveRequest;
@@ -143,6 +158,7 @@ export interface ConversationState {
     ambiguousTerm?: string;
     question?: string;
   } | null;
+  pendingCartAction?: PendingCartAction | null;
 }
 
 export interface ChatMessage {
@@ -270,6 +286,7 @@ export interface CartActionItem {
   brandSlug: string;
   productName: string;
   quantity?: number;
+  unitPrice?: number;
 }
 
 export interface CartActionFailure {
@@ -278,7 +295,7 @@ export interface CartActionFailure {
 }
 
 export interface CartActionPayload {
-  action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART';
+  action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | 'CLEAR_CART';
   productId?: string;
   brandSlug?: string;
   productName?: string;
@@ -290,6 +307,11 @@ export interface CartActionPayload {
   removed?: CartActionItem[];
   failed?: CartActionFailure[];
   needsClarification?: boolean;
+  clearedCount?: number;
+  awaitingConfirmation?: boolean;
+  actionId?: string;
+  requestedQuantity?: number;
+  availableQuantity?: number;
 }
 
 export interface ChatApiResponse {
@@ -342,7 +364,8 @@ export interface Stage1IntentOutput {
   target_product_names?: string[];
   product_reference?: string | null;
   product_references?: string[];
-  cart_action?: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | null;
+  cart_action?: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | 'CLEAR_CART' | null;
+  cart_confirmation?: 'CONFIRM' | 'CANCEL' | null;
   confidence?: number;
   needs_recommendations: boolean;
   needs_clarification: boolean;

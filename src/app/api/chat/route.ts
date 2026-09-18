@@ -23,10 +23,9 @@ import { getRecommendations } from '@/lib/recommendation-engine';
 import { generateConversationalResponse, ResponseActionContext } from '@/lib/response-generator';
 import { normalizeAssistantMessages } from '@/lib/message-sequencer';
 import {
-  buildCartActionPayload,
-  normalizeProductReferencesList,
-  resolveCartProductReferences,
   toCanonicalProductSet,
+  planCartAssistance,
+  isAuthorizedCartMutation,
 } from '@/lib/cart-action-resolver';
 import { buildLiveCartContext, toResponseCartContext } from '@/lib/live-cart-context';
 import { STOREFRONT_CURRENCY } from '@/lib/brand-utils';
@@ -103,6 +102,9 @@ export async function POST(req: NextRequest) {
 
     // ── STAGE 2: SESSION STATE UPDATE (SET, UPDATE, REMOVE, RESET) ───────────
     let updatedState = updateConversationState(activeState, stage1, cleanMessage);
+    if (stage1.intent !== 'CART_ASSISTANCE') {
+      updatedState = { ...updatedState, pendingCartAction: null };
+    }
 
     // ── STAGE 3: INTENT ROUTER & CONDITIONAL PRODUCT RETRIEVAL ───────────────
     const requiresProducts = doesIntentRequireProducts(stage1.intent, stage1);
@@ -297,12 +299,7 @@ export async function POST(req: NextRequest) {
           Boolean(isAlternativeRequest);
 
         if (isShowAlternatives) {
-          excludeIds = Array.from(
-            new Set([
-              ...(activeState.lastRecommendationIds || []),
-              ...(activeState.shownProductIds || []),
-            ])
-          );
+          excludeIds = [...(activeState.lastRecommendationIds || [])];
         } else {
           excludeIds = [];
         }
@@ -433,119 +430,53 @@ export async function POST(req: NextRequest) {
         },
       };
     } else if (stage1.intent === 'CART_ASSISTANCE') {
-      const cartActionType = stage1.cart_action || 'VIEW_CART';
-      const references = normalizeProductReferencesList(
-        stage1.product_references?.length
-          ? stage1.product_references
-          : stage1.target_product_names?.length
-            ? stage1.target_product_names
-            : stage1.product_reference
-              ? [stage1.product_reference]
-              : [],
-        cleanMessage,
-        brandProducts
-      );
-      const resolution = resolveCartProductReferences({
-        references,
-        action: cartActionType,
-        brandProducts,
+      const planned = planCartAssistance({
+        message: cleanMessage,
+        stage1,
         brandSlug,
+        brandProducts,
         state: updatedState,
+        liveCart,
         contextProductSlug,
       });
-
-      if (resolution.needsClarification) {
-        actionContext = {
-          intent: 'CART_ASSISTANCE',
-          product: null,
-          cart_action: {
-            action: cartActionType,
-            success: false,
-            needsClarification: true,
-          },
-          cart: liveCartView,
-          currency: STOREFRONT_CURRENCY,
-          response_policy: {
-            ask_clarification: true,
-            do_not_mutate_cart: true,
-            must_not_print_raw_routes: true,
-            live_cart_is_authoritative: true,
-            clarification_question: resolution.clarificationQuestion,
-          },
-        };
-      } else if (cartActionType === 'VIEW_CART') {
-        actionContext = {
-          intent: 'CART_ASSISTANCE',
-          cart_action: {
-            action: 'VIEW_CART',
-            success: true,
-          },
-          cart: liveCartView,
-          currency: STOREFRONT_CURRENCY,
-          response_policy: {
-            show_cart_summary: true,
-            suggest_header_cart: true,
-            must_not_print_raw_routes: true,
-            live_cart_is_authoritative: true,
-            do_not_infer_cart_from_history: true,
-            cart_is_empty: liveCart.isEmpty,
-          },
-        };
-        cartActionPayload = buildCartActionPayload(resolution, brandSlug);
-      } else if (resolution.resolved.length > 0) {
-        cartActionPayload = buildCartActionPayload(resolution, brandSlug);
-        const addedNames = resolution.resolved.map((p) => p.name);
-        const failedNames = resolution.failed.map((f) => f.reference);
-        const first = resolution.resolved[0];
-
-        actionContext = {
-          intent: 'CART_ASSISTANCE',
-          product: {
-            id: first.id,
-            name: first.name,
-            price: first.price,
-            size: first.size,
-            fragranceFamily: first.fragranceFamily,
-          },
-          cart_action: {
-            action: cartActionType,
-            success: resolution.failed.length === 0,
-            productName: addedNames.join(', '),
-            added: addedNames,
-            failed: failedNames,
-            partial: resolution.failed.length > 0,
-          },
-          cart: liveCartView,
-          currency: STOREFRONT_CURRENCY,
-          response_policy: {
-            confirm_item_added: cartActionType === 'ADD_TO_CART',
-            confirm_item_removed: cartActionType === 'REMOVE_FROM_CART',
-            suggest_header_cart: true,
-            must_not_print_raw_routes: true,
-            use_actual_action_result: true,
-            live_cart_is_authoritative: true,
-            partial_success: resolution.failed.length > 0,
-          },
-        };
-      } else {
-        actionContext = {
-          intent: 'CART_ASSISTANCE',
-          product: null,
-          cart_action: {
-            action: cartActionType,
-            success: false,
-            productName: references.join(', ') || stage1.product_reference || 'requested fragrance',
-            failed: resolution.failed.map((f) => f.reference),
-          },
-          cart: liveCartView,
-          currency: STOREFRONT_CURRENCY,
-          response_policy: {
-            item_not_in_brand_catalogue: true,
-            suggest_browsing_brand_collection: true,
-            must_not_print_raw_routes: true,
-            live_cart_is_authoritative: true,
-          },
-        };
+      updatedState = {
+        ...updatedState,
+        pendingCartAction: planned.pendingCartAction,
+      };
+      const first = planned.product;
+      actionContext = {
+        intent: 'CART_ASSISTANCE',
+        product: first
+          ? {
+              id: first.id,
+              name: first.name,
+              price: first.price,
+              size: first.size,
+              fragranceFamily: first.fragranceFamily,
+            }
+          : null,
+        cart_action: {
+          action: planned.action,
+          success: planned.success,
+          productName: planned.added?.join(', '),
+          added: planned.action === 'ADD_TO_CART' ? planned.added : undefined,
+          removed: planned.action === 'REMOVE_FROM_CART' ? planned.added : undefined,
+          failed: planned.failed,
+          partial: Boolean(planned.failed?.length) && Boolean(planned.added?.length),
+          needsClarification: planned.needsClarification,
+          clearedCount: planned.clearedCount,
+          addedItems: planned.cartActionPayload?.added?.map((item) => ({
+            productName: item.productName,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+          })),
+        },
+        cart: liveCartView,
+        currency: STOREFRONT_CURRENCY,
+        response_policy: planned.policy,
+      };
+      if (isAuthorizedCartMutation(planned.cartActionPayload) && !planned.policy.do_not_mutate_cart && !planned.needsClarification) {
+        cartActionPayload = planned.cartActionPayload;
       }
     } else if (stage1.intent === 'OUT_OF_SCOPE') {
       actionContext = {
@@ -588,6 +519,8 @@ export async function POST(req: NextRequest) {
       stage1.intent === 'GENERAL_CONVERSATION' ||
       stage1.intent === 'BRAND_CONVERSATION' ||
       stage1.intent === 'CLARIFICATION' ||
+      stage1.intent === 'PRODUCT_INFO' ||
+      stage1.intent === 'COMPARE_PRODUCTS' ||
       Boolean(stage1.needs_clarification) ||
       (stage1.intent === 'CUSTOMER_OBJECTION' && !stage1.needs_recommendations) ||
       stage1.intent === 'PURCHASE_ASSISTANCE' ||
@@ -611,7 +544,13 @@ export async function POST(req: NextRequest) {
     const uiRecommendationResults = hasValidRecommendations ? recommendationResults : [];
     const recommendationPresentation = buildRecommendationPresentation(
       uiRecommendationResults,
-      canonicalResult.status
+      canonicalResult.status,
+      {
+        matchedPreferences: canonicalResult.matchedPreferences,
+        unmetPreferences: canonicalResult.unmetPreferences,
+        tradeOff: canonicalResult.tradeOff,
+        isPartialMatch: canonicalResult.isPartialMatch,
+      }
     );
     const comparativeContext = buildComparativeContext(
       cleanMessage,

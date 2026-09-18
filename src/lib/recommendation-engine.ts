@@ -338,6 +338,15 @@ export function isValidCandidate(
     }
   }
 
+  // Requested full-day / long-lasting wear is an exact-match dimension, not a hard constraint.
+  // Products that fail it can still be used as PARTIAL_MATCH closest options.
+  const targetLongevity = preferences.longevityPreference || preferences.longevity;
+  if (targetLongevity === 'long-lasting' || targetLongevity === 'beast-mode') {
+    if (product.longevity !== 'long-lasting' && product.longevity !== 'beast-mode') {
+      return { valid: false, reason: `Does not meet requested full-day longevity (is ${product.longevity})` };
+    }
+  }
+
   return { valid: true };
 }
 
@@ -429,10 +438,46 @@ export function buildPartialMatchTradeOff(
     }
   }
 
+  if (preferences.occasion && preferences.occasion.length > 0) {
+    const matchedOccasions = preferences.occasion.filter((occ) => product.occasion.includes(occ));
+    if (matchedOccasions.length > 0) {
+      matchedPreferences.push(`${matchedOccasions[0].replace(/-/g, ' ')} wear`);
+    } else {
+      unmetPreferences.push(`${preferences.occasion[0].replace(/-/g, ' ')} occasion`);
+    }
+  }
+
+  if (preferences.season && preferences.season.length > 0) {
+    const hitsRequestedSeason = preferences.season.some((s) => product.season.includes(s));
+    const isAllSeason = product.season.includes('all-season');
+    if (hitsRequestedSeason) {
+      matchedPreferences.push(`${preferences.season[0]} wear`);
+    } else if (isAllSeason) {
+      matchedPreferences.push('all-season wear');
+    } else {
+      unmetPreferences.push(`${preferences.season[0]} wear`);
+    }
+  }
+
+  const targetLongevity = preferences.longevityPreference || preferences.longevity;
+  if (targetLongevity === 'long-lasting' || targetLongevity === 'beast-mode') {
+    if (product.longevity === 'long-lasting' || product.longevity === 'beast-mode') {
+      matchedPreferences.push('long-lasting wear');
+    } else {
+      unmetPreferences.push(`full-day longevity (is ${product.longevity})`);
+    }
+  }
+
   // Deterministic trade-off text generation based on genuine contributions
   let tradeOff = '';
 
-  if (requestedFresh && requestedStrong) {
+  if (unmetPreferences.some((item) => item.includes('longevity'))) {
+    const matchedSummary =
+      matchedPreferences.length > 0
+        ? matchedPreferences.slice(0, 2).join(' and ')
+        : 'the rest of your direction';
+    tradeOff = `It fits ${matchedSummary}, although its longevity is ${product.longevity.replace(/-/g, ' ')} rather than a guaranteed full day.`;
+  } else if (requestedFresh && requestedStrong) {
     if (hasBudget) {
       tradeOff = `It stays within ₹${preferences.budget!.max} and keeps the fresh profile, although its intensity is a little softer than requested.`;
     } else if (isSweetExcluded) {

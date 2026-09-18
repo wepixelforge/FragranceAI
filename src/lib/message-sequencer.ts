@@ -148,8 +148,8 @@ export function normalizeAssistantMessages(
   // 2. RESET Archetype: 2 crisp thoughts
   if (intent === 'RESET_CONSULTATION') {
     return [
-      "Absolutely.",
-      "Let's start fresh. Tell me what kind of fragrance you'd like to explore next.",
+      "Absolutely — we're starting fresh.",
+      "What kind of fragrance are you looking for?",
     ];
   }
 

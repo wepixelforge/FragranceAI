@@ -77,7 +77,11 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
   useEffect(() => {
     scrollToBottom('smooth');
     const timer = setTimeout(() => scrollToBottom('smooth'), 120);
-    return () => clearTimeout(timer);
+    const later = setTimeout(() => scrollToBottom('smooth'), 700);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(later);
+    };
   }, [messages, isTyping]);
 
   useEffect(() => {
@@ -105,7 +109,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
     contextProductSlug?: string
   ) => {
     const trimmed = rawText.trim();
-    if (!trimmed || isTyping) return;
+    if (!trimmed) return;
     userScrolledUpRef.current = false;
     setInput('');
     sendMessage(trimmed, isAlternativeRequest, contextProductSlug);
@@ -160,7 +164,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 space-y-6 max-w-5xl mx-auto w-full"
+        className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 pb-28 space-y-6 max-w-5xl mx-auto w-full"
       >
         
         {/* Welcome state when consultation is empty */}
@@ -210,6 +214,11 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
                 <div className="flex justify-end" data-testid="chat-user-message">
                   <div className="max-w-lg border border-brand-border bg-brand-user-bubble px-5 py-3.5 text-xs sm:text-sm text-brand-text font-light leading-relaxed shadow-sm">
                     {message.text}
+                    {message.queued && (
+                      <span className="mt-2 block text-[9px] uppercase tracking-[0.18em] text-brand-text-muted">
+                        Queued
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -291,14 +300,13 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
             <input
               type="text"
               value={input}
-              disabled={isTyping}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isTyping ? "Consultant is replying..." : "Describe your desired mood, occasion, or notes..."}
-              className="flex-1 bg-brand-input-bg border border-brand-input-border focus:border-brand-accent disabled:opacity-60 text-brand-text placeholder-brand-text-muted/60 text-xs sm:text-sm px-4 sm:px-5 py-3.5 outline-none transition-colors"
+              placeholder="Describe your desired mood, occasion, or notes..."
+              className="flex-1 bg-brand-input-bg border border-brand-input-border focus:border-brand-accent text-brand-text placeholder-brand-text-muted/60 text-xs sm:text-sm px-4 sm:px-5 py-3.5 outline-none transition-colors"
             />
             <button
               type="submit"
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim()}
               className="border border-brand-accent bg-brand-accent text-brand-primary-fg hover:bg-transparent hover:text-brand-text disabled:opacity-40 disabled:pointer-events-none px-6 sm:px-8 py-3.5 text-[11px] font-medium tracking-[0.2em] uppercase transition-all duration-300 shrink-0 cursor-pointer"
             >
               Consult
@@ -329,7 +337,7 @@ function CuratedRecommendationGroup({
   if (!primary) return null;
 
   return (
-    <div className="space-y-8 my-6">
+    <div className="space-y-8 my-6" data-testid="recommendation-group">
       {/* ── 1. PRIMARY HERO MATCH ────────────────────────────────────────── */}
       <div
         data-testid="recommendation-card"

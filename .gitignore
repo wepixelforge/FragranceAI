@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# graphify (local knowledge graph — keep off GitHub)
+graphify-out/
+.cursor/rules/graphify.mdc

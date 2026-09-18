@@ -8,6 +8,7 @@ import { toStructuredPreferences } from '@/lib/state-manager';
 import { getBrandWelcomeMessage } from '@/lib/brand-utils';
 import { useCart } from './CartContext';
 import { serializeCartRequestPayload } from '@/lib/live-cart-context';
+import { isAuthorizedCartMutation } from '@/lib/cart-action-resolver';
 
 function sessionStorageKey(brandSlug: string) {
   return `fragrance-ai-session:${brandSlug}`;
@@ -26,6 +27,7 @@ export interface ConversationMessage {
   suggestedChips?: string[];
   timestamp?: Date;
   debugInfo?: ConsultationDebugInfo;
+  queued?: boolean;
 }
 
 export interface ScentFinderContextValue {
@@ -70,11 +72,42 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
   const sessionIdRef = useRef(createBrowserSessionId());
   const resetSessionRef = useRef(false);
   const hydratedRef = useRef(false);
+  const lastAppliedCartActionIdRef = useRef<string | null>(null);
+  const conversationStateRef = useRef(conversationState);
+  const messagesRef = useRef(messages);
+  const requestGenerationRef = useRef(0);
+  const turnQueueRef = useRef<
+    {
+      id: string;
+      text: string;
+      isAlternativeRequest: boolean;
+      contextProductSlug?: string;
+    }[]
+  >([]);
+  const processingTurnRef = useRef(false);
+
+  type PendingTurn = {
+    id: string;
+    text: string;
+    isAlternativeRequest: boolean;
+    contextProductSlug?: string;
+  };
 
   // Cart integration — always read the live store at request time (never a stale sendMessage closure)
   const cart = useCart(brand.slug);
   const liveCartRef = useRef(cart);
-  liveCartRef.current = cart;
+
+  useEffect(() => {
+    conversationStateRef.current = conversationState;
+  }, [conversationState]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    liveCartRef.current = cart;
+  }, [cart]);
 
   const clearPendingTimers = useCallback(() => {
     activeTimers.current.forEach((t) => clearTimeout(t));
@@ -117,6 +150,9 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
     const brandChanged = activeBrandSlug.current !== brand.slug;
     if (brandChanged) {
       activeBrandSlug.current = brand.slug;
+      requestGenerationRef.current += 1;
+      turnQueueRef.current = [];
+      processingTurnRef.current = false;
       clearPendingTimers();
       setIsTyping(false);
       setIsCompactOpen(false);
@@ -170,6 +206,9 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
   }, [brand.slug, messages, conversationState]);
 
   const resetConversation = useCallback(() => {
+    requestGenerationRef.current += 1;
+    turnQueueRef.current = [];
+    processingTurnRef.current = false;
     clearPendingTimers();
     setConversationState(undefined);
     setActivePreferences(null);
@@ -184,32 +223,25 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
     }
   }, [brand, clearPendingTimers, createCanonicalWelcomeMessage]);
 
-  const sendMessage = useCallback(
-    async (
-      rawText: string,
-      isAlternativeRequest = false,
-      contextProductSlug?: string
-    ) => {
-      const trimmed = rawText.trim();
-      if (!trimmed || isTyping) return;
-
-      // Clear any remaining timers from a prior sequence
-      clearPendingTimers();
-
-      // Add user message to thread
-      const userMsg: ConversationMessage = {
-        id: `user-${Date.now()}`,
-        type: 'user',
-        text: trimmed,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, userMsg]);
+  const executeTurn = useCallback(
+    async (turn: PendingTurn) => {
+      const generation = requestGenerationRef.current;
+      messagesRef.current = messagesRef.current.map((m) =>
+        m.id === turn.id ? { ...m, queued: false } : m
+      );
+      setMessages(messagesRef.current);
       setIsTyping(true);
 
+      const wait = (ms: number) =>
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, ms);
+        });
+
+      const cancelled = () => generation !== requestGenerationRef.current;
+
       try {
-        // Build history from current messages
-        const historyPayload = messages
+        const historyPayload = messagesRef.current
+          .filter((m) => m.id !== turn.id)
           .filter((m) => m.type === 'user' || m.type === 'assistant')
           .slice(-24)
           .map((m) => ({
@@ -231,14 +263,14 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: trimmed,
+            message: turn.text,
             brandSlug: brand.slug,
-            conversationState,
+            conversationState: conversationStateRef.current,
             history: historyPayload,
             sessionId: sessionIdRef.current,
             resetSession: resetSessionRef.current,
-            contextProductSlug,
-            isAlternativeRequest,
+            contextProductSlug: turn.contextProductSlug,
+            isAlternativeRequest: turn.isAlternativeRequest,
             cart: cartPayload,
           }),
         });
@@ -248,50 +280,64 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
         }
 
         const data: ChatApiResponse = await res.json();
+        if (cancelled()) return;
         resetSessionRef.current = false;
         if (data.sessionId) {
           sessionIdRef.current = data.sessionId;
         }
 
-        // If assistant executed a cart action, apply it to the client cart store
-        if (data.cartAction) {
-          const actionItems =
-            data.cartAction.items && data.cartAction.items.length > 0
-              ? data.cartAction.items
-              : data.cartAction.productId
-                ? [
-                    {
-                      productId: data.cartAction.productId,
-                      brandSlug: data.cartAction.brandSlug || brand.slug,
-                      quantity: data.cartAction.quantity || 1,
-                    },
-                  ]
-                : [];
-          if (data.cartAction.action === 'ADD_TO_CART') {
-            for (const item of actionItems) {
-              liveCartRef.current.addItem(item.productId, item.brandSlug || brand.slug, item.quantity || 1);
-            }
-          } else if (data.cartAction.action === 'REMOVE_FROM_CART') {
-            for (const item of actionItems) {
-              liveCartRef.current.removeItem(item.productId, item.brandSlug || brand.slug);
+        if (isAuthorizedCartMutation(data.cartAction)) {
+          const actionId = data.cartAction.actionId;
+          if (actionId && lastAppliedCartActionIdRef.current === actionId) {
+            // Same transaction already applied (retry / rerender)
+          } else {
+            lastAppliedCartActionIdRef.current = actionId || lastAppliedCartActionIdRef.current;
+            const actionItems =
+              data.cartAction.items && data.cartAction.items.length > 0
+                ? data.cartAction.items
+                : data.cartAction.productId
+                  ? [
+                      {
+                        productId: data.cartAction.productId,
+                        brandSlug: data.cartAction.brandSlug || brand.slug,
+                        quantity: data.cartAction.quantity || 1,
+                      },
+                    ]
+                  : [];
+            if (data.cartAction.action === 'ADD_TO_CART') {
+              for (const item of actionItems) {
+                liveCartRef.current.addItem(item.productId, item.brandSlug || brand.slug, item.quantity || 1);
+              }
+            } else if (data.cartAction.action === 'REMOVE_FROM_CART') {
+              for (const item of actionItems) {
+                liveCartRef.current.removeItem(item.productId, item.brandSlug || brand.slug);
+              }
+            } else if (data.cartAction.action === 'CLEAR_CART') {
+              liveCartRef.current.clearBrandCart(data.cartAction.brandSlug || brand.slug);
             }
           }
         }
 
-        // Update accumulated conversation state & structured preferences
+        conversationStateRef.current = data.updatedState;
         setConversationState(data.updatedState);
-        const structured = toStructuredPreferences(data.updatedState.preferences, trimmed);
+        const structured = toStructuredPreferences(data.updatedState.preferences, turn.text);
         setActivePreferences(structured);
         if (data.debugInfo) {
           setLatestDebugInfo(data.debugInfo);
         }
 
         const thoughtList: string[] =
-          data.messages && data.messages.length > 0
-            ? data.messages
-            : [data.reply];
+          data.messages && data.messages.length > 0 ? data.messages : [data.reply];
 
-        // 1. Immediately reveal the first assistant thought
+        if (data.intent === 'RESET_CONSULTATION') {
+          const userTurn = messagesRef.current.find((m) => m.id === turn.id);
+          messagesRef.current = [
+            createCanonicalWelcomeMessage(brand),
+            ...(userTurn ? [{ ...userTurn, queued: false }] : []),
+          ];
+          setMessages(messagesRef.current);
+        }
+
         const firstMsg: ConversationMessage = {
           id: `assistant-${Date.now()}-0`,
           type: 'assistant',
@@ -300,58 +346,38 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
           timestamp: new Date(),
           debugInfo: data.debugInfo,
         };
+        messagesRef.current = [...messagesRef.current, firstMsg];
+        setMessages(messagesRef.current);
 
-        setMessages((prev) => [...prev, firstMsg]);
+        for (let i = 1; i < thoughtList.length; i++) {
+          await wait(600);
+          if (cancelled()) return;
+          const isLastThought = i === thoughtList.length - 1;
+          const nextMsg: ConversationMessage = {
+            id: `assistant-${Date.now()}-${i}`,
+            type: 'assistant',
+            text: thoughtList[i],
+            suggestedChips: isLastThought ? data.suggestedChips : undefined,
+            timestamp: new Date(),
+            debugInfo: data.debugInfo,
+          };
+          messagesRef.current = [...messagesRef.current, nextMsg];
+          setMessages(messagesRef.current);
+        }
 
-        // 2. If additional thoughts or recommendations exist, sequence them one-by-one
-        if (thoughtList.length > 1 || (data.needsRecommendations && data.results && data.results.length > 0)) {
-          let currentDelay = 600;
-
-          // Schedule subsequent thoughts
-          for (let i = 1; i < thoughtList.length; i++) {
-            const index = i;
-            const delay = currentDelay;
-            const isLastThought = index === thoughtList.length - 1;
-            const timer = setTimeout(() => {
-              const nextMsg: ConversationMessage = {
-                id: `assistant-${Date.now()}-${index}`,
-                type: 'assistant',
-                text: thoughtList[index],
-                suggestedChips: isLastThought ? data.suggestedChips : undefined,
-                timestamp: new Date(),
-                debugInfo: data.debugInfo,
-              };
-              setMessages((prev) => [...prev, nextMsg]);
-            }, delay);
-            activeTimers.current.push(timer);
-            currentDelay += 600;
-          }
-
-          // Schedule recommendations if present
-          if (data.needsRecommendations && data.results && data.results.length > 0) {
-            const recsDelay = currentDelay;
-            const recsTimer = setTimeout(() => {
-              const recsMsg: ConversationMessage = {
-                id: `recs-${Date.now()}`,
-                type: 'recommendations',
-                results: data.results,
-                preferencesSnapshot: structured,
-                timestamp: new Date(),
-                debugInfo: data.debugInfo,
-              };
-              setMessages((prev) => [...prev, recsMsg]);
-              setIsTyping(false);
-            }, recsDelay);
-            activeTimers.current.push(recsTimer);
-          } else {
-            // Unlock typing after the final thought finishes
-            const unlockTimer = setTimeout(() => {
-              setIsTyping(false);
-            }, currentDelay);
-            activeTimers.current.push(unlockTimer);
-          }
-        } else {
-          setIsTyping(false);
+        if (data.needsRecommendations && data.results && data.results.length > 0) {
+          await wait(250);
+          if (cancelled()) return;
+          const recsMsg: ConversationMessage = {
+            id: `recs-${Date.now()}`,
+            type: 'recommendations',
+            results: data.results,
+            preferencesSnapshot: structured,
+            timestamp: new Date(),
+            debugInfo: data.debugInfo,
+          };
+          messagesRef.current = [...messagesRef.current, recsMsg];
+          setMessages(messagesRef.current);
         }
       } catch (err) {
         console.warn('[ScentFinderContext Error]:', err);
@@ -361,11 +387,62 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
           text: `I'm having a little trouble connecting right now. Try telling me the occasion, style, or budget you're shopping for!`,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, fallbackMsg]);
-        setIsTyping(false);
+        messagesRef.current = [...messagesRef.current, fallbackMsg];
+        setMessages(messagesRef.current);
+      } finally {
+        if (!cancelled()) setIsTyping(false);
       }
     },
-    [brand.slug, conversationState, isTyping, messages, clearPendingTimers]
+    [brand, brand.slug, createCanonicalWelcomeMessage]
+  );
+
+  const sendMessage = useCallback(
+    async (
+      rawText: string,
+      isAlternativeRequest = false,
+      contextProductSlug?: string
+    ) => {
+      const trimmed = rawText.trim();
+      if (!trimmed) return;
+
+      const busy = processingTurnRef.current || turnQueueRef.current.length > 0;
+      const turn: PendingTurn = {
+        id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        text: trimmed,
+        isAlternativeRequest,
+        contextProductSlug,
+      };
+
+      const userMsg: ConversationMessage = {
+        id: turn.id,
+        type: 'user',
+        text: trimmed,
+        timestamp: new Date(),
+        queued: busy,
+      };
+      messagesRef.current = [...messagesRef.current, userMsg];
+      setMessages(messagesRef.current);
+      turnQueueRef.current.push(turn);
+
+      const drain = async () => {
+        if (processingTurnRef.current) return;
+        processingTurnRef.current = true;
+        try {
+          while (turnQueueRef.current.length > 0) {
+            const next = turnQueueRef.current.shift();
+            if (next) await executeTurn(next);
+          }
+        } finally {
+          processingTurnRef.current = false;
+          if (turnQueueRef.current.length > 0) {
+            void drain();
+          }
+        }
+      };
+
+      await drain();
+    },
+    [executeTurn]
   );
 
   return (

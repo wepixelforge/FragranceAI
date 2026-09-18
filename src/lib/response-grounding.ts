@@ -17,7 +17,20 @@ export interface RecommendationPresentation {
   recommendationStatus: string;
   recommendationCount: number;
   primary: { productId: string; name: string; rank: number } | null;
-  products: { productId: string; brandSlug: string; name: string; rank: number; intensity?: string | null }[];
+  products: {
+    productId: string;
+    brandSlug: string;
+    name: string;
+    rank: number;
+    intensity?: string | null;
+    longevity?: string | null;
+    occasion?: string[];
+    season?: string[];
+  }[];
+  matchedPreferences?: string[];
+  unmetPreferences?: string[];
+  tradeOff?: string | null;
+  isPartialMatch?: boolean;
 }
 
 export function intensityRank(value?: string | null): number {
@@ -58,7 +71,13 @@ function minPositiveRank(products: Product[], fn: (p: Product) => number): numbe
 
 export function buildRecommendationPresentation(
   results: RecommendationResult[],
-  status?: string
+  status?: string,
+  extras?: {
+    matchedPreferences?: string[];
+    unmetPreferences?: string[];
+    tradeOff?: string | null;
+    isPartialMatch?: boolean;
+  }
 ): RecommendationPresentation {
   const products = results.map((r, idx) => ({
     productId: r.product.id,
@@ -66,6 +85,9 @@ export function buildRecommendationPresentation(
     name: r.product.name,
     rank: idx + 1,
     intensity: r.product.intensity,
+    longevity: r.product.longevity,
+    occasion: r.product.occasion,
+    season: r.product.season,
   }));
   return {
     recommendationStatus: status || (results.length > 0 ? 'SUCCESS' : 'NO_VALID_MATCH'),
@@ -74,6 +96,10 @@ export function buildRecommendationPresentation(
       ? { productId: products[0].productId, name: products[0].name, rank: 1 }
       : null,
     products,
+    matchedPreferences: extras?.matchedPreferences || [],
+    unmetPreferences: extras?.unmetPreferences || [],
+    tradeOff: extras?.tradeOff || null,
+    isPartialMatch: Boolean(extras?.isPartialMatch || status === 'PARTIAL_MATCH'),
   };
 }
 
@@ -207,6 +233,10 @@ export function evaluateRecommendationGrounding(
     (n) => !canonicalLower.has(n.toLowerCase()) && !contextLower.has(n.toLowerCase())
   );
   const mentionedCanonical = mentioned.filter((n) => canonicalLower.has(n.toLowerCase()));
+  const lower = reply
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
 
   const isRecIntent =
     !options?.intent ||
@@ -249,16 +279,35 @@ export function evaluateRecommendationGrounding(
   }
 
   if (results.length > 0 && isRecIntent) {
-    const lower = reply.toLowerCase();
     if (
+      /^(i('?m| am) (sorry|afraid)|unfortunately)\b/i.test(lower.trim()) ||
       /\bi don'?t have (a fragrance that'?s stronger|anything stronger|another option that fits|a fragrance)\b/i.test(lower) ||
       /\bno suitable (option|match)/i.test(lower) ||
       /\bcouldn'?t find (a|another) (suitable )?option/i.test(lower) ||
-      /\bstronger than the strong-intensity options\b/i.test(lower)
+      /\bstronger than the strong-intensity options\b/i.test(lower) ||
+      /\bi don'?t have a fragrance in our catalogue\b/i.test(lower)
     ) {
       return {
         ok: false,
         reason: 'contradictory no-match language while canonical products exist',
+        mentionedCanonical,
+        extraNames,
+      };
+    }
+
+    const hasFullDay = results.some(
+      (r) => r.product.longevity === 'long-lasting' || r.product.longevity === 'beast-mode'
+    );
+    const claimsFullDay = /\b(lasts? (for )?(a )?(whole|full|all) day|all-day (wear|performance|longevity)|beast[- ]?mode|extremely long-lasting)\b/i.test(
+      lower
+    );
+    const concedesLongevity = /\b(although|though|may not|won'?t|below|rather than|short of|not a guaranteed|not last)\b/i.test(
+      lower
+    );
+    if (claimsFullDay && !hasFullDay && !concedesLongevity) {
+      return {
+        ok: false,
+        reason: 'claimed full-day or beast-mode wear beyond product longevity metadata',
         mentionedCanonical,
         extraNames,
       };

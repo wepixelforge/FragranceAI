@@ -53,14 +53,17 @@ export interface ResponseActionContext {
     locale: string;
   };
   cart_action?: {
-    action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART';
+    action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | 'CLEAR_CART';
     productId?: string;
     productName?: string;
     success: boolean;
     added?: string[];
+    removed?: string[];
     failed?: string[];
     partial?: boolean;
     needsClarification?: boolean;
+    clearedCount?: number;
+    addedItems?: { productName: string; unitPrice?: number; quantity?: number }[];
   };
   response_policy?: Record<string, any>;
 }
@@ -207,7 +210,8 @@ export async function generateConversationalResponse(
     stage1.intent === 'GENERAL_CONVERSATION' ||
     stage1.intent === 'BRAND_CONVERSATION' ||
     stage1.intent === 'CUSTOMER_OBJECTION' ||
-    (stage1.intent === 'PREFERENCE_UPDATE' && results.length === 0)
+    (stage1.intent === 'PREFERENCE_UPDATE' && results.length === 0) ||
+    stage1.intent === 'CART_ASSISTANCE'
   ) {
     return fallbackResponseGenerator(
       message,
@@ -300,6 +304,8 @@ async function callGroqStage2(
     baseNotes: r.product.baseNotes.slice(0, 3),
     intensity: r.product.intensity,
     longevity: r.product.longevity,
+    occasion: r.product.occasion,
+    season: r.product.season,
     matchReasons: r.matchReasons.map((m) => m.label),
     explanation: r.explanation,
   }));
@@ -385,16 +391,20 @@ CRITICAL RULES:
    - RECOMMENDATION_COUNT = ${presentation.recommendationCount}. This is the exact number of products the customer will see.
    - If RECOMMENDATION_COUNT is 1: singular language is correct. Discuss only that product.
    - If RECOMMENDATION_COUNT is 2 or more: you MUST name the primary/closest match (rank 1) AND also name the other canonical products as additional options. Never write as if only one fragrance is being recommended.
-   - If RECOMMENDATION_COUNT > 0: NEVER say you could not find options, never say you don't have anything, and never contradict the canonical result.
+   - If RECOMMENDATION_COUNT > 0: NEVER say you could not find options, never say you don't have anything, never open with "I'm sorry" / "I'm afraid" / "Unfortunately", and never contradict the canonical result.
    - Rank 1 is the primary/closest match. Do not claim a lower-ranked product is the closest match.
+   - PERFORMANCE CLAIMS MUST MATCH PRODUCT METADATA:
+     * If a product's longevity is "moderate" or "light", do NOT say it lasts all day, lasts a full day, is beast-mode, or is extremely long-lasting.
+     * If intensity/sillage/projection is moderate or intimate, do not call it loud, beast-mode, or room-filling.
+     * Do not claim a product fits an occasion or season that is missing from its metadata.
    - If STATUS is NO_ALTERNATIVES or no alternatives remain for SHOW_ALTERNATIVES:
-     * Explain politely: "I don't have another option that fits all your current preferences. I can relax one of your requirements if you'd like."
+     * Explain politely that you don't have another option that still fits the current preferences, and offer to loosen one requirement.
      * Do NOT invent, name, or recommend any unvalidated products.
    - If CANONICAL RANKED PRODUCTS is empty (HARD_CONSTRAINT_FAILED / NO_VALID_MATCH):
       * NEVER recommend, name, or suggest unvalidated products.
-      * If user combined fresh with strong intensity: explain "I don't currently have a fragrance that combines a fresh profile with strong intensity. I can either keep it fresh and choose the strongest available option, or show you my strongest fragrances."
-      * If user combined strong intensity with controlled projection/not loud: explain "Nothing in this collection combines strong intensity with controlled projection. I can show you the closest moderate-intensity options or stronger options with more projection."
-      * Otherwise, explain politely that no product in our catalogue satisfies all constraints (e.g. avoiding sweet fragrances, budget limit, or requested intensity), and suggest relaxing one constraint.
+      * Do NOT invent exclusions the user did not state.
+      * Do not open with a long apology. Briefly say you couldn't find a close fit, then offer one or two realistic ways to loosen the request (budget, intensity, or fragrance style).
+      * Use this empty-result language ONLY when RECOMMENDATION_COUNT is 0.
 
 3. INTENT BEHAVIOR & STRUCTURED POLICIES:
    - OUT_OF_SCOPE:
@@ -411,6 +421,10 @@ CRITICAL RULES:
      Policy: confirm_action_naturally = true, do_not_invent_information = true, must_not_print_raw_routes = true, live_cart_is_authoritative = true.
      * Confirm add/remove using ONLY the actual action result in STRUCTURED APPLICATION CONTEXT (added, failed, partial).
      * For "what's in my cart" / subtotal / item-count questions: use ONLY LIVE CART CONTEXT. If isEmpty is true, say the cart is empty. Do not mention previously added or recommended products as current cart items.
+     * If confirm_clear_cart is true: list the LIVE CART items with ₹ prices and ask the customer to confirm clearing. Do not say the cart was already cleared.
+     * If cart_already_empty is true: say the cart is already empty. Do not ask which product they mean.
+     * If clear_cancelled is true: say you'll keep the current cart items. Do not mutate anything.
+     * If cart_cleared is true: confirm using clearedCount from the action result. Do not invent a count.
      * If several products were added, mention those actual names. If some could not be found, say so naturally.
      * If ask_clarification is true, ask which products they mean. Do not claim anything was added.
      * Direct the customer to the cart icon in the header (or View Cart). NEVER print a URL or route such as /tmperfumehouse/cart.
@@ -424,12 +438,12 @@ CRITICAL RULES:
    - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Do NOT call either "Best Match".
    - SHOW_ALTERNATIVES: Present the fresh alternatives provided in CANONICAL RANKED PRODUCTS. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
    - PARTIAL_MATCH:
-      * Lead directly with the closest option (e.g. "The closest option is [Product].").
-      * This is a nearest-neighbour match when the exact family/category is not in the catalogue. Say that honestly in one clause, then why this scent is the closest (woody/resinous, masculine, etc.).
-      * NEVER start with a negative database statement like "I couldn't find a fragrance that matches both..." or "I don't have...".
-      * Ground your explanation in the trade-off provided: explain what it keeps/satisfies and what differs (e.g. "It keeps the refreshing character but offers moderate intensity rather than strong.").
+      * A useful closest product exists. Lead directly with it using natural consultant language ("The closest match is...", "I'd start with...", "The closest option from this collection is...").
+      * NEVER open with "I'm sorry", "I'm afraid", "Unfortunately", "I don't have", or "I couldn't find".
+      * Ground the explanation in MATCHED CRITERIA and UNMET CRITERIA / TRADE-OFF. Say what it fits and what it does not fully satisfy.
       * Never call it "Best Match". Never claim characteristics the product lacks.
-   - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: State honestly and politely that no suitable option was found within those constraints, briefly explaining the limiting factor (e.g. budget ceiling or excluded notes). Never present invalid products. Avoid robotic "relax one of your preferences" phrases. Use this language ONLY when RECOMMENDATION_COUNT is 0.
+      * If more than one canonical product is listed, name the primary and acknowledge the others as alternatives.
+   - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: Use this ONLY when RECOMMENDATION_COUNT is 0. Briefly say you couldn't find a close fit and offer a useful next adjustment. Never present invalid products. Avoid robotic "relax one of your preferences" phrasing. Do not invent exclusions.
    - COMPARATIVE REFINEMENT (stronger / lighter / warmer / louder / fresher):
      * Compare against the previous recommendation/request, not against the globally strongest product in the catalogue.
      * If COMPARATIVE CONTEXT says improved=true and products are present: explain that these options step in that direction. Do NOT say you don't have anything stronger/warmer/etc.
@@ -445,6 +459,12 @@ ${JSON.stringify(rankedItems, null, 2)}
 
 CANONICAL PRESENTATION (AUTHORITATIVE PRODUCT SET FOR BOTH UI AND THIS RESPONSE):
 ${JSON.stringify(presentation, null, 2)}
+
+MATCHED CRITERIA:
+${JSON.stringify(presentation.matchedPreferences || [], null, 2)}
+
+UNMET CRITERIA / TRADE-OFF:
+${JSON.stringify({ unmetPreferences: presentation.unmetPreferences || [], tradeOff: presentation.tradeOff || null, isPartialMatch: Boolean(presentation.isPartialMatch) }, null, 2)}
 
 COMPARATIVE CONTEXT:
 ${JSON.stringify(comparative || null, null, 2)}
@@ -518,30 +538,93 @@ export function fallbackResponseGenerator(
   if (stage1.intent === 'CART_ASSISTANCE') {
     const action = options.actionContext?.cart_action?.action;
     const added = options.actionContext?.cart_action?.added;
+    const removed = options.actionContext?.cart_action?.removed;
     const failed = options.actionContext?.cart_action?.failed;
     const prodName = options.actionContext?.cart_action?.productName || options.actionContext?.product?.name;
-    const names = added && added.length > 0 ? added.join(', ') : prodName;
+    const names =
+      (action === 'REMOVE_FROM_CART'
+        ? removed && removed.length > 0
+          ? removed.join(', ')
+          : prodName
+        : added && added.length > 0
+          ? added.join(', ')
+          : prodName) || '';
+    const nameList =
+      action === 'REMOVE_FROM_CART'
+        ? removed && removed.length > 0
+          ? removed
+          : names
+            ? names.split(/,\s*/)
+            : []
+        : added && added.length > 0
+          ? added
+          : names
+            ? names.split(/,\s*/)
+            : [];
+    if (options.actionContext?.response_policy?.delegated_no_match) {
+      return `I couldn’t find enough fragrances in this collection that fit that request, so I haven’t added anything to your cart.`;
+    }
+    if (options.actionContext?.response_policy?.delegated_partial) {
+      const available = Number(options.actionContext.response_policy.available_quantity || nameList.length || 0);
+      const requested = Number(options.actionContext.response_policy.requested_quantity || 0);
+      return `I found ${available} fragrance${available === 1 ? '' : 's'} that fit your request${requested ? ` (you asked for ${requested})` : ''}. Would you like me to add ${available === 1 ? 'it' : 'them'}?`;
+    }
     if (options.actionContext?.response_policy?.ask_clarification) {
       return (
-        options.actionContext.response_policy.clarification_question ||
+        String(options.actionContext.response_policy.clarification_question || '') ||
         'Which fragrances would you like me to add? I can use the latest recommendations or a product name from this collection.'
       );
     }
+    if (options.actionContext?.response_policy?.cart_already_empty) {
+      return `Your cart is already empty.`;
+    }
+    if (options.actionContext?.response_policy?.clear_cancelled) {
+      return `No problem — I’ll leave your cart as it is.`;
+    }
+    if (options.actionContext?.response_policy?.confirm_clear_cart) {
+      const lines = options.actionContext?.cart?.items || [];
+      const listed = lines
+        .map((i) => `• ${i.name} — ${i.unitPriceFormatted || formatPrice(i.unitPrice || i.price || 0)}`)
+        .join('\n');
+      const total = options.actionContext?.cart?.subtotalFormatted || formatPrice(options.actionContext?.cart?.subtotal || 0);
+      if (!listed) {
+        return `Your cart is already empty.`;
+      }
+      return `Sure — you want to remove everything from your cart:\n\n${listed}\n\nYour cart total is ${total}.\n\nWould you like me to clear the cart?`;
+    }
+    if (action === 'CLEAR_CART' || options.actionContext?.response_policy?.cart_cleared) {
+      const cleared = options.actionContext?.cart_action?.clearedCount ?? options.actionContext?.cart?.itemCount ?? 0;
+      return `Done — I've removed all ${cleared} item${cleared === 1 ? '' : 's'} from your cart. Your cart is now empty.`;
+    }
     if (action === 'ADD_TO_CART') {
-      if (!options.actionContext?.cart_action?.success && failed?.length && !added?.length) {
+      if (nameList.length > 0) {
+        const listed =
+          nameList.length === 1
+            ? nameList[0]
+            : `${nameList.slice(0, -1).join(', ')} and ${nameList[nameList.length - 1]}`;
+        if (failed?.length) {
+          return `Done — I’ve added ${listed} to your cart. I couldn’t find ${failed.join(', ')} in this collection.`;
+        }
+        return `Done — I’ve added ${nameList.length} fragrance${nameList.length === 1 ? '' : 's'} to your cart: ${listed}.`;
+      }
+      if (failed?.length) {
         return `I couldn’t find ${failed.join(', ')} in this collection, so nothing was added. You can browse the current brand’s fragrances or tell me another name.`;
       }
-      if (names && failed?.length) {
-        return `I’ve added ${names} to your cart. I couldn’t find ${failed.join(', ')} in this collection. You can review everything from the cart icon in the header.`;
-      }
-      return names
-        ? `I have added ${names} to your cart. You can review your items anytime from the cart icon in the header.`
-        : `I've added the fragrance to your cart. You can review your items anytime by opening the cart.`;
+      return `I can add them, but which fragrances did you mean?`;
     }
     if (action === 'REMOVE_FROM_CART') {
-      return names
-        ? `I've removed ${names} from your cart.`
-        : `I've updated your cart and removed the selected fragrance.`;
+      if (failed?.length && nameList.length === 0) {
+        return `I couldn’t find ${failed.join(', ')} in your cart, so nothing was removed.`;
+      }
+      if (nameList.length === 1) {
+        return `${nameList[0]} has been removed from your cart.`;
+      }
+      if (nameList.length > 1) {
+        const head = nameList.slice(0, -1).join(', ');
+        const last = nameList[nameList.length - 1];
+        return `Done — I've removed ${head} and ${last} from your cart.`;
+      }
+      return `I've updated your cart and removed the selected fragrance.`;
     }
     const count = options.actionContext?.cart?.itemCount ?? 0;
     const isEmpty = options.actionContext?.cart?.isEmpty ?? count === 0;
@@ -582,7 +665,7 @@ export function fallbackResponseGenerator(
 
   // 5. RESET
   if (stage1.intent === 'RESET_CONSULTATION') {
-    return `I've cleared your previous consultation preferences. What direction would you like to explore now?`;
+    return `Absolutely — we're starting fresh. What kind of fragrance are you looking for?`;
   }
 
   // 5c. CUSTOMER OBJECTION — Acknowledge non-defensively with verified brand differentiator
@@ -695,6 +778,7 @@ export function fallbackResponseGenerator(
   ) {
     const closest = results[0];
     const tradeOff =
+      presentation.tradeOff ||
       closest.detailedReasons?.find((d) => d.category === 'Profile')?.text ||
       closest.explanation;
     if (results.length >= 2) {
@@ -746,9 +830,10 @@ export function fallbackResponseGenerator(
     }
 
     if (failedList.length > 0) {
-      return `I couldn't find a suitable option within those constraints (${failedList.join(' while ')}).`;
+      const limiter = failedList[0];
+      return `I couldn't find a close fit for that combination (${limiter}). If you'd like, we can loosen that preference and I'll find something closer.`;
     }
-    return `I couldn't find a suitable option within those constraints.`;
+    return `I couldn't find a close fit for that combination. If you'd like, we can loosen one preference — budget, intensity, or fragrance style — and I can find something closer.`;
   }
 
   // GROUNDED RECOMMENDATIONS & REFINEMENT EXPLANATIONS
