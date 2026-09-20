@@ -1,0 +1,2099 @@
+[
+  {
+    "storefront": "tm",
+    "device": "desktop",
+    "url": "https://fragrance-ai.vercel.app/tmperfumehouse",
+    "status": 200,
+    "navMs": 7266,
+    "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/perf-baseline/fragrance_ai_vercel_app_tmperfumehouse-desktop.png",
+    "title": "TM Perfume House — 380+ Inspired Fragrances & Scent Finder",
+    "h1": "Find Your Signature Scent.",
+    "imgCount": 1,
+    "imgSrcs": [
+      {
+        "src": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "w": 1024,
+        "h": 1024,
+        "displayW": 62,
+        "displayH": 62,
+        "loading": "auto",
+        "alt": "TM Scent Finder"
+      }
+    ],
+    "perf": {
+      "lcp": {
+        "startTime": 2760,
+        "size": 105618,
+        "url": "",
+        "tag": "H1",
+        "id": "",
+        "className": "font-serif text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-brand-text leading-[1.08]",
+        "text": "Find Your Signature Scent."
+      },
+      "cls": 0,
+      "fcp": 2760,
+      "longTasks": [
+        {
+          "duration": 233,
+          "start": 2408
+        }
+      ]
+    },
+    "nav": {
+      "ttfb": 27.100000023841858,
+      "dcl": 2642.899999976158,
+      "load": 2815.399999976158,
+      "transferSize": 19288,
+      "encodedBodySize": 18988,
+      "decodedBodySize": 100041
+    },
+    "totals": {
+      "requests": 33,
+      "transfer": 1139227,
+      "jsBytes": 207220,
+      "cssBytes": 866659,
+      "imgBytes": 741416,
+      "fontBytes": 106468
+    },
+    "grouped": {
+      "link": {
+        "count": 6,
+        "transfer": 828539,
+        "encoded": 826739
+      },
+      "script": {
+        "count": 12,
+        "transfer": 204861,
+        "encoded": 201261
+      },
+      "css": {
+        "count": 2,
+        "transfer": 38120,
+        "encoded": 37520
+      },
+      "other": {
+        "count": 1,
+        "transfer": 9609,
+        "encoded": 9309
+      },
+      "fetch": {
+        "count": 11,
+        "transfer": 38810,
+        "encoded": 35510
+      }
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "transferSize": 741416,
+        "encodedBodySize": 741116,
+        "decodedBodySize": 741116
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "transferSize": 73531,
+        "encodedBodySize": 73231,
+        "decodedBodySize": 229615
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "transferSize": 46088,
+        "encodedBodySize": 45788,
+        "decodedBodySize": 165733
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "transferSize": 38760,
+        "encodedBodySize": 38460,
+        "decodedBodySize": 38460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "transferSize": 29588,
+        "encodedBodySize": 29288,
+        "decodedBodySize": 29288
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/b49b0d9b851e4899-s.12c_00cnxx2oq.woff2",
+        "type": "css",
+        "transferSize": 21280,
+        "encodedBodySize": 20980,
+        "decodedBodySize": 20980
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "transferSize": 21004,
+        "encodedBodySize": 20704,
+        "decodedBodySize": 69802
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/7178b3e590c64307-s.0i3h3th1vs4m7.woff2",
+        "type": "css",
+        "transferSize": 16840,
+        "encodedBodySize": 16540,
+        "decodedBodySize": 16540
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "transferSize": 15162,
+        "encodedBodySize": 14862,
+        "decodedBodySize": 100331
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "transferSize": 14814,
+        "encodedBodySize": 14514,
+        "decodedBodySize": 41594
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "transferSize": 10114,
+        "encodedBodySize": 9814,
+        "decodedBodySize": 31581
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/favicon.ico?favicon.3fpu2ql9ns1a0.ico",
+        "type": "other",
+        "transferSize": 9609,
+        "encodedBodySize": 9309,
+        "decodedBodySize": 25931
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/tmperfumehouse?_rsc=or7yUOmkPyhiqU30",
+        "type": "fetch",
+        "transferSize": 9161,
+        "encodedBodySize": 8861,
+        "decodedBodySize": 29680
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "transferSize": 8252,
+        "encodedBodySize": 7952,
+        "decodedBodySize": 28906
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/tmperfumehouse/shop?_rsc=jPME6yJI8JpcLmym",
+        "type": "fetch",
+        "transferSize": 7948,
+        "encodedBodySize": 7648,
+        "decodedBodySize": 24585
+      }
+    ],
+    "jsFiles": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "bytes": 73531
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "bytes": 46088
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "bytes": 21004
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "bytes": 14814
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "bytes": 10114
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "bytes": 8252
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "bytes": 7891
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "bytes": 7803
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "bytes": 4708
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "bytes": 4329
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "bytes": 3304
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "bytes": 3023
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "bytes": 2359
+      }
+    ],
+    "blocking": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "bytes": 38760
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "bytes": 29588
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "bytes": 1254
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "bytes": 741416
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "bytes": 15162
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "bytes": 8252
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "type": "link",
+        "bytes": 2359
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "bytes": 46088
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "bytes": 73531
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "bytes": 21004
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "type": "script",
+        "bytes": 4329
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "bytes": 10114
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "type": "script",
+        "bytes": 7803
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "type": "script",
+        "bytes": 7891
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "bytes": 14814
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "type": "script",
+        "bytes": 3304
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "type": "script",
+        "bytes": 4708
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "type": "script",
+        "bytes": 3023
+      }
+    ],
+    "longTasks": []
+  },
+  {
+    "storefront": "wop",
+    "device": "desktop",
+    "url": "https://fragrance-ai.vercel.app/worldofperfumers",
+    "status": 200,
+    "navMs": 10035,
+    "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/perf-baseline/fragrance_ai_vercel_app_worldofperfumers-desktop.png",
+    "title": "World of Perfumers — 10ml Pocket Trials & Scent Discovery Guide",
+    "h1": "Discover Your Signature.",
+    "imgCount": 6,
+    "imgSrcs": [
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 312,
+        "displayH": 312,
+        "loading": "lazy",
+        "alt": "Aventor"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 200,
+        "displayH": 200,
+        "loading": "lazy",
+        "alt": "Aventor"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Imagine_Perfume_50ml_inspired_by_Louis_Vuitton_s_Imagination.webp?v=1779574373",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 200,
+        "displayH": 200,
+        "loading": "lazy",
+        "alt": "Imagine"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Blue_Perfume_50ml_inspired_by_Chanel_s_-_Bleu_De_Chanel.webp?v=1779540658",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 200,
+        "displayH": 200,
+        "loading": "lazy",
+        "alt": "Blue"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Savage_Perfume_50ml_inspired_by_Christian_Dior_s_Sauvage.webp?v=1779542891",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 200,
+        "displayH": 200,
+        "loading": "lazy",
+        "alt": "Savage"
+      },
+      {
+        "src": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "w": 1024,
+        "h": 1024,
+        "displayW": 62,
+        "displayH": 62,
+        "loading": "auto",
+        "alt": "WOP Scent Guide"
+      }
+    ],
+    "perf": {
+      "lcp": {
+        "startTime": 7124,
+        "size": 193116,
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "tag": "IMG",
+        "id": "",
+        "className": "max-h-full max-w-full w-auto h-auto object-contain drop-shadow-2xl select-none",
+        "text": ""
+      },
+      "cls": 0,
+      "fcp": 408,
+      "longTasks": [
+        {
+          "duration": 153,
+          "start": 135.70000004768372
+        },
+        {
+          "duration": 75,
+          "start": 291.30000001192093
+        }
+      ]
+    },
+    "nav": {
+      "ttfb": 26.30000001192093,
+      "dcl": 112,
+      "load": 405,
+      "transferSize": 21062,
+      "encodedBodySize": 20762,
+      "decodedBodySize": 103726
+    },
+    "totals": {
+      "requests": 37,
+      "transfer": 314395,
+      "jsBytes": 0,
+      "cssBytes": 300,
+      "imgBytes": 246216,
+      "fontBytes": 0
+    },
+    "grouped": {
+      "link": {
+        "count": 6,
+        "transfer": 300,
+        "encoded": 826739
+      },
+      "script": {
+        "count": 12,
+        "transfer": 0,
+        "encoded": 201261
+      },
+      "css": {
+        "count": 2,
+        "transfer": 0,
+        "encoded": 37520
+      },
+      "img": {
+        "count": 4,
+        "transfer": 245916,
+        "encoded": 244716
+      },
+      "fetch": {
+        "count": 12,
+        "transfer": 47117,
+        "encoded": 43517
+      }
+    },
+    "largest": [
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "type": "img",
+        "transferSize": 78952,
+        "encodedBodySize": 78652,
+        "decodedBodySize": 78652
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Imagine_Perfume_50ml_inspired_by_Louis_Vuitton_s_Imagination.webp?v=1779574373",
+        "type": "img",
+        "transferSize": 61344,
+        "encodedBodySize": 61044,
+        "decodedBodySize": 61044
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Savage_Perfume_50ml_inspired_by_Christian_Dior_s_Sauvage.webp?v=1779542891",
+        "type": "img",
+        "transferSize": 54554,
+        "encodedBodySize": 54254,
+        "decodedBodySize": 54254
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Blue_Perfume_50ml_inspired_by_Chanel_s_-_Bleu_De_Chanel.webp?v=1779540658",
+        "type": "img",
+        "transferSize": 51066,
+        "encodedBodySize": 50766,
+        "decodedBodySize": 50766
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers?_rsc=kJn7-iONAsoxtMPl",
+        "type": "fetch",
+        "transferSize": 11030,
+        "encodedBodySize": 10730,
+        "decodedBodySize": 37402
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/shop?_rsc=IYODuz_oVFeqhPEm",
+        "type": "fetch",
+        "transferSize": 9877,
+        "encodedBodySize": 9577,
+        "decodedBodySize": 32287
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/finder?_rsc=8EQgCe-2RbGNomEe",
+        "type": "fetch",
+        "transferSize": 9710,
+        "encodedBodySize": 9410,
+        "decodedBodySize": 31775
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers?_rsc=WxRzUWp61e8Z9XWK",
+        "type": "fetch",
+        "transferSize": 8156,
+        "encodedBodySize": 7856,
+        "decodedBodySize": 27315
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/cart?_rsc=15cejqGtP7K6XFvo",
+        "type": "fetch",
+        "transferSize": 1402,
+        "encodedBodySize": 1102,
+        "decodedBodySize": 2953
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/product/aventor-edp?_rsc=FsXFcRlLHSmWQczS",
+        "type": "fetch",
+        "transferSize": 1111,
+        "encodedBodySize": 811,
+        "decodedBodySize": 1721
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/finder?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1079,
+        "encodedBodySize": 779,
+        "decodedBodySize": 779
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/shop?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1077,
+        "encodedBodySize": 777,
+        "decodedBodySize": 777
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/shop?trial=true&_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1077,
+        "encodedBodySize": 777,
+        "decodedBodySize": 777
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/cart?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1077,
+        "encodedBodySize": 777,
+        "decodedBodySize": 777
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1006,
+        "encodedBodySize": 706,
+        "decodedBodySize": 706
+      }
+    ],
+    "jsFiles": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "bytes": 0
+      }
+    ],
+    "blocking": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "bytes": 300
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "type": "script",
+        "bytes": 0
+      }
+    ],
+    "longTasks": []
+  },
+  {
+    "storefront": "almaham",
+    "device": "desktop",
+    "url": "https://fragrance-ai.vercel.app/almaham",
+    "status": 200,
+    "navMs": 3902,
+    "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/perf-baseline/fragrance_ai_vercel_app_almaham-desktop.png",
+    "title": "Al-Maham Fragrances — Artisanal Niche Expressions & Consultation",
+    "h1": "What Does Your Presence Evoke?",
+    "imgCount": 1,
+    "imgSrcs": [
+      {
+        "src": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "w": 1024,
+        "h": 1024,
+        "displayW": 62,
+        "displayH": 62,
+        "loading": "auto",
+        "alt": "Al-Maham Fragrance Consultant"
+      }
+    ],
+    "perf": {
+      "lcp": {
+        "startTime": 256,
+        "size": 88305,
+        "url": "",
+        "tag": "H1",
+        "id": "",
+        "className": "font-serif text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-brand-text leading-[1.08]",
+        "text": "What Does Your Presence Evoke?"
+      },
+      "cls": 0,
+      "fcp": 256,
+      "longTasks": [
+        {
+          "duration": 74,
+          "start": 125.10000002384186
+        }
+      ]
+    },
+    "nav": {
+      "ttfb": 23.5,
+      "dcl": 100.60000002384186,
+      "load": 272.10000002384186,
+      "transferSize": 17916,
+      "encodedBodySize": 17616,
+      "decodedBodySize": 92217
+    },
+    "totals": {
+      "requests": 32,
+      "transfer": 53316,
+      "jsBytes": 0,
+      "cssBytes": 300,
+      "imgBytes": 300,
+      "fontBytes": 0
+    },
+    "grouped": {
+      "link": {
+        "count": 6,
+        "transfer": 300,
+        "encoded": 826739
+      },
+      "script": {
+        "count": 12,
+        "transfer": 0,
+        "encoded": 201261
+      },
+      "css": {
+        "count": 2,
+        "transfer": 0,
+        "encoded": 37520
+      },
+      "fetch": {
+        "count": 11,
+        "transfer": 35100,
+        "encoded": 31800
+      }
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/shop?_rsc=G4RJiyjxC_0UJC4Q",
+        "type": "fetch",
+        "transferSize": 7660,
+        "encodedBodySize": 7360,
+        "decodedBodySize": 22806
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham?_rsc=LBIUELDM0UQ8iWCi",
+        "type": "fetch",
+        "transferSize": 7391,
+        "encodedBodySize": 7091,
+        "decodedBodySize": 23881
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/shop?_rsc=sv0_380i1JPr6Di8",
+        "type": "fetch",
+        "transferSize": 6531,
+        "encodedBodySize": 6231,
+        "decodedBodySize": 17748
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/finder?_rsc=o00WI4MnceHSY-ub",
+        "type": "fetch",
+        "transferSize": 6312,
+        "encodedBodySize": 6012,
+        "decodedBodySize": 17230
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/cart?_rsc=YZ8jF2DN6yVqXCdP",
+        "type": "fetch",
+        "transferSize": 1394,
+        "encodedBodySize": 1094,
+        "decodedBodySize": 2944
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/product/sovereign-elysium?_rsc=v-8LkCO5hllQ2lHK",
+        "type": "fetch",
+        "transferSize": 1095,
+        "encodedBodySize": 795,
+        "decodedBodySize": 1705
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/finder?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 1070,
+        "encodedBodySize": 770,
+        "decodedBodySize": 770
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/shop?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 1068,
+        "encodedBodySize": 768,
+        "decodedBodySize": 768
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/cart?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 1068,
+        "encodedBodySize": 768,
+        "decodedBodySize": 768
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 997,
+        "encodedBodySize": 697,
+        "decodedBodySize": 697
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/product/sovereign-elysium?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 514,
+        "encodedBodySize": 214,
+        "decodedBodySize": 445
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "transferSize": 300,
+        "encodedBodySize": 741116,
+        "decodedBodySize": 741116
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 38460,
+        "decodedBodySize": 38460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 29288,
+        "decodedBodySize": 29288
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 954,
+        "decodedBodySize": 3315
+      }
+    ],
+    "jsFiles": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "bytes": 0
+      }
+    ],
+    "blocking": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "bytes": 300
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "type": "script",
+        "bytes": 0
+      }
+    ],
+    "longTasks": []
+  },
+  {
+    "storefront": "tm",
+    "device": "mobile",
+    "url": "https://fragrance-ai.vercel.app/tmperfumehouse",
+    "status": 200,
+    "navMs": 6197,
+    "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/perf-baseline/fragrance_ai_vercel_app_tmperfumehouse-mobile.png",
+    "title": "TM Perfume House — 380+ Inspired Fragrances & Scent Finder",
+    "h1": "Find Your Signature Scent.",
+    "imgCount": 1,
+    "imgSrcs": [
+      {
+        "src": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "w": 1024,
+        "h": 1024,
+        "displayW": 48,
+        "displayH": 48,
+        "loading": "auto",
+        "alt": "TM Scent Finder"
+      }
+    ],
+    "perf": {
+      "lcp": {
+        "startTime": 2616,
+        "size": 26404,
+        "url": "",
+        "tag": "H1",
+        "id": "",
+        "className": "font-serif text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-brand-text leading-[1.08]",
+        "text": "Find Your Signature Scent."
+      },
+      "cls": 0,
+      "fcp": 2616,
+      "longTasks": []
+    },
+    "nav": {
+      "ttfb": 28.80000001192093,
+      "dcl": 2526.800000011921,
+      "load": 2580.800000011921,
+      "transferSize": 19288,
+      "encodedBodySize": 18988,
+      "decodedBodySize": 100041
+    },
+    "totals": {
+      "requests": 33,
+      "transfer": 1139226,
+      "jsBytes": 207220,
+      "cssBytes": 866659,
+      "imgBytes": 741416,
+      "fontBytes": 106468
+    },
+    "grouped": {
+      "link": {
+        "count": 6,
+        "transfer": 828539,
+        "encoded": 826739
+      },
+      "script": {
+        "count": 12,
+        "transfer": 204861,
+        "encoded": 201261
+      },
+      "css": {
+        "count": 2,
+        "transfer": 38120,
+        "encoded": 37520
+      },
+      "other": {
+        "count": 1,
+        "transfer": 9609,
+        "encoded": 9309
+      },
+      "fetch": {
+        "count": 11,
+        "transfer": 38809,
+        "encoded": 35509
+      }
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "transferSize": 741416,
+        "encodedBodySize": 741116,
+        "decodedBodySize": 741116
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "transferSize": 73531,
+        "encodedBodySize": 73231,
+        "decodedBodySize": 229615
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "transferSize": 46088,
+        "encodedBodySize": 45788,
+        "decodedBodySize": 165733
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "transferSize": 38760,
+        "encodedBodySize": 38460,
+        "decodedBodySize": 38460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "transferSize": 29588,
+        "encodedBodySize": 29288,
+        "decodedBodySize": 29288
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/b49b0d9b851e4899-s.12c_00cnxx2oq.woff2",
+        "type": "css",
+        "transferSize": 21280,
+        "encodedBodySize": 20980,
+        "decodedBodySize": 20980
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "transferSize": 21004,
+        "encodedBodySize": 20704,
+        "decodedBodySize": 69802
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/7178b3e590c64307-s.0i3h3th1vs4m7.woff2",
+        "type": "css",
+        "transferSize": 16840,
+        "encodedBodySize": 16540,
+        "decodedBodySize": 16540
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "transferSize": 15162,
+        "encodedBodySize": 14862,
+        "decodedBodySize": 100331
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "transferSize": 14814,
+        "encodedBodySize": 14514,
+        "decodedBodySize": 41594
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "transferSize": 10114,
+        "encodedBodySize": 9814,
+        "decodedBodySize": 31581
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/favicon.ico?favicon.3fpu2ql9ns1a0.ico",
+        "type": "other",
+        "transferSize": 9609,
+        "encodedBodySize": 9309,
+        "decodedBodySize": 25931
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/tmperfumehouse/cart?_rsc=or7yUOmkPyhiqU30",
+        "type": "fetch",
+        "transferSize": 9161,
+        "encodedBodySize": 8861,
+        "decodedBodySize": 29680
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "transferSize": 8252,
+        "encodedBodySize": 7952,
+        "decodedBodySize": 28906
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/tmperfumehouse/shop?_rsc=jPME6yJI8JpcLmym",
+        "type": "fetch",
+        "transferSize": 7948,
+        "encodedBodySize": 7648,
+        "decodedBodySize": 24585
+      }
+    ],
+    "jsFiles": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "bytes": 73531
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "bytes": 46088
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "bytes": 21004
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "bytes": 14814
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "bytes": 10114
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "bytes": 8252
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "bytes": 7891
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "bytes": 7803
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "bytes": 4708
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "bytes": 4329
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "bytes": 3304
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "bytes": 3023
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "bytes": 2359
+      }
+    ],
+    "blocking": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "bytes": 38760
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "bytes": 29588
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "bytes": 741416
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "bytes": 15162
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "bytes": 1254
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "type": "link",
+        "bytes": 2359
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "bytes": 8252
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "bytes": 73531
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "bytes": 21004
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "type": "script",
+        "bytes": 4329
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "bytes": 10114
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "bytes": 46088
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "type": "script",
+        "bytes": 7803
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "type": "script",
+        "bytes": 7891
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "bytes": 14814
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "type": "script",
+        "bytes": 3023
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "type": "script",
+        "bytes": 4708
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "type": "script",
+        "bytes": 3304
+      }
+    ],
+    "longTasks": []
+  },
+  {
+    "storefront": "wop",
+    "device": "mobile",
+    "url": "https://fragrance-ai.vercel.app/worldofperfumers",
+    "status": 200,
+    "navMs": 3902,
+    "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/perf-baseline/fragrance_ai_vercel_app_worldofperfumers-mobile.png",
+    "title": "World of Perfumers — 10ml Pocket Trials & Scent Discovery Guide",
+    "h1": "Discover Your Signature.",
+    "imgCount": 6,
+    "imgSrcs": [
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 248,
+        "displayH": 248,
+        "loading": "lazy",
+        "alt": "Aventor"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "w": 2160,
+        "h": 2160,
+        "displayW": 168,
+        "displayH": 168,
+        "loading": "lazy",
+        "alt": "Aventor"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Imagine_Perfume_50ml_inspired_by_Louis_Vuitton_s_Imagination.webp?v=1779574373",
+        "w": 0,
+        "h": 0,
+        "displayW": 0,
+        "displayH": 0,
+        "loading": "lazy",
+        "alt": "Imagine"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Blue_Perfume_50ml_inspired_by_Chanel_s_-_Bleu_De_Chanel.webp?v=1779540658",
+        "w": 0,
+        "h": 0,
+        "displayW": 0,
+        "displayH": 0,
+        "loading": "lazy",
+        "alt": "Blue"
+      },
+      {
+        "src": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Savage_Perfume_50ml_inspired_by_Christian_Dior_s_Sauvage.webp?v=1779542891",
+        "w": 0,
+        "h": 0,
+        "displayW": 0,
+        "displayH": 0,
+        "loading": "lazy",
+        "alt": "Savage"
+      },
+      {
+        "src": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "w": 1024,
+        "h": 1024,
+        "displayW": 48,
+        "displayH": 48,
+        "loading": "auto",
+        "alt": "WOP Scent Guide"
+      }
+    ],
+    "perf": {
+      "lcp": {
+        "startTime": 696,
+        "size": 33464,
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "tag": "IMG",
+        "id": "",
+        "className": "max-h-full max-w-full w-auto h-auto object-contain drop-shadow-2xl select-none",
+        "text": ""
+      },
+      "cls": 0,
+      "fcp": 260,
+      "longTasks": []
+    },
+    "nav": {
+      "ttfb": 29,
+      "dcl": 216.19999998807907,
+      "load": 279,
+      "transferSize": 21062,
+      "encodedBodySize": 20762,
+      "decodedBodySize": 103726
+    },
+    "totals": {
+      "requests": 33,
+      "transfer": 146351,
+      "jsBytes": 0,
+      "cssBytes": 300,
+      "imgBytes": 79252,
+      "fontBytes": 0
+    },
+    "grouped": {
+      "link": {
+        "count": 6,
+        "transfer": 300,
+        "encoded": 826739
+      },
+      "script": {
+        "count": 12,
+        "transfer": 0,
+        "encoded": 201261
+      },
+      "css": {
+        "count": 2,
+        "transfer": 0,
+        "encoded": 37520
+      },
+      "img": {
+        "count": 1,
+        "transfer": 78952,
+        "encoded": 78652
+      },
+      "fetch": {
+        "count": 11,
+        "transfer": 46037,
+        "encoded": 42737
+      }
+    },
+    "largest": [
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332",
+        "type": "img",
+        "transferSize": 78952,
+        "encodedBodySize": 78652,
+        "decodedBodySize": 78652
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers?_rsc=kJn7-iONAsoxtMPl",
+        "type": "fetch",
+        "transferSize": 11030,
+        "encodedBodySize": 10730,
+        "decodedBodySize": 37402
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/shop?_rsc=IYODuz_oVFeqhPEm",
+        "type": "fetch",
+        "transferSize": 9877,
+        "encodedBodySize": 9577,
+        "decodedBodySize": 32287
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/finder?_rsc=8EQgCe-2RbGNomEe",
+        "type": "fetch",
+        "transferSize": 9710,
+        "encodedBodySize": 9410,
+        "decodedBodySize": 31775
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers?_rsc=WxRzUWp61e8Z9XWK",
+        "type": "fetch",
+        "transferSize": 8156,
+        "encodedBodySize": 7856,
+        "decodedBodySize": 27315
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/cart?_rsc=15cejqGtP7K6XFvo",
+        "type": "fetch",
+        "transferSize": 1402,
+        "encodedBodySize": 1102,
+        "decodedBodySize": 2953
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/product/aventor-edp?_rsc=FsXFcRlLHSmWQczS",
+        "type": "fetch",
+        "transferSize": 1108,
+        "encodedBodySize": 808,
+        "decodedBodySize": 1721
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/finder?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1079,
+        "encodedBodySize": 779,
+        "decodedBodySize": 779
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/cart?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1077,
+        "encodedBodySize": 777,
+        "decodedBodySize": 777
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/shop?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1077,
+        "encodedBodySize": 777,
+        "decodedBodySize": 777
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 1006,
+        "encodedBodySize": 706,
+        "decodedBodySize": 706
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/worldofperfumers/product/aventor-edp?_rsc=Z5GZE1howUu3AHh4",
+        "type": "fetch",
+        "transferSize": 515,
+        "encodedBodySize": 215,
+        "decodedBodySize": 448
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "transferSize": 300,
+        "encodedBodySize": 741116,
+        "decodedBodySize": 741116
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 38460,
+        "decodedBodySize": 38460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 29288,
+        "decodedBodySize": 29288
+      }
+    ],
+    "jsFiles": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "bytes": 0
+      }
+    ],
+    "blocking": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "bytes": 300
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "type": "script",
+        "bytes": 0
+      }
+    ],
+    "longTasks": []
+  },
+  {
+    "storefront": "almaham",
+    "device": "mobile",
+    "url": "https://fragrance-ai.vercel.app/almaham",
+    "status": 200,
+    "navMs": 3874,
+    "screenshot": "/Users/tanmaymehta/Desktop/untitled folder/fragrance-ai-demo/scratch/perf-baseline/fragrance_ai_vercel_app_almaham-mobile.png",
+    "title": "Al-Maham Fragrances — Artisanal Niche Expressions & Consultation",
+    "h1": "What Does Your Presence Evoke?",
+    "imgCount": 1,
+    "imgSrcs": [
+      {
+        "src": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "w": 1024,
+        "h": 1024,
+        "displayW": 48,
+        "displayH": 48,
+        "loading": "auto",
+        "alt": "Al-Maham Fragrance Consultant"
+      }
+    ],
+    "perf": {
+      "lcp": {
+        "startTime": 336,
+        "size": 22352,
+        "url": "",
+        "tag": "P",
+        "id": "",
+        "className": "mt-6 text-sm sm:text-base lg:text-lg text-brand-text-muted max-w-xl font-light leading-relaxed",
+        "text": "Step beyond ordinary department store fragrances. Explore bespoke extraits de pa"
+      },
+      "cls": 0,
+      "fcp": 336,
+      "longTasks": []
+    },
+    "nav": {
+      "ttfb": 28.099999964237213,
+      "dcl": 115.80000001192093,
+      "load": 316.60000002384186,
+      "transferSize": 17916,
+      "encodedBodySize": 17616,
+      "decodedBodySize": 92217
+    },
+    "totals": {
+      "requests": 32,
+      "transfer": 53317,
+      "jsBytes": 0,
+      "cssBytes": 300,
+      "imgBytes": 300,
+      "fontBytes": 0
+    },
+    "grouped": {
+      "link": {
+        "count": 6,
+        "transfer": 300,
+        "encoded": 826739
+      },
+      "script": {
+        "count": 12,
+        "transfer": 0,
+        "encoded": 201261
+      },
+      "css": {
+        "count": 2,
+        "transfer": 0,
+        "encoded": 37520
+      },
+      "fetch": {
+        "count": 11,
+        "transfer": 35101,
+        "encoded": 31801
+      }
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/cart?_rsc=G4RJiyjxC_0UJC4Q",
+        "type": "fetch",
+        "transferSize": 7660,
+        "encodedBodySize": 7360,
+        "decodedBodySize": 22806
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham?_rsc=LBIUELDM0UQ8iWCi",
+        "type": "fetch",
+        "transferSize": 7391,
+        "encodedBodySize": 7091,
+        "decodedBodySize": 23881
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/shop?_rsc=sv0_380i1JPr6Di8",
+        "type": "fetch",
+        "transferSize": 6531,
+        "encodedBodySize": 6231,
+        "decodedBodySize": 17748
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/finder?_rsc=o00WI4MnceHSY-ub",
+        "type": "fetch",
+        "transferSize": 6312,
+        "encodedBodySize": 6012,
+        "decodedBodySize": 17230
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/cart?_rsc=YZ8jF2DN6yVqXCdP",
+        "type": "fetch",
+        "transferSize": 1394,
+        "encodedBodySize": 1094,
+        "decodedBodySize": 2944
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/product/sovereign-elysium?_rsc=v-8LkCO5hllQ2lHK",
+        "type": "fetch",
+        "transferSize": 1096,
+        "encodedBodySize": 796,
+        "decodedBodySize": 1705
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/finder?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 1070,
+        "encodedBodySize": 770,
+        "decodedBodySize": 770
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/cart?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 1068,
+        "encodedBodySize": 768,
+        "decodedBodySize": 768
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/shop?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 1068,
+        "encodedBodySize": 768,
+        "decodedBodySize": 768
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 997,
+        "encodedBodySize": 697,
+        "decodedBodySize": 697
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/almaham/product/sovereign-elysium?_rsc=i-DLH28KGuGtVxUy",
+        "type": "fetch",
+        "transferSize": 514,
+        "encodedBodySize": 214,
+        "decodedBodySize": 445
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "transferSize": 300,
+        "encodedBodySize": 741116,
+        "decodedBodySize": 741116
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 38460,
+        "decodedBodySize": 38460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 29288,
+        "decodedBodySize": 29288
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "transferSize": 0,
+        "encodedBodySize": 954,
+        "decodedBodySize": 3315
+      }
+    ],
+    "jsFiles": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "bytes": 0
+      }
+    ],
+    "blocking": [
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7locvx.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz-h9nw.woff2",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "link",
+        "bytes": 300
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2mrwlp3dx9y6b.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/35ryu8t_n_phr.css",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+        "type": "link",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/1l9dm68ra8ivv.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/turbopack-3rg355zvpodt7.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3a1rf4o4g8siz.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/0sm3nffh_a0e9.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2lbo4dmq7n398.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2l_3lwbb8uh3s.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/32ly-_nw5hdxh.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/2i50xqvq6p-od.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/3lbc4cume6rr6.js",
+        "type": "script",
+        "bytes": 0
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/25sx4m9lmumoi.js",
+        "type": "script",
+        "bytes": 0
+      }
+    ],
+    "longTasks": []
+  }
+]

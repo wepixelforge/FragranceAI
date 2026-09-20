@@ -1,0 +1,32 @@
+[
+  {
+    "storefront": "tm",
+    "device": "desktop",
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  {
+    "storefront": "tm",
+    "device": "mobile",
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  {
+    "storefront": "wop",
+    "device": "desktop",
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  {
+    "storefront": "almaham",
+    "device": "desktop",
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  {
+    "storefront": "almaham",
+    "device": "mobile",
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  {
+    "storefront": "wop",
+    "device": "mobile",
+    "error": "HTTP Error 429: Too Many Requests"
+  }
+]

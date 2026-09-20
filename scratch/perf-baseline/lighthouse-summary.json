@@ -1,0 +1,404 @@
+[
+  {
+    "file": "almaham-desktop.json",
+    "perf": 97,
+    "lcp_ms": 1147.318,
+    "fcp_ms": 321.31800000000004,
+    "si_ms": 1339.6908608903905,
+    "tbt_ms": 0,
+    "cls": 0,
+    "inp": null,
+    "lcp": "1.1\u00a0s",
+    "fcp": "0.3\u00a0s",
+    "si": "1.3\u00a0s",
+    "tbt": "0\u00a0ms",
+    "cls_d": "0",
+    "lcp_snippet": "[]",
+    "requests": 33,
+    "bytes": {
+      "total": 1131836,
+      "js": 206185,
+      "img": 741760,
+      "font": 106450,
+      "css": 16244,
+      "doc": 18047
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "Image",
+        "bytes": 741760
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "Script",
+        "bytes": 73493
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "Script",
+        "bytes": 46003
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7",
+        "type": "Font",
+        "bytes": 38783
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz",
+        "type": "Font",
+        "bytes": 29534
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/b49b0d9b851e4899-s.12c_00cnxx",
+        "type": "Font",
+        "bytes": 21319
+      }
+    ],
+    "opportunities": [
+      {
+        "id": "unused-javascript",
+        "score": 0,
+        "display": "Est savings of 27\u00a0KiB",
+        "title": "Reduce unused JavaScript"
+      }
+    ]
+  },
+  {
+    "file": "almaham-mobile.json",
+    "perf": 84,
+    "lcp_ms": 4386.804,
+    "fcp_ms": 1236.804,
+    "si_ms": 2869.573322010374,
+    "tbt_ms": 25,
+    "cls": 0,
+    "inp": null,
+    "lcp": "4.4\u00a0s",
+    "fcp": "1.2\u00a0s",
+    "si": "2.9\u00a0s",
+    "tbt": "30\u00a0ms",
+    "cls_d": "0",
+    "lcp_snippet": "[]",
+    "requests": 33,
+    "bytes": {
+      "total": 1131900,
+      "js": 206175,
+      "img": 741891,
+      "font": 106320,
+      "css": 16271,
+      "doc": 18038
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "Image",
+        "bytes": 741891
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "Script",
+        "bytes": 73460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "Script",
+        "bytes": 46049
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7",
+        "type": "Font",
+        "bytes": 38744
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz",
+        "type": "Font",
+        "bytes": 29543
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/b49b0d9b851e4899-s.12c_00cnxx",
+        "type": "Font",
+        "bytes": 21262
+      }
+    ],
+    "opportunities": [
+      {
+        "id": "unused-javascript",
+        "score": 0,
+        "display": "Est savings of 27\u00a0KiB",
+        "title": "Reduce unused JavaScript"
+      }
+    ]
+  },
+  {
+    "file": "tm-desktop.json",
+    "perf": 96,
+    "lcp_ms": 1192.313,
+    "fcp_ms": 348.313,
+    "si_ms": 1509.851293840166,
+    "tbt_ms": 0,
+    "cls": 0,
+    "inp": null,
+    "lcp": "1.2\u00a0s",
+    "fcp": "0.3\u00a0s",
+    "si": "1.5\u00a0s",
+    "tbt": "0\u00a0ms",
+    "cls_d": "0",
+    "lcp_snippet": "[]",
+    "requests": 33,
+    "bytes": {
+      "total": 1137113,
+      "js": 206144,
+      "img": 741752,
+      "font": 106503,
+      "css": 16243,
+      "doc": 19424
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "Image",
+        "bytes": 741752
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "Script",
+        "bytes": 73460
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "Script",
+        "bytes": 46059
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7",
+        "type": "Font",
+        "bytes": 38784
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz",
+        "type": "Font",
+        "bytes": 29534
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/b49b0d9b851e4899-s.12c_00cnxx",
+        "type": "Font",
+        "bytes": 21247
+      }
+    ],
+    "opportunities": [
+      {
+        "id": "unused-javascript",
+        "score": 0,
+        "display": "Est savings of 27\u00a0KiB",
+        "title": "Reduce unused JavaScript"
+      }
+    ]
+  },
+  {
+    "file": "tm-mobile.json",
+    "perf": 82,
+    "lcp_ms": 4377.071,
+    "fcp_ms": 1375.0710000000001,
+    "si_ms": 3230.5523700086114,
+    "tbt_ms": 166,
+    "cls": 0,
+    "inp": null,
+    "lcp": "4.4\u00a0s",
+    "fcp": "1.4\u00a0s",
+    "si": "3.2\u00a0s",
+    "tbt": "170\u00a0ms",
+    "cls_d": "0",
+    "lcp_snippet": "[]",
+    "requests": 33,
+    "bytes": {
+      "total": 1137004,
+      "js": 206207,
+      "img": 741760,
+      "font": 106479,
+      "css": 16215,
+      "doc": 19416
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "Image",
+        "bytes": 741760
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "Script",
+        "bytes": 73502
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "Script",
+        "bytes": 45998
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/2a65768255d6b625-s.p.2r-cuu_7",
+        "type": "Font",
+        "bytes": 38745
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/caa3a2e1cccd8315-s.p.0zr6hhvz",
+        "type": "Font",
+        "bytes": 29601
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/media/b49b0d9b851e4899-s.12c_00cnxx",
+        "type": "Font",
+        "bytes": 21262
+      }
+    ],
+    "opportunities": [
+      {
+        "id": "unused-javascript",
+        "score": 0,
+        "display": "Est savings of 27\u00a0KiB",
+        "title": "Reduce unused JavaScript"
+      }
+    ]
+  },
+  {
+    "file": "wop-desktop.json",
+    "perf": 97,
+    "lcp_ms": 1165.5055000000002,
+    "fcp_ms": 336.5055000000001,
+    "si_ms": 1167.2039023577563,
+    "tbt_ms": 0,
+    "cls": 0,
+    "inp": null,
+    "lcp": "1.2\u00a0s",
+    "fcp": "0.3\u00a0s",
+    "si": "1.2\u00a0s",
+    "tbt": "0\u00a0ms",
+    "cls_d": "0",
+    "lcp_snippet": "[]",
+    "requests": 38,
+    "bytes": {
+      "total": 1393395,
+      "js": 206161,
+      "img": 989214,
+      "font": 106456,
+      "css": 16220,
+      "doc": 21191
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "Image",
+        "bytes": 741769
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_",
+        "type": "Image",
+        "bytes": 79249
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "Script",
+        "bytes": 73520
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Imagine_Perfume_50ml_inspired_",
+        "type": "Image",
+        "bytes": 61631
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Savage_Perfume_50ml_inspired_b",
+        "type": "Image",
+        "bytes": 55202
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Blue_Perfume_50ml_inspired_by_",
+        "type": "Image",
+        "bytes": 51363
+      }
+    ],
+    "opportunities": [
+      {
+        "id": "unused-javascript",
+        "score": 0.5,
+        "display": "Est savings of 27\u00a0KiB",
+        "title": "Reduce unused JavaScript"
+      },
+      {
+        "id": "unsized-images",
+        "score": 0.5,
+        "display": null,
+        "title": "Image elements do not have explicit `width` and `height`"
+      }
+    ]
+  },
+  {
+    "file": "wop-mobile.json",
+    "perf": 75,
+    "lcp_ms": 7400.025,
+    "fcp_ms": 1250.025,
+    "si_ms": 3475.6898005491757,
+    "tbt_ms": 38,
+    "cls": 0,
+    "inp": null,
+    "lcp": "7.4\u00a0s",
+    "fcp": "1.3\u00a0s",
+    "si": "3.5\u00a0s",
+    "tbt": "40\u00a0ms",
+    "cls_d": "0",
+    "lcp_snippet": "[]",
+    "requests": 36,
+    "bytes": {
+      "total": 1338606,
+      "js": 206165,
+      "img": 934336,
+      "font": 106479,
+      "css": 16216,
+      "doc": 21199
+    },
+    "largest": [
+      {
+        "url": "https://fragrance-ai.vercel.app/images/concierge-avatar.jpg",
+        "type": "Image",
+        "bytes": 741724
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_",
+        "type": "Image",
+        "bytes": 79246
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/00fyanv5wefmq.js",
+        "type": "Script",
+        "bytes": 73512
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Imagine_Perfume_50ml_inspired_",
+        "type": "Image",
+        "bytes": 62000
+      },
+      {
+        "url": "https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Blue_Perfume_50ml_inspired_by_",
+        "type": "Image",
+        "bytes": 51366
+      },
+      {
+        "url": "https://fragrance-ai.vercel.app/_next/static/immutable/chunks/412usx_pjkbos.js",
+        "type": "Script",
+        "bytes": 45999
+      }
+    ],
+    "opportunities": [
+      {
+        "id": "unused-javascript",
+        "score": 0,
+        "display": "Est savings of 27\u00a0KiB",
+        "title": "Reduce unused JavaScript"
+      },
+      {
+        "id": "unsized-images",
+        "score": 0.5,
+        "display": null,
+        "title": "Image elements do not have explicit `width` and `height`"
+      }
+    ]
+  }
+]
