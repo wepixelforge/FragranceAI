@@ -18,6 +18,7 @@ import {
   Longevity,
   Season,
 } from '@/types/product';
+import { isReferenceDropRequest } from './query-parser';
 
 export function normalizeOccasion(raw?: string | null): string | null {
   if (!raw) return null;
@@ -265,10 +266,8 @@ export function updateConversationState(
   const rawUserTextEarly = (
     typeof discussedProductIdsOrMessage === 'string' ? discussedProductIdsOrMessage : userMessage || ''
   ).toLowerCase();
-  const messageMentionsSimilarity = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|i\s+wear)\b/.test(rawUserTextEarly);
-  const isReferenceDroppedEarly = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference|remove\s+(?:that|the)?\s*reference|ignore\s+(?:that|the)?\s*reference)\b/.test(
-    rawUserTextEarly
-  );
+  const messageMentionsSimilarity = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|i\s+wear|compared\s+to|than)\b/.test(rawUserTextEarly);
+  const isReferenceDroppedEarly = isReferenceDropRequest(rawUserTextEarly);
 
   // 2. BACKGROUND CONTEXT UPDATES (e.g. "I usually wear Dior Sauvage")
   if (
@@ -416,7 +415,7 @@ export function updateConversationState(
     const isReplacement = hasReplacementMarker && !hasCombinationMarker;
 
     // Reference cleanup on explicit reference drop or new direction
-    const isReferenceDropped = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference|remove\s+(?:that|the)?\s*reference|ignore\s+(?:that|the)?\s*reference)\b/i.test(rawUserText);
+    const isReferenceDropped = isReferenceDropRequest(rawUserText);
     if (isReferenceDropped) {
       activeRequest.isSimilarityRequest = false;
       activeRequest.relativePrice = null;

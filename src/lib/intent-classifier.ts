@@ -9,7 +9,7 @@ import {
   PreferenceUpdateItem,
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
-import { parseQuery, extractKnownReferencePerfume } from './query-parser';
+import { parseQuery, extractKnownReferencePerfume, isReferenceDropRequest } from './query-parser';
 import { resolveStyleFamilies, isKnownStyleWord, isAffirmativeReply } from './style-aliases';
 import {
   extractCartEntitiesWithGroq,
@@ -1176,8 +1176,12 @@ export function applyExplicitReference(
   if (REFERENCE_SKIP_INTENTS.includes(result.intent as CanonicalIntent)) {
     return result;
   }
-  if (/\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference)\b/i.test(message)) {
-    return result;
+  if (isReferenceDropRequest(message)) {
+    return {
+      ...result,
+      reference_perfume: null,
+      is_similarity_request: false,
+    };
   }
 
   const extracted = extractKnownReferencePerfume(message, products);
@@ -1976,8 +1980,8 @@ export function validateAndEnforcePolarity(
     }
   }
 
-  const mentionsSimilarityNow = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear)\b/.test(lower);
-  const dropsReference = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference)\b/.test(lower);
+  const mentionsSimilarityNow = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|compared\s+to|than)\b/.test(lower);
+  const dropsReference = isReferenceDropRequest(rawMessage);
   if (dropsReference || (!mentionsSimilarityNow && (freshPol.isPositive || detectReplacementFamily(lower) || detectNewDirectionRequest(rawMessage, currentState)))) {
     res.is_similarity_request = false;
     if (dropsReference || !mentionsSimilarityNow) {
@@ -2578,8 +2582,10 @@ CRITICAL RULES:
    - "I usually wear Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: false, needs_recommendations: false.
    - "Give me something similar to Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: true, needs_recommendations: true.
    - "I like [named perfume] but want something warmer/cheaper/..." -> KEEP reference_perfume AND the extra preference (warmth/budget/etc.). is_similarity_request: true. Do NOT drop the reference because a refinement is also present.
+   - "I want something warmer than [named perfume]" / "Something similar to [named perfume] but warmer" -> KEEP reference_perfume, warmth: "warmer", is_similarity_request: true.
    - "I want an alternative to [named perfume]" -> reference_perfume set, is_similarity_request: true.
    - "I want something warmer" with no named perfume -> reference_perfume: null, warmth: "warmer", is_similarity_request: false.
+   - "Forget the [named perfume] reference and show me something fresh" -> drop the reference (reference_perfume: null, is_similarity_request: false) and use only the new fresh preference.
 
 9. CONVERSATION GATE — NON-RECOMMENDATION INTENTS:
    CUSTOMER_OBJECTION — Competitive statements, quality doubts, value challenges:
@@ -3836,7 +3842,7 @@ export function fallbackIntentClassifier(
       lower.includes('show me similar') ||
       lower.includes('alternative to'));
 
-  if (isPureSimilarityPhrase) {
+  if (isPureSimilarityPhrase && referencePerfume) {
     return {
       intent: 'SIMILAR_TO_REFERENCE',
       request_type: 'new_consultation',

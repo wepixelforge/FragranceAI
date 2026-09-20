@@ -181,7 +181,7 @@ async function run() {
     const secondNames = second.results.map((item) => item.product.name);
     assert(secondNames.length > 0, 'no alternatives');
     assert(!secondNames.every((name) => firstNames.includes(name)), `alternatives not different: ${secondNames.join(', ')}`);
-    assert(!/\bfresh alternatives\b/i.test(second.reply), `stale fresh wording: ${second.reply}`);
+    assert(!/\bfresh\s+(alternatives?|options?|picks?|choices?)\b/i.test(second.reply), `stale fresh wording: ${second.reply}`);
     console.log('      first:', firstNames.join(', '));
     console.log('      alts:', secondNames.join(', '));
     console.log('      reply:', second.reply.replace(/\s+/g, ' ').slice(0, 220));

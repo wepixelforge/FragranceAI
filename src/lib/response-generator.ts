@@ -142,6 +142,161 @@ function extractResponseFromJson(raw: string): string | null {
   return sanitizeUserFacingResponse(text);
 }
 
+const ALTERNATIVES_FAMILY_WORDS = [
+  'fresh',
+  'woody',
+  'floral',
+  'spicy',
+  'aquatic',
+  'oud',
+  'citrus',
+  'oriental',
+  'sweet',
+  'musky',
+  'amber',
+  'gourmand',
+  'aromatic',
+] as const;
+
+const ALTERNATIVES_FAMILY_COMPATIBLE: Record<string, string[]> = {
+  woody: ['oud', 'spicy', 'aromatic', 'musky', 'oriental'],
+  oud: ['woody', 'spicy', 'oriental'],
+  fresh: ['aquatic', 'citrus', 'aromatic', 'musky'],
+  aquatic: ['fresh', 'citrus'],
+  citrus: ['fresh', 'aquatic'],
+  floral: ['sweet', 'musky'],
+  oriental: ['sweet', 'amber', 'spicy', 'woody', 'gourmand', 'oud'],
+  spicy: ['woody', 'oriental', 'oud'],
+  sweet: ['floral', 'gourmand', 'oriental'],
+  gourmand: ['sweet', 'oriental'],
+  musky: ['woody', 'floral', 'oriental'],
+  aromatic: ['woody', 'fresh'],
+  amber: ['oriental', 'woody', 'sweet'],
+};
+
+export interface CanonicalAlternativesDirection {
+  families: string[];
+  warmth: string | null;
+  label: string;
+}
+
+function uniqueLower(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map((value) => String(value || '').trim().toLowerCase()).filter(Boolean))];
+}
+
+function productFamilyCounts(results: RecommendationResult[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const result of results) {
+    for (const family of uniqueLower(result.product.fragranceFamily || [])) {
+      counts.set(family, (counts.get(family) || 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function familyCompatibleWithState(family: string, stateFamilies: string[]): boolean {
+  if (stateFamilies.includes(family)) return true;
+  return stateFamilies.some((stateFamily) => (ALTERNATIVES_FAMILY_COMPATIBLE[stateFamily] || []).includes(family));
+}
+
+/**
+ * Descriptive direction for SHOW_ALTERNATIVES wording.
+ * Source of truth: current canonical request families + families on the canonical ranked products.
+ */
+export function canonicalAlternativesDirection(
+  currentState: ConversationState,
+  results: RecommendationResult[]
+): CanonicalAlternativesDirection {
+  const active = currentState.activeRequest;
+  const stateFamilies = uniqueLower(active?.families || currentState.currentConsultation?.fragrance_families || []);
+  const excluded = new Set(uniqueLower(active?.excludedFamilies || []));
+  const warmth = active?.warmth ?? currentState.currentConsultation?.warmth ?? null;
+  const counts = productFamilyCounts(results);
+  const majorityFloor = Math.max(1, Math.ceil(results.length / 2));
+  const majorityFamilies = [...counts.entries()]
+    .filter(([, count]) => count >= majorityFloor)
+    .map(([family]) => family);
+
+  let families: string[];
+  if (stateFamilies.length > 0) {
+    families = uniqueLower([
+      ...stateFamilies,
+      ...majorityFamilies.filter((family) => familyCompatibleWithState(family, stateFamilies)),
+    ]);
+  } else {
+    families = majorityFamilies.length ? majorityFamilies : uniqueLower([...counts.keys()]);
+  }
+
+  families = families.filter((family) => !excluded.has(family));
+
+  const coolFamilies = new Set(['fresh', 'aquatic', 'citrus']);
+  const majorityIsCool = majorityFamilies.some((family) => coolFamilies.has(family));
+  if ((warmth === 'warmer' || warmth === 'moderate-warm') && results.length > 0 && !majorityIsCool) {
+    families = uniqueLower([
+      ...families.filter((family) => !coolFamilies.has(family)),
+      ...majorityFamilies,
+    ]).filter((family) => !excluded.has(family));
+  }
+
+  const labelParts = families.slice(0, 3);
+  if (labelParts.length === 0 && (warmth === 'warmer' || warmth === 'moderate-warm')) {
+    labelParts.push('warmer');
+  }
+
+  return {
+    families,
+    warmth,
+    label: labelParts.length ? labelParts.join('/') : 'other',
+  };
+}
+
+function protectNamedSpans(text: string, names: string[]): { masked: string; restore: (value: string) => string } {
+  const tokens: string[] = [];
+  let masked = text;
+  names
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .forEach((name, index) => {
+      const token = `\u0000P${index}\u0000`;
+      tokens[index] = name;
+      masked = masked.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), token);
+    });
+  return {
+    masked,
+    restore: (value) => value.replace(/\u0000P(\d+)\u0000/g, (_, index) => tokens[Number(index)] || ''),
+  };
+}
+
+/**
+ * Strip leftover family adjectives (e.g. "fresh alternatives") that are not in the current canonical direction.
+ */
+export function rewriteStaleAlternativesWording(
+  text: string,
+  direction: CanonicalAlternativesDirection,
+  productNames: string[] = []
+): string {
+  const allowed = new Set(direction.families.map((family) => family.toLowerCase()));
+  const familyAlt = ALTERNATIVES_FAMILY_WORDS.join('|');
+  const noun = 'alternatives?|options?|picks?|choices?|scents?|fragrances?|ones|directions?';
+  const { masked, restore } = protectNamedSpans(text, productNames);
+  const replacementLabel = direction.label || 'other';
+
+  let out = masked.replace(new RegExp(`\\b(${familyAlt})\\s+(${noun})\\b`, 'gi'), (full, family: string, nounPart: string) => {
+    if (allowed.has(family.toLowerCase())) return full;
+    return `${replacementLabel} ${nounPart}`;
+  });
+
+  out = out.replace(
+    new RegExp(`\\b(here are (?:some |a few |a couple of )?(?:different |other )?)${`(${familyAlt})`}\\b`, 'gi'),
+    (full, prefix: string, family: string) => {
+      if (allowed.has(family.toLowerCase())) return full;
+      return `${prefix}${replacementLabel}`;
+    }
+  );
+
+  return restore(out);
+}
+
 /**
  * STAGE 2: GROUNDED CONSULTANT RESPONSE GENERATION
  *
@@ -192,24 +347,18 @@ export async function generateConversationalResponse(
         catalogueProducts: options.catalogueProducts?.length ? options.catalogueProducts : retrievedProducts,
       });
 
-  const rewriteStaleAlternativesWording = (text: string): string => {
+  const alternativesDirection = canonicalAlternativesDirection(currentState, results);
+  const applyAlternativesWording = (text: string): string => {
     if (stage1.intent !== 'SHOW_ALTERNATIVES') return text;
-    const families = [
-      ...new Set(
-        (currentState.activeRequest?.families || currentState.currentConsultation?.fragrance_families || []).map(
-          (family) => String(family).trim().toLowerCase()
-        )
-      ),
-    ].filter(Boolean);
-    if (/\bfresh alternatives\b/i.test(text) && !families.includes('fresh')) {
-      const label = families.length ? `${families.join('/')} alternatives` : 'other options';
-      return text.replace(/\bfresh alternatives\b/gi, label);
-    }
-    return text;
+    return rewriteStaleAlternativesWording(
+      text,
+      alternativesDirection,
+      results.map((item) => item.product.name)
+    );
   };
 
   const finalize = (text: string) =>
-    applyConversationCallback(rewriteStaleAlternativesWording(text), callback, {
+    applyConversationCallback(applyAlternativesWording(text), callback, {
       resultsCount: results.length,
       status: options.status,
     });
@@ -494,7 +643,7 @@ CRITICAL RULES:
       * Do NOT present any products. Keep it to 1 to 2 short sentences.
    - PRODUCT_INFO: Give a factual overview of the requested product. Always use the exact product name in the first sentence. Do NOT call it "Best Match".
    - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Always name both products. Follow-ups like "which is sweeter/fresher/better for office" still compare those same two products — do NOT start a new recommendation. Do NOT call either "Best Match".
-   - SHOW_ALTERNATIVES: Present the alternative products provided in CANONICAL RANKED PRODUCTS. Describe them using the CURRENT families from ACTIVE CONSULTATION CONTEXT (woody, fresh, floral, spicy, aquatic, etc.). Never call them "fresh alternatives" unless the active family is actually fresh. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
+   - SHOW_ALTERNATIVES: Present the alternative products provided in CANONICAL RANKED PRODUCTS. Describe this set using ONLY CURRENT ALTERNATIVES DIRECTION (from the current canonical consultation state and the families of the canonical ranked products). Keep the wording natural. Do not reuse leftover family words from earlier turns unless they appear in CURRENT ALTERNATIVES DIRECTION. Never call them fresh/woody/floral alternatives unless that word is in CURRENT ALTERNATIVES DIRECTION. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
    - REFERENCE + REFINEMENT: If referencePerfume is set and isSimilarityRequest is true, naturally acknowledge that named reference when presenting recommendations, including when a refinement such as warmer is also requested. Do NOT claim a canonical product is a dupe or clone of the reference unless that product's similarTo or matchReasons already says so.
    - PARTIAL_MATCH:
       * Use "closest match" ONLY when STATUS is PARTIAL_MATCH and MATCHED CRITERIA is non-empty.
@@ -535,6 +684,9 @@ ${JSON.stringify({
   referencePerfume: currentState.backgroundContext?.referencePerfume ?? currentState.currentConsultation?.active_reference_perfume ?? null,
   isSimilarityRequest: Boolean(currentState.activeRequest?.isSimilarityRequest || stage1.is_similarity_request),
 }, null, 2)}
+
+CURRENT ALTERNATIVES DIRECTION (AUTHORITATIVE FOR SHOW_ALTERNATIVES WORDING — ignore leftover family language from prior turns):
+${JSON.stringify(canonicalAlternativesDirection(currentState, results))}
 
 STATUS: "${options.status || (options.hardConstraintFailed ? 'HARD_CONSTRAINT_FAILED' : 'SUCCESS')}"
 HARD CONSTRAINT FAILED: ${Boolean(options.hardConstraintFailed)}
@@ -599,11 +751,11 @@ export function fallbackResponseGenerator(
     Boolean(referenceName);
 
   function alternativesIntro(primaryName: string): string {
-    const families = [...new Set((activeReq.families || []).map((f) => String(f).trim().toLowerCase()).filter(Boolean))];
-    if (families.length === 0) {
+    const direction = canonicalAlternativesDirection(currentState, results);
+    if (direction.label === 'other') {
       return `Here are some other options. My top recommendation is ${primaryName}`;
     }
-    return `Here are some different ${families.join('/')} alternatives. My top recommendation is ${primaryName}`;
+    return `Here are some different ${direction.label} options. My top recommendation is ${primaryName}`;
   }
 
   // 1. OUT OF SCOPE
@@ -1008,7 +1160,9 @@ export function fallbackResponseGenerator(
 
     let intro = `Based on your request`;
 
-    if (isRefinement && stage1.remove_budget) {
+    if (stage1.intent === 'SHOW_ALTERNATIVES') {
+      intro = alternativesIntro(primary.product.name);
+    } else if (isRefinement && stage1.remove_budget) {
       intro = `Understood — I've removed the budget constraint while keeping your ${dir || 'current'} preferences. My best match is ${primary.product.name}`;
     } else if (isRefinement && stage1.relative_price === 'cheaper') {
       intro = `Looking at more accessible options with the same scent profile. My best match is ${primary.product.name} at ₹${primary.product.price}`;
@@ -1024,8 +1178,6 @@ export function fallbackResponseGenerator(
     } else if (isRefinement && (stage1.intensity || activeReq.intensity)) {
       const intVal = stage1.intensity || activeReq.intensity;
       intro = `Adjusted — focusing on a ${intVal} profile while keeping your ${occ || 'current'} direction. My best match is ${primary.product.name}`;
-    } else if (isRefinement && stage1.intent === 'SHOW_ALTERNATIVES') {
-      intro = alternativesIntro(primary.product.name);
     } else if (isSimilarity && referenceName) {
       intro = `Since you like ${referenceName}, I recommend ${primary.product.name}`;
     } else {

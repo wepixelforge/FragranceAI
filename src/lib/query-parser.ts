@@ -57,10 +57,19 @@ export const POPULAR_REFERENCE_PERFUMES = [
 ];
 
 const REFERENCE_CUE =
-  /\b(like|similar\s+to|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|i\s+wear)\b/i;
+  /\b(like|similar\s+to|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|i\s+wear|compared\s+to|than)\b/i;
 
 export function messageHasReferenceCue(message: string): boolean {
   return REFERENCE_CUE.test(message);
+}
+
+/** Explicit drop of a named/active reference, including "forget the Dior Sauvage reference". */
+export function isReferenceDropRequest(message: string): boolean {
+  const t = message.toLowerCase();
+  return (
+    /\b(forget|drop|remove|ignore)\b.{0,48}\breference\b/.test(t) ||
+    /\bno\s+more\s+reference\b/.test(t)
+  );
 }
 
 function titleCaseReference(raw: string): string {
