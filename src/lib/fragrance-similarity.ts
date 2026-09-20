@@ -1,4 +1,5 @@
 import { Product, StructuredPreferences } from '@/types/product';
+import { querySimilarityStopwords } from './request-match-quality';
 
 export type SparseVector = Record<string, number>;
 
@@ -69,12 +70,13 @@ function mergeSynonyms(vector: SparseVector, token: string, weight = 1) {
   }
 }
 
-function tokenize(text: string): string[] {
+function tokenize(text: string, forQuery = false): string[] {
+  const stop = querySimilarityStopwords();
   return text
     .toLowerCase()
     .replace(/[^a-z0-9+\- ]/g, ' ')
     .split(/\s+/)
-    .filter((token) => token.length > 2);
+    .filter((token) => token.length > 2 && (!forQuery || !stop.has(token)));
 }
 
 export function cosineSimilarity(a: SparseVector, b: SparseVector): number {
@@ -113,7 +115,7 @@ export function buildQueryVector(prefs: StructuredPreferences, rawQuery?: string
   if (prefs.warmth === 'warmer') add(vector, 'warm', 0.7);
   if (prefs.freshness === 'fresher') mergeSynonyms(vector, 'fresh', 0.8);
 
-  for (const token of tokenize(query)) {
+  for (const token of tokenize(query, true)) {
     mergeSynonyms(vector, token, 0.85);
   }
   if (query.includes('oud-ish') || query.includes('oudish') || query.includes('oud like')) {

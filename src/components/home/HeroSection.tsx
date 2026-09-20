@@ -1,19 +1,14 @@
-'use client';
-
 import Link from 'next/link';
 import { BrandConfig } from '@/types/brand';
-import { getFeaturedProducts, getProducts } from '@/data';
+import { Product } from '@/types/product';
 import BottleVisual from '@/components/shop/BottleVisual';
 
 interface HeroSectionProps {
   brand: BrandConfig;
+  heroProduct?: Product;
 }
 
-export default function HeroSection({ brand }: HeroSectionProps) {
-  const products = getProducts(brand.slug);
-  const featured = getFeaturedProducts(brand.slug);
-  // Select authentic centerpiece product for the visual hero stage
-  const heroProduct = featured[0] || products[0];
+export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
 
   const getEyebrow = () => {
     switch (brand.designVariant) {
@@ -173,7 +168,7 @@ export default function HeroSection({ brand }: HeroSectionProps) {
 
                 {/* Hero Bottle Focal Point */}
                 <div className="relative z-10 my-auto py-4 transition-transform duration-700 ease-out group-hover:scale-104">
-                  <BottleVisual product={heroProduct} brand={brand} size="lg" />
+                  <BottleVisual product={heroProduct} brand={brand} size="lg" priority />
                 </div>
 
                 {/* Bottom Product Monograph */}

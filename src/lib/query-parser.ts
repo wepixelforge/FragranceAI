@@ -7,6 +7,7 @@ import {
   Gender,
   Longevity,
   ParsedQuery,
+  Product,
 } from '@/types/product';
 import { resolveStyleFamilies } from './style-aliases';
 
@@ -54,6 +55,85 @@ export const POPULAR_REFERENCE_PERFUMES = [
   'stronger with you intensely',
   'versace bright crystal',
 ];
+
+const REFERENCE_CUE =
+  /\b(like|similar\s+to|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|i\s+wear)\b/i;
+
+export function messageHasReferenceCue(message: string): boolean {
+  return REFERENCE_CUE.test(message);
+}
+
+function titleCaseReference(raw: string): string {
+  return raw
+    .split(/(\s+)/)
+    .map((part) => {
+      if (!part.trim()) return part;
+      if (part.length <= 3 && !['de', 'di', "d'"].includes(part.toLowerCase())) {
+        return part.toUpperCase();
+      }
+      if (part.toLowerCase() === 'de' || part.toLowerCase() === 'di') return part.toLowerCase();
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join('');
+}
+
+function displayNameForNeedle(needle: string, messageLower: string): string {
+  if (needle.split(' ').length === 1) {
+    const expansions = POPULAR_REFERENCE_PERFUMES.filter(
+      (p) => p !== needle && (p.endsWith(` ${needle}`) || p.startsWith(`${needle} `))
+    ).sort((a, b) => a.length - b.length);
+    const inMessage = expansions.find((p) => messageLower.includes(p));
+    if (inMessage) return titleCaseReference(inMessage);
+    if (expansions[0] && expansions[0].split(' ').length <= 3) {
+      return titleCaseReference(expansions[0]);
+    }
+  }
+  return titleCaseReference(needle);
+}
+
+function boundaryIndex(haystack: string, needle: string): number {
+  if (!needle || needle.length < 3) return -1;
+  const re = new RegExp(`(^|[^a-z0-9])${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`, 'i');
+  const idx = haystack.search(re);
+  return idx;
+}
+
+/**
+ * Extract an explicit named reference perfume from the current message.
+ * Uses known designer/niche references, catalogue product names, and similarTo aliases.
+ * Returns null when the user is only stating a refinement such as "I want something warmer".
+ */
+export function extractKnownReferencePerfume(
+  message: string,
+  products: Product[] = []
+): string | null {
+  if (!messageHasReferenceCue(message)) return null;
+  const lower = message.toLowerCase();
+  const matches: { name: string; length: number; index: number }[] = [];
+
+  const consider = (needle: string, name: string) => {
+    const idx = boundaryIndex(lower, needle.toLowerCase());
+    if (idx >= 0) {
+      matches.push({ name, length: needle.length, index: idx });
+    }
+  };
+
+  for (const product of products) {
+    consider(product.name, product.name);
+    for (const similar of product.similarTo || []) {
+      consider(similar, similar);
+    }
+  }
+
+  const popular = [...POPULAR_REFERENCE_PERFUMES].sort((a, b) => b.length - a.length);
+  for (const ref of popular) {
+    consider(ref, displayNameForNeedle(ref, lower));
+  }
+
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => b.length - a.length || a.index - b.index);
+  return matches[0].name;
+}
 
 /**
  * Parse natural language into structured preferences across multiple dimensions,

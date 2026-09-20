@@ -11,6 +11,11 @@ import {
 import { parseQuery } from './query-parser';
 import { enrichProduct } from './product-enricher';
 import { mlSimilarityScore } from './fragrance-similarity';
+import {
+  analyzeScentConcept,
+  isMeaningfulPartialMatch,
+  isUnsupportedScentConcept,
+} from './request-match-quality';
 
 /**
  * Score weights for deterministic soft ranking.
@@ -504,8 +509,12 @@ export function buildPartialMatchTradeOff(
         ? matchedPreferences.slice(0, 2).join(' and ')
         : 'requested fragrance direction';
     tradeOff = `It keeps the ${matchedSummary}, although its ${unmetPreferences[0]} differs slightly from what was requested.`;
+  } else if (matchedPreferences.length > 0) {
+    tradeOff = `It matches ${matchedPreferences.slice(0, 2).join(' and ')}${
+      unmetPreferences.length > 0 ? `, although ${unmetPreferences[0]} is not fully met` : ''
+    }.`;
   } else {
-    tradeOff = `It closely aligns with your preferences, offering the best balanced composition in our catalogue.`;
+    tradeOff = `It only partially fits the request, and the overlap is not strong enough to call a close match.`;
   }
 
   return {
@@ -538,6 +547,9 @@ export function getRecommendations(
   // Ensure all products have enriched nuance attributes
   const products = rawProducts.map(enrichProduct);
   const totalCatalogueCount = products.length;
+
+  const scentConcept = analyzeScentConcept(preferences.rawQuery || '', products);
+  const unsupportedConcept = isUnsupportedScentConcept(scentConcept);
 
   // ── SURPRISE ME DIVERSE SELECTION ──────────────────────────────────────────
   if (isSurpriseMe) {
@@ -621,6 +633,54 @@ export function getRecommendations(
       totalCatalogueCount,
       topScore: surpriseResults[0]?.score || null,
     };
+  }
+
+  const emptyNoMeaningfulMatch = (
+    status: 'NO_VALID_MATCH' | 'NO_ALTERNATIVES',
+    reason: string,
+    extras: {
+      appliedConstraints: string[];
+      excludedConstraints: string[];
+      candidatesBeforeFilter: string[];
+      candidatesRemoved: RemovedCandidateDetail[];
+      hardConstraintFailed?: boolean;
+    }
+  ): RecommendationEngineResponse => ({
+    results: [],
+    canonicalResult: {
+      recommendation_id: `rec-${Date.now()}`,
+      intent: status === 'NO_ALTERNATIVES' ? 'SHOW_ALTERNATIVES' : 'RECOMMENDATION',
+      status,
+      reason,
+      failed_constraints: extras.appliedConstraints,
+      type: 'recommendation',
+      products: [],
+      appliedConstraints: extras.appliedConstraints,
+      excludedConstraints: extras.excludedConstraints,
+      compromises: [],
+      hardConstraintFailed: Boolean(extras.hardConstraintFailed),
+      isPartialMatch: false,
+    },
+    parsed: preferences,
+    hardConstraintFailed: Boolean(extras.hardConstraintFailed),
+    failedConstraints: extras.appliedConstraints,
+    candidatesBeforeFilter: extras.candidatesBeforeFilter,
+    candidatesRemoved: extras.candidatesRemoved,
+    validCandidates: [],
+    filteredCount: 0,
+    totalCatalogueCount,
+    topScore: null,
+    isPartialMatch: false,
+  });
+
+  if (unsupportedConcept) {
+    return emptyNoMeaningfulMatch('NO_VALID_MATCH', 'no_meaningful_match', {
+      appliedConstraints: [],
+      excludedConstraints: [],
+      candidatesBeforeFilter: products.map((p) => p.id),
+      candidatesRemoved: [],
+      hardConstraintFailed: false,
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -771,6 +831,13 @@ export function getRecommendations(
 
   const eligibleExactScored = scoredExact.filter((r) => {
     if (r.score < 10) return false;
+    if (preferences.notes && preferences.notes.length > 0) {
+      const haystack = [...r.product.topNotes, ...r.product.heartNotes, ...r.product.baseNotes, ...r.product.tags]
+        .join(' ')
+        .toLowerCase();
+      const matchesRequestedNote = preferences.notes.some((note) => haystack.includes(note.toLowerCase()));
+      if (!matchesRequestedNote) return false;
+    }
     if (hasFamilyFilter) {
       const matchesFam = preferences.fragranceFamilies!.some((f) => r.product.fragranceFamily.includes(f));
       const matchesOcc = preferences.occasion && preferences.occasion.length > 0 && preferences.occasion.some((occ) => r.product.occasion.includes(occ));
@@ -865,10 +932,12 @@ export function getRecommendations(
     return 0;
   });
 
-  // Prefer scored affinity, but never leave the shopper empty when hard-valid
-  // products exist — closest related families / gender still count.
-  const viablePartial = scoredPartial.filter((r) => r.score > 0);
-  const closestPool = viablePartial.length > 0 ? viablePartial : scoredPartial;
+  const viablePartial = scoredPartial.filter((result) => {
+    if (result.score <= 0) return false;
+    const evidence = buildPartialMatchTradeOff(result.product, preferences);
+    return isMeaningfulPartialMatch(result, preferences, evidence);
+  });
+  const closestPool = viablePartial;
 
   if (closestPool.length === 0) {
     const failedConstraints = [...excludedConstraints, ...appliedConstraints];

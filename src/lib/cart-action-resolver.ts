@@ -14,6 +14,10 @@ import { formatPrice } from './brand-utils';
 import { parseQuery } from './query-parser';
 import { getRecommendations } from './recommendation-engine';
 
+import { isAuthorizedCartMutation } from './cart-authorization';
+
+export { isAuthorizedCartMutation } from './cart-authorization';
+
 export type CartMutationAction = 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | 'CLEAR_CART';
 
 export interface CartResolutionResult {
@@ -274,15 +278,6 @@ export function detectDelegatedCartSelection(
 
 export function createCartActionId(): string {
   return `cart-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-export function isAuthorizedCartMutation(payload?: CartActionPayload | null): payload is CartActionPayload {
-  if (!payload) return false;
-  if (payload.needsClarification || payload.awaitingConfirmation) return false;
-  if (payload.success !== true) return false;
-  if (payload.action === 'VIEW_CART') return false;
-  if (payload.action === 'CLEAR_CART') return true;
-  return Boolean((payload.items && payload.items.length > 0) || payload.productId);
 }
 
 function isDelegatedReference(token: string): boolean {

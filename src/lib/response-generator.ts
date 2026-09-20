@@ -16,6 +16,18 @@ import {
   ComparativeContext,
   RecommendationPresentation,
 } from './response-grounding';
+import { sanitizeUserFacingResponse } from './sanitize-user-text';
+import {
+  applyConversationCallback,
+  callbackPromptSection,
+  detectConversationCallback,
+  extractUnusualConcept,
+  shouldSkipConversationCallback,
+  ConversationCallback,
+} from './conversation-callback';
+import { analyzeScentConcept, isUnsupportedScentConcept } from './request-match-quality';
+
+export { sanitizeUserFacingResponse } from './sanitize-user-text';
 
 export interface ResponseActionContext {
   intent: string;
@@ -76,62 +88,6 @@ export interface ResponseGeneratorOptions {
   recommendationPresentation?: RecommendationPresentation;
   comparativeContext?: ComparativeContext | null;
   catalogueProducts?: Product[];
-}
-
-/**
- * Defensive sanitizer to ensure no internal reasoning, <think>, or <analysis> tags
- * can ever leak into visible customer-facing content.
- */
-export function sanitizeUserFacingResponse(rawText: string): string {
-  if (!rawText) return '';
-  let cleaned = rawText;
-
-  // 1. Remove complete <think>...</think>, <thought>...</thought>, <analysis>...</analysis>, <reasoning>...</reasoning>
-  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
-  cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '');
-  cleaned = cleaned.replace(/<analysis>[\s\S]*?<\/analysis>/gi, '');
-  cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
-  cleaned = cleaned.replace(/<system>[\s\S]*?<\/system>/gi, '');
-
-  // 2. Remove unclosed opening tags at the start of response (e.g. truncated thinking)
-  cleaned = cleaned.replace(/^[\s\S]*?<\/(think|thought|analysis|reasoning|system)>/i, '');
-
-  // 3. Remove any orphaned opening or closing tags
-  cleaned = cleaned.replace(/<\/?(think|thought|analysis|reasoning|system)>/gi, '');
-
-  // 4. Remove accidental internal reasoning headers if any leaked without tags
-  cleaned = cleaned.replace(/^(Here'?s\s+(a\s+)?thinking\s+process:?|Thinking\s+Process:?|Internal\s+Reasoning:?|Chain\s+of\s+Thought:?)[\s\S]*?\n\n/i, '');
-  cleaned = cleaned.replace(/\/[a-z0-9-]+\/cart\b/gi, 'the cart');
-
-  // 5. If output is wrapped in a JSON envelope string like `{"response": "..."}` or ````json ... ````
-  cleaned = cleaned.replace(/^```(json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-    try {
-      const parsed = JSON.parse(cleaned);
-      if (parsed && typeof parsed.response === 'string') {
-        cleaned = parsed.response;
-      } else if (parsed && typeof parsed.text === 'string') {
-        cleaned = parsed.text;
-      } else if (parsed && typeof parsed.message === 'string') {
-        cleaned = parsed.message;
-      }
-    } catch {
-      // If JSON parse fails, attempt regex extraction of response field
-      const match = cleaned.match(/"(?:response|text|message)"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-      if (match && match[1]) {
-        try {
-          cleaned = JSON.parse(`"${match[1]}"`);
-        } catch {
-          cleaned = match[1];
-        }
-      }
-    }
-  }
-
-  // Final clean up of any residual think tags
-  cleaned = cleaned.replace(/<\/?(think|thought|analysis|reasoning|system)>/gi, '').trim();
-
-  return cleaned;
 }
 
 /**
@@ -202,7 +158,6 @@ export async function generateConversationalResponse(
   history: ChatMessage[] = [],
   options: ResponseGeneratorOptions = {}
 ): Promise<string> {
-  // Fast path for simple conversational metadata and objections without recommendations
   if (
     stage1.intent === 'GREETING' ||
     stage1.intent === 'IDENTITY' ||
@@ -211,7 +166,6 @@ export async function generateConversationalResponse(
     stage1.intent === 'GENERAL_CONVERSATION' ||
     stage1.intent === 'BRAND_CONVERSATION' ||
     stage1.intent === 'CUSTOMER_OBJECTION' ||
-    (stage1.intent === 'PREFERENCE_UPDATE' && results.length === 0) ||
     stage1.intent === 'CART_ASSISTANCE'
   ) {
     return fallbackResponseGenerator(
@@ -225,6 +179,87 @@ export async function generateConversationalResponse(
     );
   }
 
+  const callback = shouldSkipConversationCallback(String(stage1.intent))
+    ? null
+    : detectConversationCallback({
+        message,
+        history,
+        state: currentState,
+        stage1,
+        status: options.status,
+        resultsCount: results.length,
+        brandSlug: brand.slug,
+        catalogueProducts: options.catalogueProducts?.length ? options.catalogueProducts : retrievedProducts,
+      });
+
+  const rewriteStaleAlternativesWording = (text: string): string => {
+    if (stage1.intent !== 'SHOW_ALTERNATIVES') return text;
+    const families = [
+      ...new Set(
+        (currentState.activeRequest?.families || currentState.currentConsultation?.fragrance_families || []).map(
+          (family) => String(family).trim().toLowerCase()
+        )
+      ),
+    ].filter(Boolean);
+    if (/\bfresh alternatives\b/i.test(text) && !families.includes('fresh')) {
+      const label = families.length ? `${families.join('/')} alternatives` : 'other options';
+      return text.replace(/\bfresh alternatives\b/gi, label);
+    }
+    return text;
+  };
+
+  const finalize = (text: string) =>
+    applyConversationCallback(rewriteStaleAlternativesWording(text), callback, {
+      resultsCount: results.length,
+      status: options.status,
+    });
+
+  if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification || stage1.intent === 'PRODUCT_INFO') {
+    return finalize(
+      fallbackResponseGenerator(
+        message,
+        brand,
+        stage1,
+        retrievedProducts,
+        results,
+        currentState,
+        options
+      )
+    );
+  }
+
+  const unusualNow = analyzeScentConcept(
+    message,
+    options.catalogueProducts?.length ? options.catalogueProducts : retrievedProducts
+  );
+  if (results.length === 0 && isUnsupportedScentConcept(unusualNow)) {
+    return finalize(
+      fallbackResponseGenerator(
+        message,
+        brand,
+        stage1,
+        retrievedProducts,
+        results,
+        currentState,
+        options
+      )
+    );
+  }
+
+  if (stage1.intent === 'PREFERENCE_UPDATE' && results.length === 0) {
+    return finalize(
+      fallbackResponseGenerator(
+        message,
+        brand,
+        stage1,
+        retrievedProducts,
+        results,
+        currentState,
+        options
+      )
+    );
+  }
+
   // 1. Try Groq Stage 2 Grounded Explanation
   const groqReply = await callGroqStage2(
     message,
@@ -234,7 +269,8 @@ export async function generateConversationalResponse(
     results,
     currentState,
     history,
-    options
+    options,
+    callback
   );
 
   if (groqReply && groqReply.trim().length > 0) {
@@ -254,9 +290,9 @@ export async function generateConversationalResponse(
         contextNames: retrievedProducts.map((p) => p.name),
       });
       if (grounding.ok) {
-        return groqReply.trim();
+        return finalize(groqReply.trim());
       }
-    } else if (stage1.intent === 'PRODUCT_INFO' || stage1.intent === 'COMPARE_PRODUCTS') {
+    } else if (stage1.intent === 'COMPARE_PRODUCTS') {
       const required = retrievedProducts.map((p) => p.name);
       const mentioned = findCatalogueNamesInText(
         groqReply,
@@ -270,22 +306,24 @@ export async function generateConversationalResponse(
           groqReply
         );
       if (required.length > 0 && missing.length === 0 && !deniesKnownFacts) {
-        return groqReply.trim();
+        return finalize(groqReply.trim());
       }
     } else {
-      return groqReply.trim();
+      return finalize(groqReply.trim());
     }
   }
 
   // 2. Deterministic Grounded Fallback
-  return fallbackResponseGenerator(
-    message,
-    brand,
-    stage1,
-    retrievedProducts,
-    results,
-    currentState,
-    options
+  return finalize(
+    fallbackResponseGenerator(
+      message,
+      brand,
+      stage1,
+      retrievedProducts,
+      results,
+      currentState,
+      options
+    )
   );
 }
 
@@ -300,7 +338,8 @@ async function callGroqStage2(
   results: RecommendationResult[],
   currentState: ConversationState,
   history: ChatMessage[],
-  options: ResponseGeneratorOptions
+  options: ResponseGeneratorOptions,
+  callback: ConversationCallback | null = null
 ): Promise<string | null> {
   const model = getGroqModel();
   const assistantName = brand.finder?.assistantName || 'Fragrance Consultant';
@@ -420,7 +459,9 @@ CRITICAL RULES:
    - If CANONICAL RANKED PRODUCTS is empty (HARD_CONSTRAINT_FAILED / NO_VALID_MATCH):
       * NEVER recommend, name, or suggest unvalidated products.
       * Do NOT invent exclusions the user did not state.
-      * Do not open with a long apology. Briefly say you couldn't find a close fit, then offer one or two realistic ways to loosen the request (budget, intensity, or fragrance style).
+      * Do NOT say "closest match", "closest option", or "best balanced composition".
+      * Do not open with a long apology. Briefly say you couldn't find a meaningful match for that request.
+      * If the user asked for an unusual object or food smell, do not invent a leather/woody/gourmand mapping. You may offer to explore a direction only if they name it.
       * Use this empty-result language ONLY when RECOMMENDATION_COUNT is 0.
 
 3. INTENT BEHAVIOR & STRUCTURED POLICIES:
@@ -453,11 +494,13 @@ CRITICAL RULES:
       * Do NOT present any products. Keep it to 1 to 2 short sentences.
    - PRODUCT_INFO: Give a factual overview of the requested product. Always use the exact product name in the first sentence. Do NOT call it "Best Match".
    - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Always name both products. Follow-ups like "which is sweeter/fresher/better for office" still compare those same two products — do NOT start a new recommendation. Do NOT call either "Best Match".
-   - SHOW_ALTERNATIVES: Present the fresh alternatives provided in CANONICAL RANKED PRODUCTS. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
+   - SHOW_ALTERNATIVES: Present the alternative products provided in CANONICAL RANKED PRODUCTS. Describe them using the CURRENT families from ACTIVE CONSULTATION CONTEXT (woody, fresh, floral, spicy, aquatic, etc.). Never call them "fresh alternatives" unless the active family is actually fresh. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
+   - REFERENCE + REFINEMENT: If referencePerfume is set and isSimilarityRequest is true, naturally acknowledge that named reference when presenting recommendations, including when a refinement such as warmer is also requested. Do NOT claim a canonical product is a dupe or clone of the reference unless that product's similarTo or matchReasons already says so.
    - PARTIAL_MATCH:
-      * A useful closest product exists. Lead directly with it using natural consultant language ("The closest match is...", "I'd start with...", "The closest option from this collection is...").
+      * Use "closest match" ONLY when STATUS is PARTIAL_MATCH and MATCHED CRITERIA is non-empty.
+      * Lead with the canonical product and state the actual matched attributes and the trade-off from UNMET CRITERIA.
+      * NEVER say "best balanced composition" or invent why a product matches.
       * NEVER open with "I'm sorry", "I'm afraid", "Unfortunately", "I don't have", or "I couldn't find".
-      * Ground the explanation in MATCHED CRITERIA and UNMET CRITERIA / TRADE-OFF. Say what it fits and what it does not fully satisfy.
       * Never call it "Best Match". Never claim characteristics the product lacks.
       * If more than one canonical product is listed, name the primary and acknowledge the others as alternatives.
    - HARD_CONSTRAINT_FAILED / NO_VALID_MATCH: Use this ONLY when RECOMMENDATION_COUNT is 0. Briefly say you couldn't find a close fit and offer a useful next adjustment. Never present invalid products. Avoid robotic "relax one of your preferences" phrasing. Do not invent exclusions.
@@ -487,7 +530,11 @@ COMPARATIVE CONTEXT:
 ${JSON.stringify(comparative || null, null, 2)}
 
 ACTIVE CONSULTATION CONTEXT:
-${JSON.stringify(currentState.activeRequest || currentState.currentConsultation || {})}
+${JSON.stringify({
+  ...(currentState.activeRequest || currentState.currentConsultation || {}),
+  referencePerfume: currentState.backgroundContext?.referencePerfume ?? currentState.currentConsultation?.active_reference_perfume ?? null,
+  isSimilarityRequest: Boolean(currentState.activeRequest?.isSimilarityRequest || stage1.is_similarity_request),
+}, null, 2)}
 
 STATUS: "${options.status || (options.hardConstraintFailed ? 'HARD_CONSTRAINT_FAILED' : 'SUCCESS')}"
 HARD CONSTRAINT FAILED: ${Boolean(options.hardConstraintFailed)}
@@ -495,7 +542,7 @@ USER INTENT: "${stage1.intent}"
 STOREFRONT CURRENCY: ${JSON.stringify(options.actionContext?.currency || STOREFRONT_CURRENCY)}
 LIVE CART CONTEXT (AUTHORITATIVE — IGNORE CART CONTENTS FROM PREVIOUS MESSAGES):
 ${JSON.stringify(options.actionContext?.cart || { isEmpty: true, itemCount: 0, items: [], subtotal: 0, subtotalFormatted: formatPrice(0), currency: STOREFRONT_CURRENCY }, null, 2)}
-${options.actionContext ? `\nSTRUCTURED APPLICATION CONTEXT & POLICIES:\n${JSON.stringify(options.actionContext, null, 2)}\n` : ''}`;
+${options.actionContext ? `\nSTRUCTURED APPLICATION CONTEXT & POLICIES:\n${JSON.stringify(options.actionContext, null, 2)}\n` : ''}${callbackPromptSection(callback)}`;
 
   const messagesPayload = [
     { role: 'system' as const, content: systemPrompt },
@@ -542,12 +589,28 @@ export function fallbackResponseGenerator(
     warmth: currentState.currentConsultation?.warmth,
     intensity: currentState.currentConsultation?.intensity,
   };
+  const referenceName =
+    currentState.backgroundContext?.referencePerfume ||
+    currentState.currentConsultation?.active_reference_perfume ||
+    stage1.reference_perfume ||
+    null;
+  const isSimilarity =
+    Boolean(currentState.activeRequest?.isSimilarityRequest || stage1.is_similarity_request) &&
+    Boolean(referenceName);
+
+  function alternativesIntro(primaryName: string): string {
+    const families = [...new Set((activeReq.families || []).map((f) => String(f).trim().toLowerCase()).filter(Boolean))];
+    if (families.length === 0) {
+      return `Here are some other options. My top recommendation is ${primaryName}`;
+    }
+    return `Here are some different ${families.join('/')} alternatives. My top recommendation is ${primaryName}`;
+  }
 
   // 1. OUT OF SCOPE
   if (stage1.intent === 'OUT_OF_SCOPE') {
     return (
       stage1.out_of_scope_answer ||
-      `I specialize exclusively in fragrance shopping and consultation for ${brand.name}. While I can't assist with unrelated topics, I'd be glad to help you find your next fragrance.`
+      `I'm here to help you discover fragrances and choose products. If you're looking for a scent, tell me the kind of smell, occasion, budget, or fragrance you have in mind.`
     );
   }
 
@@ -769,6 +832,9 @@ export function fallbackResponseGenerator(
       (stage1.ambiguous_term
         ? `When you say '${stage1.ambiguous_term}', what kind of feeling do you mean?`
         : "Could you tell me a little more about what kind of scent profile you have in mind?");
+    if (stage1.clarification_question && (!stage1.suggested_interpretations || stage1.suggested_interpretations.length === 0)) {
+      return question;
+    }
     const interpretation =
       stage1.suggested_interpretations && stage1.suggested_interpretations.length > 0
         ? stage1.suggested_interpretations[0]
@@ -777,7 +843,7 @@ export function fallbackResponseGenerator(
           : stage1.ambiguous_term === 'melty'
           ? "Something creamy and soft, warm and comforting, or something else?"
           : "For example, are you leaning toward something fresh and crisp, warm and cozy, or rich and woody?");
-    return `${question} ${interpretation}`;
+    return `${question} ${interpretation}`.trim();
   }
 
   // 5b. NO_ALTERNATIVES (Graceful exhaustion of alternatives)
@@ -788,29 +854,43 @@ export function fallbackResponseGenerator(
     return "I couldn't find another suitable option matching those exact preferences from our remaining catalogue.";
   }
 
-  // 6. PARTIAL MATCH (Closest legitimate candidate with grounded trade-off — lead directly with closest option)
-  if (
-    options.status === 'PARTIAL_MATCH' ||
-    (results.length === 1 && (results[0].matchTier === 'Closest Match' || results[0].explanation.includes('closest match')))
-  ) {
+  // 6. PARTIAL MATCH — only when the application classified a grounded partial
+  if (options.status === 'PARTIAL_MATCH' && results.length > 0 && (presentation.matchedPreferences || []).length > 0) {
     const closest = results[0];
     const tradeOff =
       presentation.tradeOff ||
       closest.detailedReasons?.find((d) => d.category === 'Profile')?.text ||
-      closest.explanation;
+      '';
+    const matched = (presentation.matchedPreferences || []).slice(0, 2).join(' and ');
+    const missing = (presentation.unmetPreferences || [])[0];
+    const grounded =
+      tradeOff ||
+      (missing
+        ? `It matches ${matched}, although it differs on ${missing}.`
+        : `It matches ${matched}.`);
     if (results.length >= 2) {
       const others = results.slice(1).map((r) => r.product.name).join(' and ');
-      return `The closest option is ${closest.product.name}. ${tradeOff} I've also included ${others}.`;
+      return `The closest match I found is ${closest.product.name} because it shares ${matched}. ${grounded} I've also included ${others}.`;
     }
-    return `The closest option is ${closest.product.name}. ${tradeOff}`;
+    return `The closest match I found is ${closest.product.name} because it shares ${matched}. ${grounded}`;
   }
 
   // PRODUCT INFO - No "Best Match" language; never treat as a recommendation set
   if (stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
     const p = retrievedProducts[0];
     const q = message.toLowerCase();
+    const joinNotes = (notes: string[]) => {
+      const values = notes.map((note) => note.toLowerCase());
+      if (values.length === 0) return '';
+      if (values.length === 1) return values[0];
+      if (values.length === 2) return `${values[0]} and ${values[1]}`;
+      return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+    };
     if (/\bnotes?\b/.test(q)) {
-      return `${p.name} opens with ${p.topNotes.join(', ')}, heart of ${p.heartNotes.join(', ')}, and a base of ${p.baseNotes.join(', ')}.`;
+      return `${p.name} has ${joinNotes(p.topNotes)} as its top notes, with ${joinNotes(p.heartNotes)} in the heart, followed by ${joinNotes(p.baseNotes)}.`;
+    }
+    if (/\b(how much|price|cost|₹)\b/.test(q)) {
+      return `${p.name} is priced at ₹${p.price} for ${p.size}.`;
     }
     if (/\boffice|workplace|workwear|daily wear\b/.test(q)) {
       const officeOk = p.occasion.some((o) => /office|daily|casual|travel/i.test(o));
@@ -824,7 +904,7 @@ export function fallbackResponseGenerator(
     if (/\blast|longevity\b/.test(q)) {
       return `${p.name} is formulated for ${p.longevity.replace('-', ' ')} wear.`;
     }
-    if (/\binspired\b/.test(q)) {
+    if (/\binspired|inspiration\b/.test(q)) {
       const inspired = p.similarTo?.filter(Boolean) || [];
       return inspired.length > 0
         ? `${p.name} is inspired by ${inspired.slice(0, 2).join(' and ')}.`
@@ -888,9 +968,23 @@ export function fallbackResponseGenerator(
       failedList.push(`under ₹${budget}`);
     }
 
+    const families = activeReq.families || currentState.activeRequest?.families || [];
+    const longevity = activeReq.longevity || currentState.activeRequest?.longevity;
+    if (families.length >= 2 && budget && (longevity === 'long-lasting' || longevity === 'beast-mode')) {
+      return `I couldn't find a ${families.join(', ')} fragrance under ₹${budget} that offers all-day longevity in our current selection. Would you like to explore options with moderate longevity, or perhaps adjust the budget or scent family?`;
+    }
+
     if (failedList.length > 0) {
       const limiter = failedList[0];
       return `I couldn't find a close fit for that combination (${limiter}). If you'd like, we can loosen that preference and I'll find something closer.`;
+    }
+    const unusual = extractUnusualConcept(message, (options.catalogueProducts || retrievedProducts).map((p) => p.name));
+    const concept = analyzeScentConcept(message, options.catalogueProducts || retrievedProducts);
+    if (unusual && isUnsupportedScentConcept(concept)) {
+      return `I don't have a fragrance that meaningfully recreates that ${unusual} scent. I can explore spicy, savory, herbal, smoky, or gourmand directions if those aspects of it appeal to you.`;
+    }
+    if (unusual) {
+      return `I couldn't find a meaningful match for a ${unusual}-scented perfume in this collection. If you want to name a material, atmosphere, or note, I can search in that direction.`;
     }
     return `I couldn't find a close fit for that combination. If you'd like, we can loosen one preference — budget, intensity, or fragrance style — and I can find something closer.`;
   }
@@ -931,7 +1025,9 @@ export function fallbackResponseGenerator(
       const intVal = stage1.intensity || activeReq.intensity;
       intro = `Adjusted — focusing on a ${intVal} profile while keeping your ${occ || 'current'} direction. My best match is ${primary.product.name}`;
     } else if (isRefinement && stage1.intent === 'SHOW_ALTERNATIVES') {
-      intro = `Here are fresh alternatives fitting your ${dir || 'current'} preferences. My top recommendation is ${primary.product.name}`;
+      intro = alternativesIntro(primary.product.name);
+    } else if (isSimilarity && referenceName) {
+      intro = `Since you like ${referenceName}, I recommend ${primary.product.name}`;
     } else {
       const criteria: string[] = [];
       if (activeReq.families?.length > 0) criteria.push(activeReq.families.join(' + '));
@@ -965,9 +1061,11 @@ export function fallbackResponseGenerator(
           : `If you want more intensity, this option steps up from ${from}. ${primary.product.name} is the closest stronger match`;
     } else if (comparative?.type === 'warmer' && (comparative.improved || results.length > 0)) {
       intro =
-        alts.length > 0
-          ? `Here are warmer options that keep your current direction. ${primary.product.name} is the closest match`
-          : `${primary.product.name} is the warmer option that keeps your current direction`;
+        isSimilarity
+          ? `Since you like ${referenceName} but want something warmer, ${primary.product.name} is the closest match`
+          : alts.length > 0
+            ? `Here are warmer options that keep your current direction. ${primary.product.name} is the closest match`
+            : `${primary.product.name} is the warmer option that keeps your current direction`;
     } else if (comparative?.type === 'louder') {
       intro =
         alts.length > 0

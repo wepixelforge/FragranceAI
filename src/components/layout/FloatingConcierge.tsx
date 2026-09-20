@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { BrandConfig } from '@/types/brand';
 import { Product } from '@/types/product';
@@ -296,15 +297,14 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
           >
             {/* Inner Circular Image Container */}
             <div className="w-full h-full rounded-full overflow-hidden bg-brand-stage relative flex items-center justify-center border border-black/40">
-              <img
+              <Image
                 src="/images/concierge-avatar.jpg"
                 alt={brand.finder?.assistantName || 'Fragrance Assistant'}
+                width={70}
+                height={70}
+                sizes="70px"
                 className="w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-110"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
               />
-              {/* Fallback Icon if image fails */}
               <div className="absolute inset-0 flex items-center justify-center text-brand-accent font-serif text-lg pointer-events-none -z-10">
                 ✦
               </div>

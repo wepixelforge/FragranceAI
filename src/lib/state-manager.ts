@@ -8,6 +8,7 @@ import {
   Stage1IntentOutput,
   UserIntent,
   CanonicalIntent,
+  CanonicalProductRef,
 } from '@/types/chat';
 import {
   StructuredPreferences,
@@ -264,7 +265,7 @@ export function updateConversationState(
   const rawUserTextEarly = (
     typeof discussedProductIdsOrMessage === 'string' ? discussedProductIdsOrMessage : userMessage || ''
   ).toLowerCase();
-  const messageMentionsSimilarity = /\b(like|similar\s+to|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|i\s+wear)\b/.test(rawUserTextEarly);
+  const messageMentionsSimilarity = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|i\s+wear)\b/.test(rawUserTextEarly);
   const isReferenceDroppedEarly = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference|remove\s+(?:that|the)?\s*reference|ignore\s+(?:that|the)?\s*reference)\b/.test(
     rawUserTextEarly
   );
@@ -402,8 +403,9 @@ export function updateConversationState(
       isSimilarityRequest: Boolean(stage1.is_similarity_request),
     };
 
-    // Reference similarity is only active if explicitly requested in this message
-    if (!stage1.is_similarity_request) {
+    if (stage1.is_similarity_request && stage1.reference_perfume) {
+      backgroundContext.referencePerfume = stage1.reference_perfume;
+    } else if (!stage1.is_similarity_request && !messageMentionsSimilarity) {
       backgroundContext.referencePerfume = null;
     }
   } else {
@@ -419,7 +421,10 @@ export function updateConversationState(
       activeRequest.isSimilarityRequest = false;
       activeRequest.relativePrice = null;
       backgroundContext.referencePerfume = null;
-    } else if (stage1.fragrance_families && stage1.fragrance_families.length > 0 && !/\b(reference|like|similar|clone|dupe|cheaper)\b/i.test(rawUserText)) {
+    } else if (stage1.reference_perfume && (stage1.is_similarity_request || messageMentionsSimilarity)) {
+      activeRequest.isSimilarityRequest = true;
+      backgroundContext.referencePerfume = stage1.reference_perfume;
+    } else if (stage1.fragrance_families && stage1.fragrance_families.length > 0 && !/\b(reference|like|similar|clone|dupe|cheaper|alternative)\b/i.test(rawUserText)) {
       if (activeRequest.isSimilarityRequest) {
         activeRequest.isSimilarityRequest = false;
         activeRequest.relativePrice = null;
@@ -714,12 +719,12 @@ export function updateConversationState(
       activeRequest.isSimilarityRequest = false;
       activeRequest.relativePrice = null;
       backgroundContext.referencePerfume = null;
-    } else if (stage1.is_similarity_request && messageMentionsSimilarity) {
+    } else if (stage1.is_similarity_request && (messageMentionsSimilarity || stage1.reference_perfume)) {
       activeRequest.isSimilarityRequest = true;
       if (stage1.reference_perfume) {
         backgroundContext.referencePerfume = stage1.reference_perfume;
       }
-    } else if (!messageMentionsSimilarity) {
+    } else if (!messageMentionsSimilarity && !stage1.is_similarity_request) {
       activeRequest.isSimilarityRequest = false;
     }
 
@@ -788,6 +793,15 @@ export function updateConversationState(
     new Set([...baseShown, ...discussedProductIds])
   );
 
+  const factualProductSet: CanonicalProductRef[] | null =
+    isProductFactualIntent && (stage1.target_product_names?.length || 0) > 0
+      ? stage1.target_product_names!.map((name) => ({
+          productId: '',
+          brandSlug: '',
+          name,
+        }))
+      : null;
+
   return {
     intent: stage1.intent as CanonicalIntent,
     activeRequest,
@@ -795,7 +809,11 @@ export function updateConversationState(
     shownProductIds: updatedShown,
     lastRecommendationIds: isNewConsultation ? [] : (base.lastRecommendationIds || []),
     lastCanonicalProductSet: isNewConsultation ? [] : (base.lastCanonicalProductSet || []),
-    lastDiscussedProductSet: isNewConsultation ? [] : (base.lastDiscussedProductSet || []),
+    lastDiscussedProductSet: factualProductSet
+      ? factualProductSet
+      : isNewConsultation
+        ? []
+        : (base.lastDiscussedProductSet || []),
     currentConsultation,
     backgroundPreferences,
     preferences: buildUnifiedPreferences(currentConsultation, backgroundPreferences, stage1.target_product_names),

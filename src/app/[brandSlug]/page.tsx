@@ -31,6 +31,7 @@ export default async function BrandHomePage({ params }: PageProps) {
   }
 
   const featuredProducts = getFeaturedProducts(brandSlug);
+  const heroProduct = featuredProducts[0];
   const sectionsOrder = brand.homepage.sectionsOrder || ['hero', 'featured', 'value'];
 
   return (
@@ -38,7 +39,7 @@ export default async function BrandHomePage({ params }: PageProps) {
       {sectionsOrder.map((sectionKey, idx) => {
         switch (sectionKey) {
           case 'hero':
-            return <HeroSection key={`hero-${idx}`} brand={brand} />;
+            return <HeroSection key={`hero-${idx}`} brand={brand} heroProduct={heroProduct} />;
           case 'featured':
             return (
               <FeaturedProducts

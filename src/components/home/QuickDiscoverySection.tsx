@@ -1,7 +1,4 @@
-'use client';
-
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { BrandConfig } from '@/types/brand';
 
 interface QuickDiscoverySectionProps {
@@ -9,7 +6,6 @@ interface QuickDiscoverySectionProps {
 }
 
 export default function QuickDiscoverySection({ brand }: QuickDiscoverySectionProps) {
-  const router = useRouter();
 
   const getSectionContent = () => {
     switch (brand.designVariant) {
@@ -100,13 +96,13 @@ export default function QuickDiscoverySection({ brand }: QuickDiscoverySectionPr
         {/* Curated consultation inquiry chips */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-2.5 max-w-2xl mx-auto">
           {content.pills.map((pill, i) => (
-            <button
+            <Link
               key={i}
-              onClick={() => router.push(`/${brand.slug}/finder?q=${encodeURIComponent(pill.q)}`)}
+              href={`/${brand.slug}/finder?q=${encodeURIComponent(pill.q)}`}
               className="hairline-border rounded-full bg-brand-surface/60 px-4 py-2 text-xs text-brand-text-muted hover:text-brand-text hover:border-brand-accent/50 transition-all duration-200"
             >
               &ldquo;{pill.label}&rdquo;
-            </button>
+            </Link>
           ))}
         </div>
 

@@ -8,7 +8,7 @@ import { toStructuredPreferences } from '@/lib/state-manager';
 import { getBrandWelcomeMessage } from '@/lib/brand-utils';
 import { useCart } from './CartContext';
 import { serializeCartRequestPayload } from '@/lib/live-cart-context';
-import { isAuthorizedCartMutation } from '@/lib/cart-action-resolver';
+import { isAuthorizedCartMutation } from '@/lib/cart-authorization';
 
 function sessionStorageKey(brandSlug: string) {
   return `fragrance-ai-session:${brandSlug}`;

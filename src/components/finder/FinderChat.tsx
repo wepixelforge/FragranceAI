@@ -10,7 +10,7 @@ import {
 } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 import { formatPrice } from '@/lib/brand-utils';
-import { sanitizeUserFacingResponse } from '@/lib/response-generator';
+import { sanitizeUserFacingResponse } from '@/lib/sanitize-user-text';
 import BottleVisual from '@/components/shop/BottleVisual';
 import { useScentFinder, ConversationMessage } from '@/context/ScentFinderContext';
 import ConsultationDebugPanel from '@/components/finder/ConsultationDebugPanel';

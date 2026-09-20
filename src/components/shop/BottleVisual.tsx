@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 
@@ -9,12 +10,14 @@ interface BottleVisualProps {
   brand: BrandConfig;
   size?: 'sm' | 'md' | 'lg';
   interactive?: boolean;
+  priority?: boolean;
 }
 
 export default function BottleVisual({
   product,
   brand,
   size = 'md',
+  priority = false,
 }: BottleVisualProps) {
   const [imageError, setImageError] = useState(false);
   const cardStyle = brand.layout?.cardStyle || 'modern-flacon';
@@ -83,12 +86,20 @@ export default function BottleVisual({
 
     return (
       <div className={`relative flex items-center justify-center select-none ${sizeContainerClass} p-1 transition-transform duration-500 group-hover:scale-105`}>
-        <img
+        <Image
           src={product.imageUrl}
           alt={product.name}
-          className="max-h-full max-w-full w-auto h-auto object-contain drop-shadow-2xl select-none"
+          fill
+          sizes={
+            size === 'sm'
+              ? '128px'
+              : size === 'lg'
+                ? '(max-width: 640px) 80vw, 420px'
+                : '(max-width: 640px) 45vw, 208px'
+          }
+          className="object-contain drop-shadow-2xl select-none"
           onError={() => setImageError(true)}
-          loading="lazy"
+          priority={priority}
         />
       </div>
     );

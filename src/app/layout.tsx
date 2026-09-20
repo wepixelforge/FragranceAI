@@ -8,11 +8,13 @@ import './globals.css';
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
+  display: 'swap',
 });
 
 const playfairDisplay = Playfair_Display({
   variable: '--font-playfair',
   subsets: ['latin'],
+  weight: ['400', '500'],
   display: 'swap',
 });
 

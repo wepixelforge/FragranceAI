@@ -9,7 +9,7 @@ import {
   PreferenceUpdateItem,
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
-import { parseQuery } from './query-parser';
+import { parseQuery, extractKnownReferencePerfume } from './query-parser';
 import { resolveStyleFamilies, isKnownStyleWord, isAffirmativeReply } from './style-aliases';
 import {
   extractCartEntitiesWithGroq,
@@ -25,6 +25,14 @@ import {
   collectCartActionReferences,
   isDiscoveryOnlyRequest,
 } from './cart-action-resolver';
+import {
+  analyzeScentConcept,
+  isUnsupportedScentConcept,
+  unsupportedConceptInterpretations,
+  unsupportedConceptQuestion,
+  unusualFragranceBriefQuestion,
+} from './request-match-quality';
+import { extractUnusualConcept } from './conversation-callback';
 
 /**
  * Normalizes any string intent to the CanonicalIntent enum.
@@ -343,12 +351,12 @@ function applyCartRoutingOverride(
     return buildInstructionOverrideStage1();
   }
 
-  const namedProduct = detectProductAttributeQuestion(message, products);
+  const namedProduct = detectProductFollowUp(message, products, currentState);
   if (namedProduct) {
     return buildNamedProductInfoStage1(namedProduct);
   }
 
-  const compareFollowUp = detectCompareFollowUp(message, currentState);
+  const compareFollowUp = detectCompareFollowUp(message, currentState, products);
   if (compareFollowUp) {
     return buildNamedCompareStage1(compareFollowUp);
   }
@@ -780,7 +788,7 @@ export function detectNewDirectionRequest(message: string, currentState?: Conver
 
 export function detectProductAttributeQuestion(message: string, products: Product[]): string | null {
   const lower = message.toLowerCase();
-  if (/\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|add\s+to\s+(my\s+)?cart)\b/.test(lower)) {
+  if (/\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|add\s+to\s+(my\s+)?cart|smells?\s+like)\b/.test(lower)) {
     return null;
   }
   const named = products.find((p) => lower.includes(p.name.toLowerCase()));
@@ -793,30 +801,105 @@ export function detectProductAttributeQuestion(message: string, products: Produc
   }
   const asksAttribute =
     /\b(is|does|can|how|what|tell)\b/.test(lower) &&
-    /\b(office|strong|sweet|fresh|last|longevity|notes?|price|cost|inspired|good\s+for|suitable|intensity|projection|sillage|warm|woody)\b/.test(
+    /\b(office|strong|sweet|fresh|last|longevity|notes?|price|cost|inspired|good\s+for|suitable|intensity|projection|sillage|warm|woody|more)\b/.test(
       lower
     );
   return asksAttribute ? named.name : null;
 }
 
-export function detectCompareFollowUp(message: string, currentState?: ConversationState): string[] | null {
+const PRODUCT_FACT_CUES =
+  /\b(notes?|longevity|lasts?|lasting|strong|intensity|projection|sillage|office|inspired|inspiration|price|cost|how much|size|family|accord|heart|base|opening|drydown|sweet|tell me more|more about)\b/i;
+
+function lastDiscussedNames(state?: ConversationState, products: Product[] = []): string[] {
+  const refs = [
+    ...(state?.lastDiscussedProductSet || []),
+    ...(state?.lastCanonicalProductSet || []),
+  ].filter((ref) => {
+    if (!ref?.name) return false;
+    if (products.length === 0) return true;
+    return products.some(
+      (product) =>
+        product.name.toLowerCase() === ref.name.toLowerCase() ||
+        (ref.productId && product.id === ref.productId)
+    );
+  });
+  return Array.from(new Set(refs.map((ref) => ref.name)));
+}
+
+/**
+ * Resolves factual follow-ups ("What are its notes?", "How long does it last?")
+ * to the last discussed in-brand product. Does not require the product name
+ * to be repeated. Never treats discovery/cart/compare as product info.
+ */
+export function detectProductFollowUp(
+  message: string,
+  products: Product[],
+  currentState?: ConversationState
+): string | null {
+  const named = detectProductAttributeQuestion(message, products);
+  if (named) return named;
+  if (detectCompareFollowUp(message, currentState, products)) return null;
+
+  const lower = message.toLowerCase();
+  if (
+    /\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|smells?\s+like|add\s+to\s+(my\s+)?cart|cart|checkout|compare|make\s+it|warmer|cheaper|another\s+one|something\s+else)\b/.test(
+      lower
+    )
+  ) {
+    return null;
+  }
+  if (!PRODUCT_FACT_CUES.test(lower)) return null;
+
+  const discussed = lastDiscussedNames(currentState, products);
+  if (discussed.length === 0) return null;
+
+  const namesAnother = products.some(
+    (product) =>
+      lower.includes(product.name.toLowerCase()) &&
+      !discussed.some((name) => name.toLowerCase() === product.name.toLowerCase())
+  );
+  if (namesAnother) return null;
+
+  const hasPronoun = /\b(it|its|this|that|the one|this one|that one)\b/i.test(lower);
+  const isShortFactQuestion =
+    /^(what|how|is|does|can|tell)\b/i.test(lower.trim()) && lower.trim().split(/\s+/).length <= 14;
+  if (!hasPronoun && !isShortFactQuestion) return null;
+  return discussed[0];
+}
+
+export function detectCompareFollowUp(
+  message: string,
+  currentState?: ConversationState,
+  products: Product[] = []
+): string[] | null {
   const lower = message.toLowerCase();
   const isWhichFollowUp =
     /\bwhich\s+is\b/.test(lower) ||
     /\bwhich\s+one\b/.test(lower) ||
-    /\bwhich\s+(?:of\s+(?:them|these|the\s+two))\b/.test(lower);
+    /\bwhich\s+(?:of\s+(?:them|these|the\s+two))\b/.test(lower) ||
+    /\bcompare\b/.test(lower) ||
+    /\b vs \b/.test(lower) ||
+    /\bdifference between\b/.test(lower);
   if (!isWhichFollowUp) return null;
-  const names = Array.from(
-    new Set(
-      [
-        ...(currentState?.lastDiscussedProductSet || []).map((p) => p.name),
-        ...(currentState?.lastCanonicalProductSet || []).map((p) => p.name),
-        ...(currentState?.preferences?.target_products || []),
-      ].filter((n): n is string => Boolean(n))
-    )
-  );
+
+  const fromMessage = products
+    .filter((product) => product.name && lower.includes(product.name.toLowerCase()))
+    .map((product) => product.name);
+  if (/\broyal oud\b/.test(lower) && !fromMessage.some((name) => name.toLowerCase() === 'royal oud')) {
+    const royal = products.find((product) => product.name.toLowerCase() === 'royal oud');
+    if (royal) fromMessage.push(royal.name);
+  }
+
+  const fromState = [
+    ...(currentState?.lastDiscussedProductSet || []).map((p) => p.name),
+    ...(currentState?.lastCanonicalProductSet || []).map((p) => p.name),
+    ...(currentState?.preferences?.target_products || []),
+  ].filter((n): n is string => Boolean(n));
+
+  const names = Array.from(new Set(fromMessage.length >= 2 ? fromMessage : [...fromMessage, ...fromState]));
   if (names.length < 2) return null;
   if (
+    fromMessage.length >= 2 ||
     /\b(fresher|sweeter|stronger|better|warmer|woodier|lighter|louder|softer|office|date|suited|sweet|fresh)\b/.test(
       lower
     )
@@ -862,6 +945,133 @@ function buildNamedProductInfoStage1(productName: string): Stage1IntentOutput {
     needs_clarification: false,
     preferences: {},
   };
+}
+
+function buildUnsupportedObjectStage1(topic: string): Stage1IntentOutput {
+  return {
+    intent: 'CLARIFICATION',
+    request_type: 'other',
+    is_new_request: false,
+    is_refinement: false,
+    requires_product_data: false,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: false,
+    needs_clarification: true,
+    ambiguous_term: topic,
+    clarification_question: unsupportedConceptQuestion(topic),
+    suggested_interpretations: unsupportedConceptInterpretations(topic),
+    preferences: {},
+  };
+}
+
+function buildUnsupportedOtherStage1(topic: string): Stage1IntentOutput {
+  return {
+    intent: 'CLARIFICATION',
+    request_type: 'other',
+    is_new_request: false,
+    is_refinement: false,
+    requires_product_data: false,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: false,
+    needs_clarification: true,
+    ambiguous_term: topic,
+    clarification_question: unusualFragranceBriefQuestion(topic),
+    suggested_interpretations: [],
+    preferences: {},
+  };
+}
+
+function emptyUnusualRecommendationStage1(): Stage1IntentOutput {
+  return {
+    intent: 'RECOMMENDATION',
+    request_type: 'new_consultation',
+    is_new_request: true,
+    is_refinement: false,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: true,
+    needs_clarification: false,
+    requires_product_data: true,
+    preferences: {},
+  };
+}
+
+function unusualTopicsOverlap(a: string, b: string): boolean {
+  const left = a.toLowerCase().trim();
+  const right = b.toLowerCase().trim();
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const leftTokens = left.split(/\s+/).filter((token) => token.length > 2);
+  const rightTokens = right.split(/\s+/).filter((token) => token.length > 2);
+  return leftTokens.some((token) => rightTokens.includes(token));
+}
+
+function isRepeatedUnusualConcept(
+  topic: string,
+  history: ChatMessage[] = [],
+  products: Product[] = []
+): boolean {
+  const names = products.map((product) => product.name);
+  return history
+    .filter((turn) => turn.role === 'user')
+    .map((turn) => extractUnusualConcept(turn.content, names))
+    .some((prior) => Boolean(prior) && unusualTopicsOverlap(prior!, topic));
+}
+
+function stripUnsupportedConceptInventions(stage1: Stage1IntentOutput, message: string, products: Product[]): Stage1IntentOutput {
+  const concept = analyzeScentConcept(message, products);
+  if (!isUnsupportedScentConcept(concept)) return stage1;
+  return {
+    ...stage1,
+    fragrance_families: [],
+    preferred_notes: [],
+    occasion: null,
+    season: null,
+    warmth: null,
+    freshness: null,
+    sweetness: null,
+    updates: (stage1.updates || []).filter(
+      (update) => !['fragrance_families', 'preferred_notes', 'occasion', 'season', 'warmth', 'freshness', 'sweetness'].includes(update.field)
+    ),
+  };
+}
+
+function coerceUnusualScentIntent(
+  stage1: Stage1IntentOutput,
+  message: string,
+  products: Product[],
+  currentState?: ConversationState,
+  history: ChatMessage[] = []
+): Stage1IntentOutput {
+  const concept = analyzeScentConcept(message, products);
+  if (
+    stage1.intent === 'CART_ASSISTANCE' ||
+    stage1.intent === 'RESET_CONSULTATION' ||
+    stage1.intent === 'PRODUCT_INFO' ||
+    stage1.intent === 'COMPARE_PRODUCTS'
+  ) {
+    return stage1;
+  }
+  if (!isUnsupportedScentConcept(concept) || !concept.topic) {
+    return stripUnsupportedConceptInventions(stage1, message, products);
+  }
+
+  const repeated = isRepeatedUnusualConcept(concept.topic, history, products);
+  if (repeated) {
+    return stripUnsupportedConceptInventions(emptyUnusualRecommendationStage1(), message, products);
+  }
+  if (concept.kind === 'unsupported_object') {
+    return buildUnsupportedObjectStage1(concept.topic);
+  }
+  return buildUnsupportedOtherStage1(concept.topic);
 }
 
 function buildNamedCompareStage1(names: string[]): Stage1IntentOutput {
@@ -941,6 +1151,66 @@ export function sanitizeInferredFragranceAttributes(
   return res;
 }
 
+const REFERENCE_SKIP_INTENTS: CanonicalIntent[] = [
+  'CART_ASSISTANCE',
+  'OUT_OF_SCOPE',
+  'PRODUCT_INFO',
+  'COMPARE_PRODUCTS',
+  'GREETING',
+  'IDENTITY',
+  'CAPABILITY',
+  'RESET_CONSULTATION',
+  'CLARIFICATION',
+];
+
+/**
+ * Keep an explicit named reference (catalogue or known designer) even when
+ * another preference such as warmth is extracted in the same turn.
+ * Does not invent a reference for plain refinements like "I want something warmer".
+ */
+export function applyExplicitReference(
+  result: Stage1IntentOutput,
+  message: string,
+  products: Product[] = []
+): Stage1IntentOutput {
+  if (REFERENCE_SKIP_INTENTS.includes(result.intent as CanonicalIntent)) {
+    return result;
+  }
+  if (/\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference)\b/i.test(message)) {
+    return result;
+  }
+
+  const extracted = extractKnownReferencePerfume(message, products);
+  if (!extracted) return result;
+
+  const isWearingOnly =
+    /\b(usually\s+wear|currently\s+wear|i\s+wear)\b/i.test(message) &&
+    !/\b(recommend|give\s+me|show\s+me|want|similar|alternative|warmer|cheaper|fresher)\b/i.test(
+      message
+    );
+
+  const res: Stage1IntentOutput = { ...result };
+  if (!res.reference_perfume) {
+    res.reference_perfume = extracted;
+  }
+  if (!isWearingOnly) {
+    res.is_similarity_request = true;
+    res.needs_recommendations = true;
+    res.requires_product_data = true;
+    if (!res.preferences) res.preferences = {};
+    const existing = Array.isArray(res.preferences.reference_fragrances)
+      ? res.preferences.reference_fragrances
+      : [];
+    if (!existing.some((name) => String(name).toLowerCase() === extracted.toLowerCase())) {
+      res.preferences = {
+        ...res.preferences,
+        reference_fragrances: [...existing, res.reference_perfume],
+      };
+    }
+  }
+  return res;
+}
+
 /**
  * Detects ambiguous, vague, or unsupported fragrance descriptors that require clarification.
  * Principles:
@@ -982,9 +1252,21 @@ export function detectAmbiguousDescriptor(
     return null;
   }
 
-  // Check if it's a reference perfume query (e.g. "similar to Dior Sauvage")
-  if (/\b(similar\s+to|smells?\s+like|alternative\s+to)\b/i.test(lower)) {
+  // Reference / alternative queries are not adjective-clarification cases.
+  // "smells like [unsupported object]" is handled separately.
+  if (/\b(similar\s+to|alternative\s+to)\b/i.test(lower)) {
     return null;
+  }
+  if (/\bsmells?\s+like\b/i.test(lower)) {
+    const concept = analyzeScentConcept(text, []);
+    if (concept.kind !== 'unsupported_object') {
+      return null;
+    }
+    return {
+      term: concept.topic || 'that smell',
+      question: unsupportedConceptQuestion(concept.topic || 'that'),
+      interpretations: unsupportedConceptInterpretations(concept.topic || 'that'),
+    };
   }
 
   // Check if known families are present in the query
@@ -1183,6 +1465,11 @@ export const OUT_OF_SCOPE_PATTERNS: RegExp[] = [
   /\b(who\s+won\s+the\s+(?:cricket|football|match|game|world\s+cup|super\s+bowl|ipl|championship)|cricket\s+score|match\s+score)\b/i,
   // Non-fragrance hardware / consumer products / media
   /\b(what\s+laptop|best\s+smartphone|which\s+(?:phone|car|tv|camera|computer)\s+(?:should\s+i|to)\s+buy|recommend\s+a\s+(?:movie|book|restaurant|hotel|flight))\b/i,
+  /\bwhat\s+is\s+python\b/i,
+  /\bbook\s+(?:me\s+)?(?:a\s+)?flight\b/i,
+  /\b(?:write|draft)\s+(?:me\s+)?(?:a\s+)?(?:resume|cv|cover\s+letter)\b/i,
+  /\breturn\s+policy\b/i,
+  /\b(?:can\s+i\s+buy|do\s+you\s+sell)\s+(?:a\s+)?(?:refrigerator|fridge|shoes|sneakers|clothes|laptop)\b/i,
 ];
 
 export const FRAGRANCE_TERMS_PATTERN =
@@ -1268,7 +1555,9 @@ export function analyzeMessageScope(
     currentState?.activeRequest?.budget?.max !== null ||
     currentState?.activeRequest?.occasion ||
     currentState?.currentConsultation?.fragrance_families?.length ||
-    currentState?.lastRecommendationIds?.length
+    currentState?.lastRecommendationIds?.length ||
+    currentState?.lastDiscussedProductSet?.length ||
+    currentState?.lastCanonicalProductSet?.length
   );
 
   const isContextualRefinement = hasActive && (
@@ -1286,10 +1575,16 @@ export function analyzeMessageScope(
     detectedSignals.push('store_meta');
   }
 
-  // Check purchase or cart inquiry signals
-  const isPurchaseOrCart =
-    /\b(order|buy|purchase|cart|checkout|acquire|how\s+(?:can|do)\s+i\s+(?:order|buy|purchase|get)|place\s+(?:an\s+)?order|where\s+can\s+i\s+buy)\b/i.test(lower);
-  if (isPurchaseOrCart) {
+  // Check purchase or cart inquiry signals — not generic "buy a refrigerator"
+  const isFragrancePurchase =
+    /\b(cart|checkout|acquire)\b/i.test(lower) ||
+    (/\b(order|buy|purchase|how\s+(?:can|do)\s+i\s+(?:order|buy|purchase|get)|place\s+(?:an\s+)?order|where\s+can\s+i\s+buy)\b/i.test(
+      lower
+    ) &&
+      (FRAGRANCE_TERMS_PATTERN.test(lower) ||
+        detectedSignals.some((signal) => signal.startsWith('product:')) ||
+        /\b(this|it|one|them|bottle|attar|extrait)\b/i.test(lower)));
+  if (isFragrancePurchase) {
     detectedSignals.push('purchase_cart');
   }
 
@@ -1341,11 +1636,28 @@ export function analyzeMessageScope(
     };
   }
 
-  // 5. In-scope / normal query
+  const isOffDomainQuestion =
+    /^(what|who|where|when|why|how|can\s+you|could\s+you|explain|solve|book|write)\b/i.test(lower) &&
+    !hasFragranceSignals &&
+    !isStoreMeta;
+
+  // 5. No fragrance signal and not a known store utterance → stay out of the rec engine
+  if (!hasFragranceSignals && (isOffDomainQuestion || hasOutOfScopePattern)) {
+    return {
+      isPureOutOfScope: true,
+      isMixedIntent: false,
+      isFragranceRelated: false,
+      fragranceQuery: '',
+      outOfScopeQuery: trimmed,
+      detectedSignals: [],
+    };
+  }
+
+  // 6. In-scope / normal query
   return {
     isPureOutOfScope: false,
     isMixedIntent: false,
-    isFragranceRelated: true,
+    isFragranceRelated: hasFragranceSignals || isStoreMeta || hasActive,
     fragranceQuery: trimmed,
     outOfScopeQuery: '',
     detectedSignals,
@@ -1386,7 +1698,7 @@ export function validateAndEnforcePolarity(
       new Set([
         ...(res.fragrance_families || []),
         ...styleFamilies,
-        ...(originalFamilies.length > 0 ? originalFamilies : ['oud', 'oriental', 'spicy']),
+        ...originalFamilies,
       ])
     );
     res.intent = 'RECOMMENDATION';
@@ -1422,7 +1734,7 @@ export function validateAndEnforcePolarity(
   // Check for clarification follow-up resolution
   if (currentState?.pendingClarification) {
     const isClarificationAnswer =
-      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|light|lighter|subtle)\b/i.test(lower) ||
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|light|lighter|subtle|leather|suede|wood|gasoline|linen|upholstery)\b/i.test(lower) ||
       lower.startsWith('something ') ||
       lower.startsWith('i mean ') ||
       lower.startsWith('more of ');
@@ -1432,6 +1744,13 @@ export function validateAndEnforcePolarity(
       res.needs_recommendations = true;
       res.needs_clarification = false;
       res.requires_product_data = true;
+      if (/\b(leather|suede)\b/i.test(lower) && !res.preferred_notes.includes('leather')) {
+        res.preferred_notes = [...res.preferred_notes, 'leather'];
+        res.updates.push({ field: 'preferred_notes', operation: 'SET', value: res.preferred_notes });
+      }
+      if (/\b(wood|woody|polished\s+wood)\b/i.test(lower)) {
+        res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'woody']));
+      }
       if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower)) {
         res.warmth = 'warmer';
         if (!res.updates.some(u => u.field === 'warmth')) {
@@ -1657,7 +1976,7 @@ export function validateAndEnforcePolarity(
     }
   }
 
-  const mentionsSimilarityNow = /\b(like|similar\s+to|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear)\b/.test(lower);
+  const mentionsSimilarityNow = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear)\b/.test(lower);
   const dropsReference = /\b(forget\s+(?:that|the)?\s*reference|drop\s+(?:that|the)?\s*reference|no\s+more\s+reference)\b/.test(lower);
   if (dropsReference || (!mentionsSimilarityNow && (freshPol.isPositive || detectReplacementFamily(lower) || detectNewDirectionRequest(rawMessage, currentState)))) {
     res.is_similarity_request = false;
@@ -1822,7 +2141,7 @@ export function validateAndEnforcePolarity(
     res.budget = { min: null, max: null };
     res.updates = [];
     res.preferences = {};
-    res.out_of_scope_answer = "I'm here specifically to help with perfumes and fragrance discovery. I can't help with that topic, but I can help you find a scent if you'd like.";
+    res.out_of_scope_answer = "I'm here to help you discover fragrances and choose products. If you're looking for a scent, tell me the kind of smell, occasion, budget, or fragrance you have in mind.";
   }
 
   return res;
@@ -1905,6 +2224,27 @@ export async function classifyIntentAndExtractPreferences(
     };
   }
 
+  const productFollowUp = detectProductFollowUp(trimmed, products, currentState);
+  if (productFollowUp) {
+    return buildNamedProductInfoStage1(productFollowUp);
+  }
+
+  const compareFollowUpEarly = detectCompareFollowUp(trimmed, currentState, products);
+  if (compareFollowUpEarly) {
+    return buildNamedCompareStage1(compareFollowUpEarly);
+  }
+
+  const scentConcept = analyzeScentConcept(trimmed, products);
+  if (isUnsupportedScentConcept(scentConcept) && scentConcept.topic) {
+    return coerceUnusualScentIntent(
+      emptyUnusualRecommendationStage1(),
+      trimmed,
+      products,
+      currentState,
+      history
+    );
+  }
+
   // 0. Application-Level Scope Enforcement & Mixed Intent Routing
   const scopeAnalysis = analyzeMessageScope(cleanMessage, products, currentState);
 
@@ -1923,7 +2263,7 @@ export async function classifyIntentAndExtractPreferences(
       needs_clarification: false,
       updates: [],
       preferences: {},
-      out_of_scope_answer: "I'm here specifically to help with perfumes and fragrance discovery. I can't help with that topic, but I can help you find a scent if you'd like.",
+      out_of_scope_answer: "I'm here to help you discover fragrances and choose products. If you're looking for a scent, tell me the kind of smell, occasion, budget, or fragrance you have in mind.",
     };
   }
 
@@ -1940,12 +2280,12 @@ export async function classifyIntentAndExtractPreferences(
     return buildInstructionOverrideStage1();
   }
 
-  const namedProductQuestion = detectProductAttributeQuestion(effectiveQuery, products);
+  const namedProductQuestion = detectProductFollowUp(effectiveQuery, products, currentState);
   if (namedProductQuestion) {
     return buildNamedProductInfoStage1(namedProductQuestion);
   }
 
-  const compareFollowUp = detectCompareFollowUp(effectiveQuery, currentState);
+  const compareFollowUp = detectCompareFollowUp(effectiveQuery, currentState, products);
   if (compareFollowUp) {
     return buildNamedCompareStage1(compareFollowUp);
   }
@@ -1995,11 +2335,8 @@ export async function classifyIntentAndExtractPreferences(
 
   if (currentState?.pendingClarification) {
     const originalFamilies = resolveStyleFamilies(currentState.pendingClarification.originalQuery || '');
-    if (isAffirmativeReply(effectiveQuery) || originalFamilies.length > 0 && isAffirmativeReply(effectiveQuery)) {
-      const rec = buildStyleRecommendation(
-        originalFamilies.length > 0 ? originalFamilies : ['oud', 'oriental', 'spicy'],
-        currentState
-      );
+    if (isAffirmativeReply(effectiveQuery) && originalFamilies.length > 0) {
+      const rec = buildStyleRecommendation(originalFamilies, currentState);
       rec.requires_product_data = true;
       return rec;
     }
@@ -2014,11 +2351,11 @@ export async function classifyIntentAndExtractPreferences(
     if (detectInstructionOverride(effectiveQuery)) {
       return buildInstructionOverrideStage1();
     }
-    const namedProductQuestion = detectProductAttributeQuestion(effectiveQuery, products);
+    const namedProductQuestion = detectProductFollowUp(effectiveQuery, products, currentState);
     if (namedProductQuestion) {
       return buildNamedProductInfoStage1(namedProductQuestion);
     }
-    const compareFollowUp = detectCompareFollowUp(effectiveQuery, currentState);
+    const compareFollowUp = detectCompareFollowUp(effectiveQuery, currentState, products);
     if (compareFollowUp) {
       return buildNamedCompareStage1(compareFollowUp);
     }
@@ -2035,14 +2372,15 @@ export async function classifyIntentAndExtractPreferences(
       return buildResetStage1();
     }
     validated.requires_product_data = doesIntentRequireProducts(validated.intent, validated);
-    return validated;
+    const grounded = coerceUnusualScentIntent(validated, effectiveQuery, products, currentState, history);
+    return applyExplicitReference(grounded, effectiveQuery, products);
   }
 
   // 2. Deterministic Fallback Classifier
   const fallbackResult = applyCartRoutingOverride(
     sanitizeInferredFragranceAttributes(
       validateAndEnforcePolarity(
-        fallbackIntentClassifier(effectiveQuery, brand, products, currentState),
+        fallbackIntentClassifier(effectiveQuery, brand, products, currentState, history),
         effectiveQuery,
         currentState
       ),
@@ -2056,7 +2394,11 @@ export async function classifyIntentAndExtractPreferences(
     return buildResetStage1();
   }
   fallbackResult.requires_product_data = doesIntentRequireProducts(fallbackResult.intent, fallbackResult);
-  return fallbackResult;
+  return applyExplicitReference(
+    coerceUnusualScentIntent(fallbackResult, effectiveQuery, products, currentState, history),
+    effectiveQuery,
+    products
+  );
 }
 
 /**
@@ -2235,6 +2577,9 @@ CRITICAL RULES:
 8. REFERENCE PERFUMES:
    - "I usually wear Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: false, needs_recommendations: false.
    - "Give me something similar to Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: true, needs_recommendations: true.
+   - "I like [named perfume] but want something warmer/cheaper/..." -> KEEP reference_perfume AND the extra preference (warmth/budget/etc.). is_similarity_request: true. Do NOT drop the reference because a refinement is also present.
+   - "I want an alternative to [named perfume]" -> reference_perfume set, is_similarity_request: true.
+   - "I want something warmer" with no named perfume -> reference_perfume: null, warmth: "warmer", is_similarity_request: false.
 
 9. CONVERSATION GATE — NON-RECOMMENDATION INTENTS:
    CUSTOMER_OBJECTION — Competitive statements, quality doubts, value challenges:
@@ -2252,6 +2597,10 @@ CRITICAL RULES:
    GENERAL_CONVERSATION — Chit-chat, thank-you, compliments, goodbyes:
    - "thank you" / "thanks" / "you're helpful" / "goodbye" / "bye":
      -> intent: "GENERAL_CONVERSATION", needs_recommendations: false.
+
+   UNUSUAL FRAGRANCE BRIEFS — "smells like pizza / burger / a chair / a car":
+   These are IN SCOPE as fragrance discovery requests. Never classify them as OUT_OF_SCOPE.
+   Do not invent a product. Do not automatically map food or objects to gourmand, leather, woody, or metallic.
 
    CLARIFICATION — AMBIGUOUS, VAGUE, OR UNKNOWN LANGUAGE:
    When the user's primary preference uses truly vague terminology (e.g. "melty", "off", "weird"):
@@ -2375,15 +2724,11 @@ Return ONLY valid JSON matching the schema.`;
 
     let refPerfume = parsed.reference_perfume || null;
     if (!refPerfume) {
-      if (lower.includes('sauvage')) refPerfume = 'Dior Sauvage';
-      else if (lower.includes('bleu de chanel')) refPerfume = 'Bleu de Chanel';
-      else if (lower.includes('aventus')) refPerfume = 'Creed Aventus';
-      else if (lower.includes('baccarat')) refPerfume = 'Baccarat Rouge 540';
-      else if (lower.includes('tobacco vanille') || lower.includes('tom ford')) refPerfume = 'Tom Ford Tobacco Vanille';
+      refPerfume = extractKnownReferencePerfume(message, products);
     }
     const isSimReq = Boolean(
       parsed.is_similarity_request ||
-      (refPerfume && (lower.includes('similar') || lower.includes('like ')))
+      (refPerfume && (lower.includes('similar') || lower.includes('like ') || lower.includes('alternative to') || lower.includes('inspired by')))
     );
 
     const resolvedIntent = refPerfume && isSimReq && effectiveIntent === 'RECOMMENDATION' ? 'SIMILAR_TO_REFERENCE' : effectiveIntent;
@@ -2401,7 +2746,9 @@ Return ONLY valid JSON matching the schema.`;
       resolvedIntent === 'BRAND_CONVERSATION' ||
       resolvedIntent === 'CLARIFICATION';
 
-    const needs_recommendations = isNonRecIntent ? false : Boolean(parsed.needs_recommendations || isRefinement);
+    const needs_recommendations = isNonRecIntent
+      ? false
+      : Boolean(parsed.needs_recommendations || isRefinement || isSimReq);
     const parsedRefs: string[] = Array.isArray(parsed.product_references)
       ? parsed.product_references.map((r: unknown) => String(r).trim()).filter(Boolean)
       : [];
@@ -2490,7 +2837,8 @@ export function fallbackIntentClassifier(
   message: string,
   brand: BrandConfig,
   products: Product[],
-  currentState?: ConversationState
+  currentState?: ConversationState,
+  history: ChatMessage[] = []
 ): Stage1IntentOutput {
   const clean = normalizeText(message);
   const lower = clean.toLowerCase().trim();
@@ -2510,11 +2858,32 @@ export function fallbackIntentClassifier(
     return buildResetStage1();
   }
 
+  const productFollowUpEarly = detectProductFollowUp(lower, products, currentState);
+  if (productFollowUpEarly) {
+    return buildNamedProductInfoStage1(productFollowUpEarly);
+  }
+
+  const compareFollowUpVeryEarly = detectCompareFollowUp(lower, currentState, products);
+  if (compareFollowUpVeryEarly) {
+    return buildNamedCompareStage1(compareFollowUpVeryEarly);
+  }
+
+  const unusualConcept = analyzeScentConcept(clean, products);
+  if (isUnsupportedScentConcept(unusualConcept) && unusualConcept.topic) {
+    return coerceUnusualScentIntent(
+      emptyUnusualRecommendationStage1(),
+      clean,
+      products,
+      currentState,
+      history
+    );
+  }
+
   // 0a. CLARIFICATION FOLLOW-UP (Resolving pending clarification)
   if (currentState?.pendingClarification) {
     const isClarificationAnswer =
       isAffirmativeReply(lower) ||
-      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|oud|oriental|amber|arabian|arabic|light|lighter|subtle)\b/i.test(lower) ||
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|oud|oriental|amber|arabian|arabic|light|lighter|subtle|leather|suede|wood|gasoline|linen|upholstery)\b/i.test(lower) ||
       lower.startsWith('something ') ||
       lower.startsWith('i mean ') ||
       lower.startsWith('more of ');
@@ -2544,11 +2913,16 @@ export function fallbackIntentClassifier(
         fams.push('fresh');
         updates.push({ field: 'fragrance_families', operation: 'SET', value: ['fresh'] });
       }
-      if (/\b(woody|cedar|sandalwood)\b/i.test(lower)) {
+      if (/\b(woody|cedar|sandalwood|polished\s+wood)\b/i.test(lower)) {
         fams.push('woody');
         updates.push({ field: 'fragrance_families', operation: 'SET', value: ['woody'] });
       }
-      if (/\b(oud|oriental|amber|arabian|arabic|spicy)\b/i.test(lower) || isAffirmativeReply(lower)) {
+      const leatherNotes: string[] = [];
+      if (/\b(leather|suede)\b/i.test(lower)) {
+        leatherNotes.push('leather');
+        updates.push({ field: 'preferred_notes', operation: 'SET', value: ['leather'] });
+      }
+      if (/\b(oud|oriental|amber|arabian|arabic|spicy)\b/i.test(lower)) {
         if (fams.length === 0) {
           fams.push('oud', 'oriental', 'spicy');
         }
@@ -2563,7 +2937,7 @@ export function fallbackIntentClassifier(
         is_new_request: !hasActiveConsultation(currentState),
         is_refinement: hasActiveConsultation(currentState),
         fragrance_families: combinedFams,
-        preferred_notes: [],
+        preferred_notes: leatherNotes,
         excluded_notes: [],
         excluded_families: [],
         warmth: warmthVal,
@@ -2744,6 +3118,16 @@ export function fallbackIntentClassifier(
     };
   }
 
+  const productFollowUp = detectProductFollowUp(lower, products, currentState);
+  if (productFollowUp) {
+    return buildNamedProductInfoStage1(productFollowUp);
+  }
+
+  const compareFollowUpEarly = detectCompareFollowUp(lower, currentState, products);
+  if (compareFollowUpEarly) {
+    return buildNamedCompareStage1(compareFollowUpEarly);
+  }
+
   // 1. OUT OF SCOPE
   const scopeCheck = analyzeMessageScope(message, products, currentState);
   if (scopeCheck.isPureOutOfScope) {
@@ -2758,7 +3142,7 @@ export function fallbackIntentClassifier(
       excluded_families: [],
       needs_recommendations: false,
       needs_clarification: false,
-      out_of_scope_answer: "I'm here specifically to help with perfumes and fragrance discovery. I can't help with that topic, but I can help you find a scent if you'd like.",
+      out_of_scope_answer: "I'm here to help you discover fragrances and choose products. If you're looking for a scent, tell me the kind of smell, occasion, budget, or fragrance you have in mind.",
       preferences: {},
     };
   }
@@ -2772,12 +3156,12 @@ export function fallbackIntentClassifier(
     return buildInstructionOverrideStage1();
   }
 
-  const namedProductQuestion = detectProductAttributeQuestion(lower, products);
+  const namedProductQuestion = detectProductFollowUp(lower, products, currentState);
   if (namedProductQuestion) {
     return buildNamedProductInfoStage1(namedProductQuestion);
   }
 
-  const compareFollowUp = detectCompareFollowUp(lower, currentState);
+  const compareFollowUp = detectCompareFollowUp(lower, currentState, products);
   if (compareFollowUp) {
     return buildNamedCompareStage1(compareFollowUp);
   }
@@ -2841,7 +3225,12 @@ export function fallbackIntentClassifier(
   }
 
   // 6. PRODUCT COMPARISON (TEST 27)
-  if (lower.startsWith('compare ') || lower.includes(' vs ') || lower.includes('difference between')) {
+  if (
+    lower.startsWith('compare ') ||
+    lower.includes(' vs ') ||
+    lower.includes('difference between') ||
+    /\bwhich\s+is\b/.test(lower)
+  ) {
     const matchedNames: string[] = [];
     for (const p of products) {
       if (lower.includes(p.name.toLowerCase())) {
@@ -3411,17 +3800,15 @@ export function fallbackIntentClassifier(
 
   // 14. REFERENCE PERFUMES (TEST 21, 22, 23)
   const isWearingReference = lower.includes('usually wear') || lower.includes('currently wear') || lower.includes('i wear');
-  const isExplicitSimilar = lower.includes('similar to') || lower.includes('like sauvage') || lower.includes('something similar');
+  const referencePerfume = extractKnownReferencePerfume(clean, products);
 
-  let referencePerfume: string | null = null;
-  if (lower.includes('sauvage')) referencePerfume = 'Dior Sauvage';
-  else if (lower.includes('bleu de chanel')) referencePerfume = 'Bleu de Chanel';
-  else if (lower.includes('aventus')) referencePerfume = 'Creed Aventus';
-  else if (lower.includes('baccarat')) referencePerfume = 'Baccarat Rouge 540';
-  else if (lower.includes('fraganote')) referencePerfume = 'Fraganote';
-  else if (lower.includes('tm perfume house') || lower.includes('tm perfumers')) referencePerfume = 'TM Perfume House';
-
-  if (isWearingReference && referencePerfume && !lower.includes('recommend') && !lower.includes('give me')) {
+  if (
+    isWearingReference &&
+    referencePerfume &&
+    !lower.includes('recommend') &&
+    !lower.includes('give me') &&
+    !lower.includes('want')
+  ) {
     return {
       intent: 'PREFERENCE_UPDATE',
       request_type: 'other',
@@ -3439,7 +3826,17 @@ export function fallbackIntentClassifier(
     };
   }
 
-  if ((lower.includes('similar to') || lower.includes('something similar') || lower.includes('show me similar')) && referencePerfume) {
+  const isPureSimilarityPhrase =
+    Boolean(referencePerfume) &&
+    !isStrengthenWarm &&
+    !isWarmthRequested &&
+    !isFreshnessRequested &&
+    (lower.includes('similar to') ||
+      lower.includes('something similar') ||
+      lower.includes('show me similar') ||
+      lower.includes('alternative to'));
+
+  if (isPureSimilarityPhrase) {
     return {
       intent: 'SIMILAR_TO_REFERENCE',
       request_type: 'new_consultation',
@@ -3671,6 +4068,8 @@ export function fallbackIntentClassifier(
     freshness,
     style,
     gender,
+    reference_perfume: referencePerfume,
+    is_similarity_request: Boolean(referencePerfume),
     budget: { min: null, max: bMax },
     needs_recommendations: true,
     needs_clarification: false,
@@ -3684,6 +4083,7 @@ export function fallbackIntentClassifier(
       avoid_notes: mustExcludeNotes,
       intensity,
       budget_max: bMax,
+      ...(referencePerfume ? { reference_fragrances: [referencePerfume] } : {}),
     },
   };
 }

@@ -82,7 +82,7 @@ export default function ProductDetail({ product, brand, similarProducts }: Produ
 
               {/* Dominant Bottle Focal Point */}
               <div className="relative z-10 my-auto py-6">
-                <BottleVisual product={product} brand={brand} size="lg" />
+                <BottleVisual product={product} brand={brand} size="lg" priority />
               </div>
 
               {/* Stage Subtitle */}

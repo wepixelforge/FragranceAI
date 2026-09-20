@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { BrandConfig } from '@/types/brand';
 import { Product } from '@/types/product';
