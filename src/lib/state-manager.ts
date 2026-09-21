@@ -1280,13 +1280,16 @@ export function toStructuredPreferences(
   const isSimReq = Boolean(
     activeReq.isSimilarityRequest ||
     ('intent' in stateOrPrefs && stateOrPrefs.intent === 'SIMILAR_TO_REFERENCE') ||
-    ('lastIntent' in stateOrPrefs && stateOrPrefs.lastIntent === 'SIMILAR_TO_REFERENCE')
+    ('lastIntent' in stateOrPrefs && stateOrPrefs.lastIntent === 'SIMILAR_TO_REFERENCE') ||
+    /\b(similar(\s+to)?|something\s+like|dupe|clone|alternative\s+to)\b/i.test(queryText)
   );
 
+  if (isSimReq) {
+    structured.isSimilarityRequest = true;
+  }
   if (isSimReq && bgCtx.referencePerfume) {
     structured.referencePerfumes = [bgCtx.referencePerfume];
     structured.similarTo = [bgCtx.referencePerfume];
-    structured.isSimilarityRequest = true;
   }
 
   if (activeReq.formatPreference) {

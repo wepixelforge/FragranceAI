@@ -10,7 +10,13 @@ import {
 } from '@/types/product';
 import { parseQuery } from './query-parser';
 import { enrichProduct } from './product-enricher';
-import { mlSimilarityScore } from './fragrance-similarity';
+import {
+  mlSimilarityScore,
+  isSimilarityAsk,
+  resolveCatalogueReferences,
+  sameScentLineIds,
+  similarityToReferences,
+} from './fragrance-similarity';
 import {
   analyzeScentConcept,
   isMeaningfulPartialMatch,
@@ -565,6 +571,33 @@ export function getRecommendations(
   const products = rawProducts.map(enrichProduct);
   const totalCatalogueCount = products.length;
 
+  const queryText = preferences.rawQuery || (typeof input === 'string' ? input : '');
+  const similarityAsk = Boolean(preferences.isSimilarityRequest) || isSimilarityAsk(queryText);
+  if (similarityAsk) {
+    preferences.isSimilarityRequest = true;
+  }
+  const referenceNames = Array.from(
+    new Set([...(preferences.referencePerfumes || []), ...(preferences.similarTo || [])].filter(Boolean))
+  );
+  const referenceProducts = similarityAsk
+    ? resolveCatalogueReferences(products, queryText, referenceNames)
+    : [];
+  if (similarityAsk && referenceProducts.length > 0 && referenceNames.length === 0) {
+    preferences.referencePerfumes = referenceProducts.map((product) => product.name);
+  }
+  const sameLineExcludeIds = similarityAsk
+    ? sameScentLineIds(products, referenceProducts, [
+        ...referenceNames,
+        ...referenceProducts.map((product) => product.name),
+      ])
+    : [];
+  excludeProductIds = Array.from(new Set([...excludeProductIds, ...sameLineExcludeIds]));
+  if (sameLineExcludeIds.length > 0) {
+    preferences.excludedProductIds = Array.from(
+      new Set([...(preferences.excludedProductIds || []), ...sameLineExcludeIds])
+    );
+  }
+
   const scentConcept = analyzeScentConcept(preferences.rawQuery || '', products);
   const unsupportedConcept = isUnsupportedScentConcept(scentConcept);
 
@@ -732,6 +765,9 @@ export function getRecommendations(
   if (preferences.intensity === 'strong') {
     appliedConstraints.push('Min intensity: strong');
   }
+  if (sameLineExcludeIds.length > 0) {
+    appliedConstraints.push('Exclude the named fragrance and its other sizes or concentrations');
+  }
 
   // Calculate relative cheaper threshold if requested
   let relativePriceCap: number | null = null;
@@ -825,12 +861,16 @@ export function getRecommendations(
   // ══════════════════════════════════════════════════════════════════════════
   // PHASE 2: EXACT MATCH EVALUATION ON HARD-VALID CANDIDATES
   // ══════════════════════════════════════════════════════════════════════════
-  const exactCandidates = hardValidProducts.filter((product) => {
-    const check = isValidCandidate(product, preferences, { excludeProductIds, relativePriceCap });
-    return check.valid;
-  });
+  const exactCandidates = similarityAsk
+    ? hardValidProducts
+    : hardValidProducts.filter((product) => {
+        const check = isValidCandidate(product, preferences, { excludeProductIds, relativePriceCap });
+        return check.valid;
+      });
 
-  const scoredExact = exactCandidates.map((product) => scoreProduct(product, preferences));
+  const scoredExact = exactCandidates.map((product) =>
+    scoreProduct(product, preferences, referenceProducts, referenceNames, similarityAsk)
+  );
   scoredExact.sort((a, b) => {
     if (b.score !== a.score) {
       return b.score - a.score;
@@ -847,7 +887,8 @@ export function getRecommendations(
     (preferences.sillageMax === 'moderate' || preferences.sillageMax === 'intimate');
 
   const eligibleExactScored = scoredExact.filter((r) => {
-    if (r.score < 10) return false;
+    if (r.score < 8) return false;
+    if (similarityAsk) return true;
     if (preferences.notes && preferences.notes.length > 0) {
       const haystack = [...r.product.topNotes, ...r.product.heartNotes, ...r.product.baseNotes, ...r.product.tags]
         .join(' ')
@@ -940,7 +981,9 @@ export function getRecommendations(
   // ══════════════════════════════════════════════════════════════════════════
   // No exact match satisfied all soft dimensions simultaneously, but hard-valid candidates exist.
   // We rank all hard-valid candidates deterministically using the existing scoring architecture.
-  const scoredPartial = hardValidProducts.map((product) => scoreProduct(product, preferences));
+  const scoredPartial = hardValidProducts.map((product) =>
+    scoreProduct(product, preferences, referenceProducts, referenceNames, similarityAsk)
+  );
   scoredPartial.sort((a, b) => {
     if (b.score !== a.score) {
       return b.score - a.score;
@@ -1069,19 +1112,42 @@ export function getRecommendations(
 /**
  * Multi-dimensional scoring function for products that passed hard filtering.
  */
-function scoreProduct(product: Product, prefs: StructuredPreferences): RecommendationResult {
+function scoreProduct(
+  product: Product,
+  prefs: StructuredPreferences,
+  referenceProducts: Product[] = [],
+  referenceNames: string[] = [],
+  similarityAsk = false
+): RecommendationResult {
   const matchReasons: MatchReason[] = [];
   let score = 0;
 
-  const ml = mlSimilarityScore(product, prefs);
-  if (ml.percent >= 12) {
-    const mlPts = Math.round(ml.similarity * WEIGHTS.mlSimilarity);
-    score += mlPts;
-    matchReasons.push({
-      type: 'similar',
-      label: `Scent similarity ${ml.percent}%`,
-      score: mlPts,
-    });
+  if (similarityAsk) {
+    const cosine = similarityToReferences(
+      product,
+      referenceProducts,
+      referenceNames.length > 0 ? referenceNames : prefs.referencePerfumes || []
+    );
+    const mlPts = Math.round(cosine * 100);
+    if (mlPts > 0) {
+      score += mlPts;
+      matchReasons.push({
+        type: 'similar',
+        label: `Scent similarity ${mlPts}%`,
+        score: mlPts,
+      });
+    }
+  } else {
+    const ml = mlSimilarityScore(product, prefs);
+    if (ml.percent >= 12) {
+      const mlPts = Math.round(ml.similarity * WEIGHTS.mlSimilarity);
+      score += mlPts;
+      matchReasons.push({
+        type: 'similar',
+        label: `Scent similarity ${ml.percent}%`,
+        score: mlPts,
+      });
+    }
   }
 
   // 1. Fragrance Family Matching

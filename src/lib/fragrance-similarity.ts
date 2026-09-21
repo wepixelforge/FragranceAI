@@ -158,11 +158,137 @@ export function buildProductVector(product: Product): SparseVector {
 
 export function mlSimilarityScore(
   product: Product,
-  prefs: StructuredPreferences
+  prefs: StructuredPreferences,
+  against?: SparseVector
 ): { similarity: number; percent: number } {
-  const similarity = cosineSimilarity(buildQueryVector(prefs), buildProductVector(product));
+  const similarity = cosineSimilarity(against || buildQueryVector(prefs), buildProductVector(product));
   return {
     similarity,
     percent: Math.round(similarity * 100),
   };
+}
+
+const SIZE_AND_FORMAT =
+  /\b(\d+(\.\d+)?\s*ml|\d+\s*oz|official\s+sample|sample|tester|decant|travel\s+spray|full\s+(bottle|size)|without\s+box|miniature|mini|edp|edt|extrait|parfum|perfume|cologne|elixir|intense|eau\s+de\s+(parfum|toilette|cologne))\b/gi;
+
+const LINE_STOPWORDS = new Set([
+  'the', 'de', 'du', 'of', 'by', 'and', 'le', 'la', 'les', 'pour', 'for', 'him', 'her',
+  'homme', 'woman', 'women', 'men', 'man', 'unisex', 'maison', 'francis', 'kurkdjian',
+]);
+
+export function scentLineKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(SIZE_AND_FORMAT, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function lineTokens(name: string): string[] {
+  return scentLineKey(name)
+    .split(' ')
+    .filter((token) => token.length > 1 && !LINE_STOPWORDS.has(token));
+}
+
+export function isSameScentLine(a: string, b: string): boolean {
+  const ta = lineTokens(a);
+  const tb = lineTokens(b);
+  if (ta.length < 2 || tb.length < 2) {
+    const ka = scentLineKey(a);
+    return Boolean(ka) && ka === scentLineKey(b);
+  }
+  const sa = ta.join(' ');
+  const sb = tb.join(' ');
+  return sa === sb || sa.includes(sb) || sb.includes(sa);
+}
+
+export function isSimilarityAsk(text: string): boolean {
+  const lower = (text || '').toLowerCase();
+  return /\b(similar(\s+to)?|something\s+like|smells?\s+like|dupe|clone|alternative\s+to|inspired\s+by|close\s+to|reminiscent|in\s+the\s+vein\s+of|along\s+the\s+lines\s+of)\b/i.test(
+    lower
+  );
+}
+
+export function cosineToProduct(candidate: Product, reference: Product): number {
+  return cosineSimilarity(buildProductVector(candidate), buildProductVector(reference));
+}
+
+export function buildReferenceNameVector(name: string): SparseVector {
+  const vector: SparseVector = {};
+  for (const token of lineTokens(name)) {
+    mergeSynonyms(vector, token, 1.1);
+  }
+  return vector;
+}
+
+export function similarityToReferences(
+  candidate: Product,
+  referenceProducts: Product[],
+  referenceNames: string[]
+): number {
+  let best = 0;
+  for (const reference of referenceProducts) {
+    best = Math.max(best, cosineToProduct(candidate, reference));
+  }
+  if (best === 0 && referenceNames.length > 0) {
+    const nameVector = referenceNames.reduce((acc, name) => {
+      const next = buildReferenceNameVector(name);
+      for (const [key, value] of Object.entries(next)) {
+        acc[key] = (acc[key] || 0) + value;
+      }
+      return acc;
+    }, {} as SparseVector);
+    best = Math.max(best, cosineSimilarity(nameVector, buildProductVector(candidate)));
+  }
+  const haystack = (candidate.similarTo || []).map((item) => item.toLowerCase());
+  for (const name of referenceNames) {
+    const key = scentLineKey(name);
+    if (key && haystack.some((item) => isSameScentLine(item, name) || item.includes(key))) {
+      best = Math.max(best, 0.82);
+    }
+  }
+  return best;
+}
+
+export function sameScentLineIds(
+  products: Product[],
+  referenceProducts: Product[],
+  referenceNames: string[]
+): string[] {
+  const names = [
+    ...referenceProducts.map((product) => product.name),
+    ...referenceNames.filter(Boolean),
+  ];
+  if (names.length === 0) return [];
+  return products
+    .filter((product) => names.some((name) => isSameScentLine(product.name, name)))
+    .map((product) => product.id);
+}
+
+export function resolveCatalogueReferences(
+  products: Product[],
+  query: string,
+  referenceNames: string[] = []
+): Product[] {
+  const lower = (query || '').toLowerCase();
+  const matched = new Map<string, Product>();
+  const sorted = [...products].sort((a, b) => b.name.length - a.name.length);
+
+  for (const product of sorted) {
+    const name = product.name.toLowerCase();
+    if (name.length < 6) continue;
+    if (lower.includes(name)) matched.set(product.id, product);
+  }
+
+  for (const ref of referenceNames) {
+    const refLower = ref.toLowerCase();
+    for (const product of products) {
+      if (isSameScentLine(product.name, ref) || product.name.toLowerCase().includes(refLower)) {
+        matched.set(product.id, product);
+      }
+    }
+  }
+
+  return Array.from(matched.values());
 }

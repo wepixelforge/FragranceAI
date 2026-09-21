@@ -977,7 +977,7 @@ export function detectProductFollowUp(
 
   const lower = message.toLowerCase();
   if (
-    /\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|smells?\s+like|add\s+to\s+(my\s+)?cart|cart|checkout|compare|make\s+it|warmer|cheaper|another\s+one|something\s+else)\b/.test(
+    /\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|something\s+similar|smells?\s+like|alternative\s+to|add\s+to\s+(my\s+)?cart|cart|checkout|compare|make\s+it|warmer|cheaper|another\s+one|something\s+else)\b/.test(
       lower
     )
   ) {
@@ -2822,7 +2822,9 @@ CRITICAL RULES:
 
 8. REFERENCE PERFUMES:
    - "I usually wear Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: false, needs_recommendations: false.
-   - "Give me something similar to Dior Sauvage" -> reference_perfume: "Dior Sauvage", is_similarity_request: true, needs_recommendations: true.
+   - "Give me something similar to Dior Sauvage" / "I like [Product] but want something similar":
+     -> intent: "SIMILAR_TO_REFERENCE", reference_perfume: the named scent, is_similarity_request: true, needs_recommendations: true.
+     NEVER recommend that same fragrance again (not another size, not EDP vs Extrait of the same juice). Recommend different scents that share its profile.
    - "I like [named perfume] but want something warmer/cheaper/..." -> KEEP reference_perfume AND the extra preference (warmth/budget/etc.). is_similarity_request: true. Do NOT drop the reference because a refinement is also present.
    - "I want something warmer than [named perfume]" / "Something similar to [named perfume] but warmer" -> KEEP reference_perfume, warmth: "warmer", is_similarity_request: true.
    - "I want an alternative to [named perfume]" -> reference_perfume set, is_similarity_request: true.
