@@ -8,6 +8,8 @@ import { tmperfumehouseProducts } from './products/tmperfumehouse-products';
 import { arabianaromaProducts } from './products/arabianaroma-products';
 import { almahamProducts } from './products/almaham-products';
 import { worldofperfumersProducts } from './products/worldofperfumers-products';
+import { applyWopCanonicalImages } from './products/worldofperfumers-images';
+import { enrichProducts } from '@/lib/product-enricher';
 
 // ── Brand Registry ──────────────────────────────────────────────────────────
 export const brands: Record<string, BrandConfig> = {
@@ -17,14 +19,12 @@ export const brands: Record<string, BrandConfig> = {
   worldofperfumers,
 };
 
-import { enrichProducts } from '@/lib/product-enricher';
-
 // ── Product Registry ────────────────────────────────────────────────────────
 const productsByBrand: Record<string, Product[]> = {
   tmperfumehouse: enrichProducts(tmperfumehouseProducts),
   arabianaroma: enrichProducts(arabianaromaProducts),
   almaham: enrichProducts(almahamProducts),
-  worldofperfumers: enrichProducts(worldofperfumersProducts),
+  worldofperfumers: applyWopCanonicalImages(enrichProducts(worldofperfumersProducts)),
 };
 
 // ── Public API ──────────────────────────────────────────────────────────────

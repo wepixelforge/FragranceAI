@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
@@ -21,6 +21,12 @@ export default function BottleVisual({
 }: BottleVisualProps) {
   const [imageError, setImageError] = useState(false);
   const cardStyle = brand.layout?.cardStyle || 'modern-flacon';
+  const isWorldOfPerfumers =
+    product.brandSlug === 'worldofperfumers' || brand.slug === 'worldofperfumers';
+
+  useEffect(() => {
+    setImageError(false);
+  }, [product.id, product.imageUrl]);
 
   // Liquid and ambient color calculations based on fragrance family
   const getFamilyColor = (family: string) => {
@@ -85,7 +91,9 @@ export default function BottleVisual({
         : 'h-52 w-44 sm:h-64 sm:w-52 max-h-full max-w-full';
 
     return (
-      <div className={`relative flex items-center justify-center select-none ${sizeContainerClass} p-1 transition-transform duration-500 group-hover:scale-105`}>
+      <div
+        className={`relative flex items-center justify-center select-none ${sizeContainerClass} p-3 sm:p-4 transition-transform duration-500 group-hover:scale-105`}
+      >
         <Image
           src={product.imageUrl}
           alt={product.name}
@@ -97,10 +105,33 @@ export default function BottleVisual({
                 ? '(max-width: 640px) 80vw, 420px'
                 : '(max-width: 640px) 45vw, 208px'
           }
-          className="object-contain drop-shadow-2xl select-none"
+          className="object-contain object-center p-2 sm:p-3 select-none"
           onError={() => setImageError(true)}
           priority={priority}
         />
+      </div>
+    );
+  }
+
+  // World of Perfumers: never invent a fake bottle when photography is missing or failed.
+  if (isWorldOfPerfumers) {
+    const sizeContainerClass =
+      size === 'sm'
+        ? 'h-36 w-32'
+        : size === 'lg'
+        ? 'h-80 w-64 sm:h-96 sm:w-80'
+        : 'h-52 w-44 sm:h-64 sm:w-52';
+    return (
+      <div
+        className={`relative flex flex-col items-center justify-center select-none ${sizeContainerClass} px-4 text-center`}
+      >
+        <span className="text-[10px] tracking-[0.28em] uppercase text-brand-text-muted">
+          {brand.monogram}
+        </span>
+        <span className="mt-2 font-serif text-sm text-brand-text line-clamp-2">{product.name}</span>
+        <span className="mt-1 text-[9px] tracking-[0.18em] uppercase text-brand-text-muted">
+          Image unavailable
+        </span>
       </div>
     );
   }

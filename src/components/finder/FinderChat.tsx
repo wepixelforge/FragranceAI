@@ -350,7 +350,7 @@ function CuratedRecommendationGroup({
               Primary Selection
             </div>
             <div className="relative z-10 transition-transform duration-700 ease-out hover:scale-104">
-              <BottleVisual product={primary.product} brand={brand} size="md" />
+              <BottleVisual key={primary.product.id} product={primary.product} brand={brand} size="md" />
             </div>
           </div>
 
@@ -431,7 +431,7 @@ function CuratedRecommendationGroup({
                 className="border border-brand-border bg-brand-surface hover:border-brand-accent/30 p-5 flex items-center gap-4 transition-all duration-300"
               >
                 <div className="w-20 h-24 shrink-0 bg-brand-stage flex items-center justify-center p-2">
-                  <BottleVisual product={alt.product} brand={brand} size="sm" />
+                  <BottleVisual key={alt.product.id} product={alt.product} brand={brand} size="sm" />
                 </div>
 
                 <div className="flex-1 min-w-0">

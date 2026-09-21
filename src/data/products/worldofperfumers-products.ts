@@ -1,14 +1,14 @@
 import { Product } from '@/types/product';
+import { applyWopCanonicalImages } from './worldofperfumers-images';
 
 /**
  * World of Perfumers Official Catalogue
  * Master perfumer formulations created by Nikhil Singhal, featuring climate-resilient
  * Indian performance, approachable pricing, and 10ml pocket tester options.
- * 
- * Every product maps to an authentic World of Perfumers product identity and verified
- * Shopify CDN product photography.
+ *
+ * Photography is bound by product.id via WOP_PRODUCT_IMAGES — never by array index.
  */
-export const worldofperfumersProducts: Product[] = [
+const worldofperfumersProductsRaw: Product[] = [
   {
     id: 'wop-01',
     slug: 'aventor-edp',
@@ -35,7 +35,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Signature boardroom wear', 'Weekend social events', 'All-day projection in heat'],
     similarTo: ['Creed Aventus', 'Club de Nuit Intense Man'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Aventor_Perfume_50ml_inspired_by_Creed_s_-_Aventus.webp?v=1779544332',
   },
   {
     id: 'wop-02',
@@ -62,7 +61,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Scorching summer days', 'High-end office commutes', 'Unisex understated luxury'],
     similarTo: ['Louis Vuitton Imagination'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Imagine_Perfume_50ml_inspired_by_Louis_Vuitton_s_Imagination.webp?v=1779574373',
   },
   {
     id: 'wop-03',
@@ -90,7 +88,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Everyday professional wear', 'Client presentations', 'Versatile day-to-night transitions'],
     similarTo: ['Bleu de Chanel', 'Dior Sauvage'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Blue_Perfume_50ml_inspired_by_Chanel_s_-_Bleu_De_Chanel.webp?v=1779540658',
   },
   {
     id: 'wop-04',
@@ -117,7 +114,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['College campuses', 'Evening gatherings', 'Guaranteed compliment magnet'],
     similarTo: ['Dior Sauvage'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Savage_Perfume_50ml_inspired_by_Christian_Dior_s_Sauvage.webp?v=1779542891',
   },
   {
     id: 'wop-05',
@@ -145,7 +141,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Winter weddings', 'Intimate formal dinners', 'Discreet luxury lovers'],
     similarTo: ['Tom Ford Oud Wood'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Amberwood-perfume_100ml_Inspired-by-Tom-Ford-Oud-Wood.webp?v=1779398138',
   },
   {
     id: 'wop-06',
@@ -172,7 +167,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['High humidity afternoons', 'Gym and workout freshness', 'Casual daytime outings'],
     similarTo: ['Acqua Di Gio', 'Cool Water'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Azure_Perfume_50ml_inspired_by_Giorgio_Armani_s_-_Acqua_Di_Gio.webp?v=1779540231',
   },
   {
     id: 'wop-07',
@@ -198,7 +192,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Romantic cafe dates', 'Cozy winter evenings', 'Sweet gourmand enthusiasts'],
     similarTo: ['Kayali Vanilla 28'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Vanilla_Perfume_50ml_inspired_by_Kayali_s_Vanilla_28_Kayali.webp?v=1779568889',
   },
   {
     id: 'wop-08',
@@ -225,7 +218,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Brunch outings', 'Spring garden parties', 'Office-appropriate elegance'],
     similarTo: ['Gucci Flora Gorgeous Gardenia', 'Miss Dior Blooming Bouquet'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Floral_Perfume_50ml_inspired_by_Gucci_s_-_Flora.webp?v=1779565264',
   },
   {
     id: 'wop-09',
@@ -252,7 +244,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Mindful daily wear', 'Corporate boardrooms', 'Those seeking natural woody serenity'],
     similarTo: ['Diptyque Tam Dao', 'Le Labo Santal 33'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Daoo_Perfume_50ml_inspired_by_Diptyque_s_Tam_Dao.webp?v=1779559801',
   },
   {
     id: 'wop-10',
@@ -278,7 +269,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Winter night outs', 'Festive celebrations', 'Luxury date nights'],
     similarTo: ['Kilian Angels\' Share', 'Oajan'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Angel_Perfume_50ml_inspired_by_Kilian_s_Angel_Share.webp?v=1779573883',
   },
   {
     id: 'wop-11',
@@ -305,7 +295,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Leather jacket nights', 'Evening socialite parties', 'Bold individualists'],
     similarTo: ['Tom Ford Ombre Leather'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Luxe_Perfume_50ml_inspired_by_Tom_Ford_s_-_Ombre_Leather.webp?v=1779660775',
   },
   {
     id: 'wop-12',
@@ -332,7 +321,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['High heat summer days', 'Active sports & gym wear', 'Crisp business casual'],
     similarTo: ['Creed Silver Mountain Water'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Silver_Perfume_50ml_inspired_by_Creed_s_-_Silver_Mountain_Water.webp?v=1779544556',
   },
   {
     id: 'wop-13',
@@ -358,7 +346,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Nightclubs & parties', 'Winter romance', 'High-impact projection'],
     similarTo: ['Jean Paul Gaultier Le Male Elixir'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Male_Perfume_50ml_inspired_by_Jean_Paul_Gaultier_s_Le_Male_Elixir.webp?v=1779567323',
   },
   {
     id: 'wop-14',
@@ -384,7 +371,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['High-glamour parties', 'Weddings', 'Anyone wanting an unmistakable signature'],
     similarTo: ['Maison Francis Kurkdjian Baccarat Rouge 540'],
     featured: true,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/Rouge_Inspired_by_MFK_Paris_Baccarat_Rouge_540_100ml_perfume.webp?v=1774738257',
   },
   {
     id: 'wop-15',
@@ -410,7 +396,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Nighttime celebrations', 'Winter get-togethers', 'Youthful charisma'],
     similarTo: ['Paco Rabanne 1 Million'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_The_Million_perfume_50ml_inspired_by_Paco_Rabanne_one_million.webp?v=1779713151',
   },
   {
     id: 'wop-16',
@@ -436,7 +421,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Clubbing & concerts', 'Night parties', 'Maximum projection seekers'],
     similarTo: ['Jean Paul Gaultier Ultra Male'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Alpha_Male_Perfume_50ml_inspired_by_Jean_Paul_Gaultier_s_Ultra_Male.webp?v=1779568405',
   },
   {
     id: 'wop-17',
@@ -463,7 +447,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Evening hangouts', 'Date nights', 'All-season crowd pleaser'],
     similarTo: ['Versace Eros'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Eros_Perfume_50ml_inspired_by_Versace_s_Eros.webp?v=1779661231',
   },
   {
     id: 'wop-18',
@@ -489,7 +472,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['December cold nights', 'Bonfire gatherings', 'Winter holiday celebrations'],
     similarTo: ['Tom Ford Tobacco Vanille'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Tobacco_V_Perfume_50ml_inspired_by_Tom_Ford_s_-_Tobacco_Vanille.webp?v=1779661001',
   },
   {
     id: 'wop-19',
@@ -517,7 +499,6 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Senior executive offices', 'Summer business meetings', 'Sophisticated everyday signature'],
     similarTo: ['Terre d\'Hermes'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Terra_Perfume_50ml_inspired_by_Hermes__-_Terre_D_Hermes.webp?v=1779565822',
   },
   {
     id: 'wop-20',
@@ -544,6 +525,9 @@ export const worldofperfumersProducts: Product[] = [
     bestFor: ['Intense gym workouts', 'Casual summer weekends', 'Budget everyday freshie'],
     similarTo: ['Davidoff Cool Water'],
     featured: false,
-    imageUrl: 'https://cdn.shopify.com/s/files/1/0844/7642/8535/files/WOPS_Cool_Perfume_50ml_inspired_by_David_Off_Cool_Water.webp?v=1787567585',
   },
 ];
+
+export const worldofperfumersProducts: Product[] = applyWopCanonicalImages(
+  worldofperfumersProductsRaw
+);
