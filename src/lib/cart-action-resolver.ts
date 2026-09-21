@@ -837,6 +837,39 @@ export function resolveCartProductReferences(options: {
       continue;
     }
 
+    const formatToken = token.toLowerCase().replace(/^the\s+/, '').trim();
+    const formatMap: Record<string, string[]> = {
+      sample: ['sample', 'vial'],
+      samples: ['sample', 'vial'],
+      vial: ['vial', 'sample'],
+      vials: ['vial', 'sample'],
+      pocket: ['pocket'],
+      miniature: ['miniature'],
+      miniatures: ['miniature'],
+      mini: ['miniature'],
+      tester: ['tester'],
+      testers: ['tester'],
+      'discovery set': ['discovery-set'],
+      'discovery-set': ['discovery-set'],
+    };
+    if (formatMap[formatToken] || token.toLowerCase().includes('discovery set')) {
+      const wanted = token.toLowerCase().includes('discovery')
+        ? ['discovery-set']
+        : formatMap[formatToken] || [];
+      const pool =
+        action === 'REMOVE_FROM_CART' && cartProducts.length > 0
+          ? cartProducts
+          : [
+              ...recommendationSet.map((item) => productFromCanonical(item, brandProducts)).filter(Boolean),
+              ...brandProducts.filter((p) => p.format && wanted.includes(p.format)),
+            ];
+      const match = (pool as Product[]).find((p) => p && p.format && wanted.includes(p.format));
+      if (match) {
+        resolved.push(match);
+        continue;
+      }
+    }
+
     if (upper === 'THIS' || upper === 'THAT' || upper === 'IT') {
       if (action === 'REMOVE_FROM_CART' && cartProducts.length === 1) {
         resolved.push(cartProducts[0]);

@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getBrand, getProduct, getProducts } from '@/data';
 import ProductDetailComponent from '@/components/product/ProductDetail';
+import { relatedFormatProducts } from '@/lib/sampling-format';
 
 interface PageProps {
   params: Promise<{ brandSlug: string; productSlug: string }>;
@@ -49,6 +50,7 @@ export default async function ProductPage({ params }: PageProps) {
         product={product}
         brand={brand}
         similarProducts={similarProducts}
+        relatedFormats={relatedFormatProducts(product, allProducts)}
       />
     </div>
   );

@@ -19,6 +19,8 @@ import {
   Season,
 } from '@/types/product';
 import { isReferenceDropRequest } from './query-parser';
+import { parseSamplingContext } from './sampling-format';
+import { isFreshConsultationQuery } from './fragrance-vocabulary';
 
 export function normalizeOccasion(raw?: string | null): string | null {
   if (!raw) return null;
@@ -77,6 +79,11 @@ export function createInitialActiveRequest(): ActiveRequest {
     style: null,
     relativePrice: null,
     isSimilarityRequest: false,
+    formatPreference: null,
+    explorationIntent: null,
+    experienceLevel: null,
+    travelIntent: false,
+    giftingIntent: false,
   };
 }
 
@@ -142,6 +149,8 @@ export function createInitialConversationState(): ConversationState {
     turnCount: 0,
     pendingClarification: null,
     pendingCartAction: null,
+    lastTurnWasGreeting: false,
+    lastPreferenceChange: null,
   };
 }
 
@@ -188,27 +197,140 @@ export function updateConversationState(
     return createInitialConversationState();
   }
 
-  // 1b. CLARIFICATION INTENT — PRESERVE STATE UNTOUCHED & RECORD PENDING CLARIFICATION
-  if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification) {
-    const rawMsg = typeof discussedProductIdsOrMessage === 'string'
-      ? discussedProductIdsOrMessage
-      : (userMessage || '');
+  const rawMsgEarly = typeof discussedProductIdsOrMessage === 'string'
+    ? discussedProductIdsOrMessage
+    : (userMessage || '');
 
-    const activeReq: ActiveRequest = base.activeRequest ? { ...base.activeRequest } : createInitialActiveRequest();
-    if (stage1.fragrance_families && stage1.fragrance_families.length > 0) {
-      activeReq.families = Array.from(new Set([...(activeReq.families || []), ...stage1.fragrance_families]));
+  // 1a. FORGET LAST PREFERENCE ("forget that") — not a full reset
+  if (stage1.requested_changes?.includes('forget_last')) {
+    const last = base.lastPreferenceChange;
+    const activeRequest: ActiveRequest = {
+      ...(base.activeRequest || createInitialActiveRequest()),
+      families: [...(base.activeRequest?.families || [])],
+      preferredNotes: [...(base.activeRequest?.preferredNotes || [])],
+      excludedNotes: [...(base.activeRequest?.excludedNotes || [])],
+      excludedFamilies: [...(base.activeRequest?.excludedFamilies || [])],
+      budget: { ...(base.activeRequest?.budget || { min: null, max: null }) },
+    };
+    const backgroundContext = {
+      ...(base.backgroundContext || createInitialBackgroundContext()),
+      usualFragrances: [...(base.backgroundContext?.usualFragrances || [])],
+      persistentExclusions: {
+        notes: [...(base.backgroundContext?.persistentExclusions?.notes || [])],
+        families: [...(base.backgroundContext?.persistentExclusions?.families || [])],
+        intensity_cap: base.backgroundContext?.persistentExclusions?.intensity_cap ?? null,
+      },
+    };
+
+    if (last?.kind === 'family') {
+      activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== last.value.toLowerCase());
+    } else if (last?.kind === 'budget') {
+      activeRequest.budget = { min: null, max: null };
+      activeRequest.relativePrice = null;
+    } else if (last?.kind === 'occasion') {
+      activeRequest.occasion = null;
+    } else if (last?.kind === 'reference') {
+      activeRequest.isSimilarityRequest = false;
+      backgroundContext.referencePerfume = null;
+    } else if (last?.kind === 'freshness') {
+      activeRequest.freshness = null;
+    } else if (last?.kind === 'note') {
+      activeRequest.preferredNotes = activeRequest.preferredNotes.filter((n) => n.toLowerCase() !== last.value.toLowerCase());
+    } else if (last?.kind === 'format') {
+      activeRequest.formatPreference = null;
     }
+
+    const currentConsultation: ActiveConsultation = {
+      occasion: activeRequest.occasion,
+      season: activeRequest.season,
+      gender: activeRequest.gender,
+      fragrance_families: [...activeRequest.families],
+      preferred_notes: [...activeRequest.preferredNotes],
+      intensity: activeRequest.intensity,
+      sillage: activeRequest.sillage,
+      longevity: activeRequest.longevity,
+      budget_max: activeRequest.budget.max,
+      budget_min: activeRequest.budget.min,
+      warmth: activeRequest.warmth,
+      freshness: activeRequest.freshness,
+      sweetness: activeRequest.sweetness,
+      active_reference_perfume: activeRequest.isSimilarityRequest ? backgroundContext.referencePerfume : null,
+    };
 
     return {
       ...base,
+      intent: 'PREFERENCE_UPDATE' as CanonicalIntent,
+      activeRequest,
+      backgroundContext,
+      currentConsultation,
+      preferences: buildUnifiedPreferences(currentConsultation, base.backgroundPreferences || createInitialBackgroundPreferences()),
+      lastPreferenceChange: null,
+      lastRecommendationIds: [],
+      lastCanonicalProductSet: [],
+      lastDiscussedProductSet: [],
+      turnCount: (base.turnCount || 0) + 1,
+      pendingClarification: null,
+      lastTurnWasGreeting: false,
+    };
+  }
+
+  // 1b. CLARIFICATION INTENT — PRESERVE STATE UNTOUCHED & RECORD PENDING CLARIFICATION
+  if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification) {
+    const rawMsg = rawMsgEarly;
+    const isNewBrief = stage1.is_new_request === true;
+    const activeReq: ActiveRequest = isNewBrief
+      ? createInitialActiveRequest()
+      : base.activeRequest
+        ? { ...base.activeRequest, families: [...(base.activeRequest.families || [])] }
+        : createInitialActiveRequest();
+    if (stage1.fragrance_families && stage1.fragrance_families.length > 0 && !isNewBrief) {
+      activeReq.families = Array.from(new Set([...(activeReq.families || []), ...stage1.fragrance_families]));
+    }
+    if (stage1.ambiguous_term === 'creamy' || /\bcreamy\b/i.test(rawMsg)) {
+      if (!activeReq.preferredNotes.includes('creamy')) {
+        activeReq.preferredNotes = [...activeReq.preferredNotes, 'creamy'];
+      }
+      if (!activeReq.style) activeReq.style = 'creamy';
+    }
+
+    return {
+      ...(isNewBrief
+        ? {
+            ...base,
+            lastRecommendationIds: [],
+            lastCanonicalProductSet: [],
+            lastDiscussedProductSet: [],
+            backgroundContext: {
+              ...createInitialBackgroundContext(),
+              persistentExclusions: base.backgroundContext?.persistentExclusions || createInitialBackgroundContext().persistentExclusions,
+            },
+          }
+        : base),
       intent: 'CLARIFICATION' as CanonicalIntent,
       activeRequest: activeReq,
       turnCount: (base.turnCount || 0) + 1,
+      lastPreferenceChange: isNewBrief
+        ? { kind: 'note' as const, value: 'creamy' }
+        : base.lastPreferenceChange,
+      lastTurnWasGreeting: false,
       pendingClarification: {
         originalQuery: rawMsg,
         ambiguousTerm: stage1.ambiguous_term || undefined,
         question: stage1.clarification_question || undefined,
       },
+    };
+  }
+
+  // 1b2. GREETING — do not create preferences or recommendations.
+  // Mid-consultation "hi" keeps the thread; the next discovery query starts fresh.
+  if (stage1.intent === 'GREETING' || stage1.intent === 'IDENTITY' || stage1.intent === 'CAPABILITY') {
+    return {
+      ...base,
+      intent: stage1.intent as CanonicalIntent,
+      lastIntent: stage1.intent,
+      lastTurnWasGreeting: stage1.intent === 'GREETING',
+      turnCount: (base.turnCount || 0) + 1,
+      pendingClarification: null,
     };
   }
 
@@ -249,6 +371,11 @@ export function updateConversationState(
     style: base.activeRequest?.style ?? null,
     relativePrice: base.activeRequest?.relativePrice ?? null,
     isSimilarityRequest: base.activeRequest?.isSimilarityRequest ?? false,
+    formatPreference: base.activeRequest?.formatPreference ?? null,
+    explorationIntent: base.activeRequest?.explorationIntent ?? null,
+    experienceLevel: base.activeRequest?.experienceLevel ?? null,
+    travelIntent: Boolean(base.activeRequest?.travelIntent),
+    giftingIntent: Boolean(base.activeRequest?.giftingIntent),
   };
 
   const backgroundContext: BackgroundContext = {
@@ -267,7 +394,10 @@ export function updateConversationState(
     typeof discussedProductIdsOrMessage === 'string' ? discussedProductIdsOrMessage : userMessage || ''
   ).toLowerCase();
   const messageMentionsSimilarity = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|i\s+wear|compared\s+to|than)\b/.test(rawUserTextEarly);
-  const isReferenceDroppedEarly = isReferenceDropRequest(rawUserTextEarly);
+  const isReferenceDroppedEarly = isReferenceDropRequest(
+    rawUserTextEarly,
+    base.backgroundContext?.referencePerfume
+  );
 
   // 2. BACKGROUND CONTEXT UPDATES (e.g. "I usually wear Dior Sauvage")
   if (
@@ -369,10 +499,19 @@ export function updateConversationState(
       (hasActive && hasRefinementKeyword && !stage1.requested_changes?.includes('replace_family')));
 
   const isExplicitReset =
-    /\b(forget\s+(?:everything|my\s+preferences|all\s+preferences)|start\s+over|reset|new\s+search|start\s+(?:a\s+)?new\s+search|start\s+fresh|let'?s\s+start\s+fresh)\b/i.test(rawUserText);
+    /\b(forg[eo]t\s+(?:everything|all(\s+(?:of\s+)?(?:this|that))?|my\s+preferences|all\s+preferences)|clear\s+everything|ignore\s+everything|start\s+over|reset|new\s+search|start\s+(?:a\s+)?new\s+search|start\s+fresh|let'?s\s+start\s+fresh)\b/i.test(rawUserText);
+
+  const afterGreetingNewQuery =
+    Boolean(base.lastTurnWasGreeting) &&
+    !isProductFactualIntent &&
+    stage1.intent !== 'SHOW_ALTERNATIVES' &&
+    stage1.intent !== 'BUDGET_CHANGE' &&
+    stage1.intent !== 'REFINE_RECOMMENDATION' &&
+    isFreshConsultationQuery(rawUserText);
 
   const isNewConsultation =
     isExplicitReset ||
+    afterGreetingNewQuery ||
     (!isProductFactualIntent &&
       (isDirectedNewRequest || (!isExplicitRefinement && !hasActive)));
 
@@ -400,6 +539,11 @@ export function updateConversationState(
       style: stage1.style || null,
       relativePrice: null, // Reset relative price on new request
       isSimilarityRequest: Boolean(stage1.is_similarity_request),
+      formatPreference: stage1.format_preference ?? null,
+      explorationIntent: stage1.exploration_intent ?? null,
+      experienceLevel: stage1.experience_level ?? null,
+      travelIntent: Boolean(stage1.travel_intent),
+      giftingIntent: Boolean(stage1.gifting_intent),
     };
 
     if (stage1.is_similarity_request && stage1.reference_perfume) {
@@ -415,7 +559,10 @@ export function updateConversationState(
     const isReplacement = hasReplacementMarker && !hasCombinationMarker;
 
     // Reference cleanup on explicit reference drop or new direction
-    const isReferenceDropped = isReferenceDropRequest(rawUserText);
+    const isReferenceDropped = isReferenceDropRequest(
+      rawUserText,
+      backgroundContext.referencePerfume
+    );
     if (isReferenceDropped) {
       activeRequest.isSimilarityRequest = false;
       activeRequest.relativePrice = null;
@@ -432,21 +579,24 @@ export function updateConversationState(
     }
 
     // Explicit "forget X" removals
-    if (/\bforget\s+fresh\b/i.test(rawUserText)) {
+    if (/\bforg[eo]t\s+(?:the\s+)?fresh\b/i.test(rawUserText)) {
       activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'fresh');
       activeRequest.freshness = null;
     }
-    if (/\bforget\s+warm\b/i.test(rawUserText)) {
+    if (/\bforg[eo]t\s+(?:the\s+)?warm\b/i.test(rawUserText)) {
       activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'warm');
       activeRequest.warmth = null;
       activeRequest.warmthMax = null;
     }
-    if (/\bforget\s+woody\b/i.test(rawUserText)) {
+    if (/\bforg[eo]t\s+(?:the\s+)?woody\b/i.test(rawUserText)) {
       activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'woody');
     }
-    if (/\bforget\s+sweet\b/i.test(rawUserText)) {
+    if (/\bforg[eo]t\s+(?:the\s+)?sweet\b/i.test(rawUserText)) {
       activeRequest.families = activeRequest.families.filter((f) => !['sweet', 'gourmand'].includes(f.toLowerCase()));
       activeRequest.sweetness = null;
+    }
+    if (/\bforg[eo]t\s+(?:the\s+)?fruity\b/i.test(rawUserText)) {
+      activeRequest.families = activeRequest.families.filter((f) => f.toLowerCase() !== 'fruity');
     }
 
     // Direct field deltas ensure state updates succeed even if stage1.updates array was omitted:
@@ -529,11 +679,21 @@ export function updateConversationState(
             }
             break;
           case 'preferred_notes':
-            if (update.operation === 'REPLACE') {
+            if (update.operation === 'REPLACE' || update.operation === 'SET') {
               activeRequest.preferredNotes = Array.isArray(update.value) ? update.value : [update.value];
             } else if (update.operation === 'ADD') {
               const toAdd = Array.isArray(update.value) ? update.value : [update.value];
               activeRequest.preferredNotes = Array.from(new Set([...activeRequest.preferredNotes, ...toAdd]));
+            } else if (update.operation === 'REMOVE') {
+              const toRem = (Array.isArray(update.value) ? update.value : [update.value]).map((n) =>
+                String(n).toLowerCase()
+              );
+              const expanded = toRem.flatMap((n) =>
+                n === 'vanilla' || n === 'vanillic' ? ['vanilla', 'vanillic'] : [n]
+              );
+              activeRequest.preferredNotes = activeRequest.preferredNotes.filter(
+                (n) => !expanded.includes(n.toLowerCase())
+              );
             }
             break;
           case 'occasion':
@@ -744,6 +904,42 @@ export function updateConversationState(
     if (stage1.preferred_notes && stage1.preferred_notes.length > 0) {
       activeRequest.preferredNotes = Array.from(new Set([...activeRequest.preferredNotes, ...stage1.preferred_notes]));
     }
+
+    if (stage1.format_preference) {
+      activeRequest.formatPreference = stage1.format_preference;
+    }
+    if (stage1.exploration_intent) {
+      activeRequest.explorationIntent = stage1.exploration_intent;
+    }
+    if (stage1.experience_level) {
+      activeRequest.experienceLevel = stage1.experience_level;
+    }
+    if (stage1.travel_intent !== undefined) {
+      activeRequest.travelIntent = Boolean(stage1.travel_intent);
+    }
+    if (stage1.gifting_intent !== undefined) {
+      activeRequest.giftingIntent = Boolean(stage1.gifting_intent);
+    }
+  }
+
+  const sampled = parseSamplingContext(rawUserText);
+  if (stage1.format_preference || sampled.formatPreference) {
+    activeRequest.formatPreference = stage1.format_preference ?? sampled.formatPreference;
+  }
+  if (stage1.exploration_intent || sampled.explorationIntent) {
+    activeRequest.explorationIntent = stage1.exploration_intent ?? sampled.explorationIntent;
+  }
+  if (stage1.experience_level || sampled.experienceLevel) {
+    activeRequest.experienceLevel = stage1.experience_level ?? sampled.experienceLevel;
+  }
+  if (stage1.travel_intent || sampled.travelIntent) {
+    activeRequest.travelIntent = true;
+  }
+  if (stage1.gifting_intent || sampled.giftingIntent) {
+    activeRequest.giftingIntent = true;
+  }
+  if (/\bforget\s+the\s+format\b/.test(rawUserText) || /\bno\s+format\s+preference\b/.test(rawUserText)) {
+    activeRequest.formatPreference = 'NO_FORMAT_PREFERENCE';
   }
 
   // Strict Contradiction Resolution (Section 14)
@@ -821,6 +1017,32 @@ export function updateConversationState(
     turnCount: base.turnCount + 1,
     pendingClarification: null,
     pendingCartAction: isNewConsultation ? null : (base.pendingCartAction || null),
+    lastTurnWasGreeting: false,
+    lastPreferenceChange: (() => {
+      if (isNewConsultation) {
+        if (activeRequest.families.length > 0) {
+          return { kind: 'family' as const, value: activeRequest.families[activeRequest.families.length - 1] };
+        }
+        if (activeRequest.budget.max != null) return { kind: 'budget' as const, value: String(activeRequest.budget.max) };
+        if (activeRequest.occasion) return { kind: 'occasion' as const, value: activeRequest.occasion };
+        if (activeRequest.preferredNotes.length > 0) {
+          return { kind: 'note' as const, value: activeRequest.preferredNotes[activeRequest.preferredNotes.length - 1] };
+        }
+        return null;
+      }
+      if (stage1.fragrance_families && stage1.fragrance_families.length > 0) {
+        return { kind: 'family' as const, value: stage1.fragrance_families[stage1.fragrance_families.length - 1] };
+      }
+      if (stage1.budget?.max != null) return { kind: 'budget' as const, value: String(stage1.budget.max) };
+      if (stage1.occasion) return { kind: 'occasion' as const, value: stage1.occasion };
+      if (stage1.preferred_notes && stage1.preferred_notes.length > 0) {
+        return { kind: 'note' as const, value: stage1.preferred_notes[stage1.preferred_notes.length - 1] };
+      }
+      if (stage1.is_similarity_request && stage1.reference_perfume) {
+        return { kind: 'reference' as const, value: stage1.reference_perfume };
+      }
+      return base.lastPreferenceChange || null;
+    })(),
   };
 }
 
@@ -1066,6 +1288,18 @@ export function toStructuredPreferences(
     structured.similarTo = [bgCtx.referencePerfume];
     structured.isSimilarityRequest = true;
   }
+
+  if (activeReq.formatPreference) {
+    structured.formatPreference = activeReq.formatPreference;
+  }
+  if (activeReq.explorationIntent) {
+    structured.explorationIntent = activeReq.explorationIntent;
+  }
+  if (activeReq.experienceLevel) {
+    structured.experienceLevel = activeReq.experienceLevel;
+  }
+  structured.travelIntent = Boolean(activeReq.travelIntent);
+  structured.giftingIntent = Boolean(activeReq.giftingIntent);
 
   return structured;
 }

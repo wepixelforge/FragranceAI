@@ -2,7 +2,8 @@ export type DesignVariant =
   | 'catalogue-modern'    // TM Perfume House: Large catalogue, high-volume e-commerce, instant prompt search
   | 'oriental-artisanal'   // Arabian Aroma: Traditional alcohol-free attars, rich ouds, warm atmospheric heritage
   | 'luxury-editorial'     // Al-Maham: High-fashion atelier, generous whitespace, bespoke consultation
-  | 'discovery-niche';     // World of Perfumers: Modern discovery lab, trial sizes, climate-tested formulas
+  | 'discovery-niche'      // World of Perfumers: Modern discovery lab, trial sizes, climate-tested formulas
+  | 'sampling-concierge';  // The Scent Stories: fragrance discovery + try-before-you-commit formats
 
 export interface BrandConfig {
   slug: string;
@@ -46,7 +47,22 @@ export interface BrandConfig {
     ctaSecondary: string;
     valuePropositionTitle: string;
     valuePropositionSubtitle: string;
-    sectionsOrder: Array<'hero' | 'quick-discovery' | 'featured' | 'fragrance-families' | 'story' | 'value'>;
+    sectionsOrder: Array<
+      | 'hero'
+      | 'quick-discovery'
+      | 'featured'
+      | 'fragrance-families'
+      | 'story'
+      | 'value'
+      | 'concierge'
+      | 'formats'
+      | 'purposes'
+      | 'how-it-works'
+      | 'help'
+      | 'samples'
+      | 'pocket'
+      | 'discovery-sets'
+    >;
     storyHeadline?: string;
     storyBody?: string;
   };

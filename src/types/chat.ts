@@ -1,4 +1,4 @@
-import { Product, RecommendationResult, FragranceFamily, Occasion, Season, Gender, Longevity, Intensity, StructuredPreferences } from './product';
+import { Product, RecommendationResult, FragranceFamily, Occasion, Season, Gender, Longevity, Intensity, StructuredPreferences, FormatIntent, ExplorationIntent, ExperienceLevel } from './product';
 
 export type CanonicalIntent =
   | 'GREETING'
@@ -70,6 +70,11 @@ export interface ActiveRequest {
   style: string | null;
   relativePrice: 'cheaper' | null;
   isSimilarityRequest?: boolean;
+  formatPreference?: FormatIntent | null;
+  explorationIntent?: ExplorationIntent;
+  experienceLevel?: ExperienceLevel;
+  travelIntent?: boolean;
+  giftingIntent?: boolean;
 }
 
 export interface BackgroundContext {
@@ -159,6 +164,13 @@ export interface ConversationState {
     question?: string;
   } | null;
   pendingCartAction?: PendingCartAction | null;
+  /** True only after a GREETING turn. The next discovery query starts a new consultation. */
+  lastTurnWasGreeting?: boolean;
+  /** Most recently introduced preference, used by "forget that". */
+  lastPreferenceChange?: {
+    kind: 'family' | 'budget' | 'occasion' | 'reference' | 'freshness' | 'note' | 'format';
+    value: string;
+  } | null;
 }
 
 export interface ChatMessage {
@@ -204,7 +216,9 @@ export interface PreferenceUpdateItem {
     | 'reference_perfume'
     | 'relative_price'
     | 'style'
-    | 'sillageMax';
+    | 'sillageMax'
+    | 'format_preference'
+    | 'exploration_intent';
   operation: 'SET' | 'UPDATE' | 'REMOVE' | 'ADD' | 'REPLACE';
   value?: any;
 }
@@ -379,6 +393,11 @@ export interface Stage1IntentOutput {
   suggested_chips?: string[];
   preferences: Partial<ConversationPreferences>;
   is_surprise_me?: boolean;
+  format_preference?: FormatIntent | null;
+  exploration_intent?: ExplorationIntent;
+  experience_level?: ExperienceLevel;
+  travel_intent?: boolean;
+  gifting_intent?: boolean;
 }
 
 export interface GroundedProductContext {
@@ -403,5 +422,9 @@ export interface GroundedProductContext {
   inspired_by: string[];
   description: string;
   tags: string[];
+  format?: string | null;
+  house_brand?: string | null;
+  original_price?: number | null;
+  concentration?: string | null;
 }
 

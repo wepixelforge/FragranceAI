@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 import { formatPrice } from '@/lib/brand-utils';
+import { formatLabel } from '@/lib/sampling-format';
 import BottleVisual from './BottleVisual';
 
 interface ProductCardProps {
@@ -15,6 +16,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
   const isDiscovery = brand.designVariant === 'discovery-niche';
   const isOriental = brand.designVariant === 'oriental-artisanal';
   const isLuxury = brand.designVariant === 'luxury-editorial';
+  const isSampling = brand.designVariant === 'sampling-concierge';
 
   const getDescriptor = () => {
     if (product.character) return product.character;
@@ -28,6 +30,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
     if (isDiscovery) return 'Try 10ml →';
     if (isOriental) return 'View Attar →';
     if (isLuxury) return 'View Extrait →';
+    if (isSampling) return 'View format →';
     return 'Explore Scent →';
   };
 
@@ -37,7 +40,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
       className="group block relative flex flex-col h-full bg-brand-surface border border-brand-border hover:border-brand-accent/40 transition-all duration-500 overflow-hidden shadow-xs"
     >
       {/* Product Image Stage */}
-      <div className="relative aspect-[3/4] overflow-hidden bg-brand-stage flex items-center justify-center p-6 sm:p-8">
+      <div className={`relative aspect-[3/4] overflow-hidden bg-brand-stage flex items-center justify-center p-6 sm:p-8 ${isSampling ? 'image-stage' : ''}`}>
         {/* Soft Ambient Radial Underglow */}
         <div
           className="absolute inset-0 bg-gradient-to-b from-transparent via-white/[0.015] to-transparent pointer-events-none"
@@ -59,13 +62,18 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
         <div>
           {/* Scent Family / Character */}
           <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
-            {product.fragranceFamily.slice(0, 2).join(' · ')}
+            {isSampling && product.format
+              ? `${formatLabel(product.format)} · ${product.fragranceFamily.slice(0, 2).join(' · ')}`
+              : product.fragranceFamily.slice(0, 2).join(' · ')}
           </span>
 
           {/* Product Title */}
-          <h3 className="font-serif text-lg sm:text-xl font-normal text-brand-text group-hover:text-brand-accent transition-colors mt-1.5 leading-snug line-clamp-1">
+          <h3 className="font-serif text-lg sm:text-xl font-normal text-brand-text group-hover:text-brand-accent transition-colors mt-1.5 leading-snug line-clamp-2">
             {product.name}
           </h3>
+          {isSampling && product.houseBrand && (
+            <p className="mt-1 text-[11px] text-brand-text-muted">{product.houseBrand}</p>
+          )}
 
           {/* Concise Poetic Descriptor */}
           <p className="mt-2 text-xs text-brand-text-muted line-clamp-2 font-light leading-relaxed">
@@ -82,6 +90,11 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
             {isDiscovery && (
               <span className="text-[10px] text-brand-text-muted block mt-0.5 font-light">
                 10ml trial from ₹149
+              </span>
+            )}
+            {isSampling && (
+              <span className="text-[10px] text-brand-text-muted block mt-0.5 font-light">
+                {product.size}
               </span>
             )}
           </div>

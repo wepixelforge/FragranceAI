@@ -23,6 +23,8 @@ export default function BottleVisual({
   const cardStyle = brand.layout?.cardStyle || 'modern-flacon';
   const isWorldOfPerfumers =
     product.brandSlug === 'worldofperfumers' || brand.slug === 'worldofperfumers';
+  const isScentStories =
+    product.brandSlug === 'thescentstories' || brand.slug === 'thescentstories';
 
   useEffect(() => {
     setImageError(false);
@@ -92,7 +94,9 @@ export default function BottleVisual({
 
     return (
       <div
-        className={`relative flex items-center justify-center select-none ${sizeContainerClass} p-3 sm:p-4 transition-transform duration-500 group-hover:scale-105`}
+        className={`relative flex items-center justify-center select-none ${sizeContainerClass} ${
+          isScentStories ? 'p-4 sm:p-5' : 'p-3 sm:p-4'
+        } transition-transform duration-500 group-hover:scale-105`}
       >
         <Image
           src={product.imageUrl}
@@ -109,6 +113,31 @@ export default function BottleVisual({
           onError={() => setImageError(true)}
           priority={priority}
         />
+      </div>
+    );
+  }
+
+  // The Scent Stories: never invent a bottle when official photography is missing.
+  if (isScentStories) {
+    const sizeContainerClass =
+      size === 'sm'
+        ? 'h-36 w-32'
+        : size === 'lg'
+        ? 'h-80 w-64 sm:h-96 sm:w-80'
+        : 'h-52 w-44 sm:h-64 sm:w-52';
+    return (
+      <div
+        className={`relative flex flex-col items-center justify-center select-none ${sizeContainerClass} px-5 text-center border border-brand-border/60 bg-brand-surface`}
+      >
+        <span className="font-serif text-sm text-brand-text line-clamp-3 leading-snug">
+          {product.name}
+        </span>
+        <span className="mt-2 text-[10px] tracking-[0.16em] uppercase text-brand-text-muted">
+          {product.size || 'Official Sample'}
+        </span>
+        <span className="mt-1 text-[9px] tracking-[0.14em] uppercase text-brand-text-muted">
+          Image unavailable
+        </span>
       </div>
     );
   }

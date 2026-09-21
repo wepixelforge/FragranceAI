@@ -18,6 +18,8 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
         return 'Haute Parfumerie · Atelier';
       case 'discovery-niche':
         return 'Curated Olfactory Discovery';
+      case 'sampling-concierge':
+        return 'Authentic samples & bottles';
       default:
         return 'Recreated Masterpieces';
     }
@@ -31,6 +33,8 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
         return 'What Does Your Presence Evoke?';
       case 'discovery-niche':
         return 'Discover Your Signature.';
+      case 'sampling-concierge':
+        return brand.homepage.heroTitle;
       default:
         return 'Find Your Signature Scent.';
     }
@@ -44,13 +48,19 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
         return 'Step beyond ordinary department store fragrances. Explore bespoke extraits de parfum crafted with 35% oil concentration to mirror your personal stature.';
       case 'discovery-niche':
         return 'Stop blind-buying full bottles. Explore Indian climate-tested master creations, and test your favourites with 10ml pocket discovery sprays before committing.';
+      case 'sampling-concierge':
+        return brand.homepage.heroSubtitle;
       default:
         return 'Skip the complex note pyramids and endless browsing. Tell our Scent Concierge what you love, and match your bottle in moments.';
     }
   };
 
   return (
-    <section className="relative min-h-[82vh] lg:min-h-[88vh] flex items-center overflow-hidden bg-brand-bg border-b border-brand-border-light py-16 lg:py-24">
+    <section className={`relative flex items-center overflow-hidden bg-brand-bg border-b border-brand-border-light ${
+      brand.designVariant === 'sampling-concierge'
+        ? 'lg:min-h-[78vh] py-10 sm:py-14 lg:py-20'
+        : 'min-h-[82vh] lg:min-h-[88vh] py-16 lg:py-24'
+    }`}>
       {/* Subtle Atmospheric Light Stage */}
       <div className="absolute inset-0 pointer-events-none">
         <div
@@ -61,7 +71,9 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+        <div className={`grid grid-cols-1 lg:grid-cols-12 items-center ${
+          brand.designVariant === 'sampling-concierge' ? 'gap-8 lg:gap-16' : 'gap-12 lg:gap-16'
+        }`}>
           
           {/* Left Editorial Narrative Column */}
           <div className="lg:col-span-7 flex flex-col justify-center text-left">
@@ -80,7 +92,11 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
             </div>
 
             {/* Confident Large Headline */}
-            <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight text-brand-text leading-[1.08]">
+            <h1 className={`font-serif font-normal tracking-tight text-brand-text leading-[1.08] ${
+              brand.designVariant === 'sampling-concierge'
+                ? 'text-3xl sm:text-5xl lg:text-7xl'
+                : 'text-4xl sm:text-6xl lg:text-7xl'
+            }`}>
               {getHeroTitle()}
             </h1>
 
@@ -92,21 +108,35 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
             {/* Editorial Action Bar */}
             <div className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
               <Link
-                href={`/${brand.slug}/finder`}
+                href={
+                  brand.designVariant === 'sampling-concierge'
+                    ? `/${brand.slug}/shop`
+                    : `/${brand.slug}/finder`
+                }
                 className="border border-brand-accent bg-brand-accent text-brand-primary-fg hover:bg-transparent hover:text-brand-text px-8 py-4 text-[11px] font-medium tracking-[0.22em] uppercase transition-all duration-300 text-center shadow-lg hover:shadow-brand-accent/10 cursor-pointer"
               >
-                Find My Fragrance
+                {brand.designVariant === 'sampling-concierge'
+                  ? brand.homepage.ctaPrimary
+                  : 'Find My Fragrance'}
               </Link>
               <Link
-                href={`/${brand.slug}/shop`}
+                href={
+                  brand.designVariant === 'sampling-concierge'
+                    ? `/${brand.slug}/shop?format=sample`
+                    : `/${brand.slug}/shop`
+                }
                 className="border border-brand-border hover:border-brand-accent text-brand-text hover:text-brand-accent px-8 py-4 text-[11px] font-medium tracking-[0.22em] uppercase transition-all duration-300 text-center"
               >
-                Explore Collection →
+                {brand.designVariant === 'sampling-concierge'
+                  ? brand.homepage.ctaSecondary
+                  : 'Explore Collection →'}
               </Link>
             </div>
 
             {/* Quiet Heritage Markers */}
-            <div className="mt-12 pt-8 border-t border-brand-border-light flex items-center gap-8 sm:gap-12">
+            <div className={`border-t border-brand-border-light flex items-center gap-8 sm:gap-12 ${
+              brand.designVariant === 'sampling-concierge' ? 'mt-8 pt-6' : 'mt-12 pt-8'
+            }`}>
               <div>
                 <span className="block font-serif text-xl sm:text-2xl text-brand-text font-light">
                   {brand.designVariant === 'oriental-artisanal'
@@ -115,6 +145,8 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
                     ? '35%'
                     : brand.designVariant === 'discovery-niche'
                     ? '10ml'
+                    : brand.designVariant === 'sampling-concierge'
+                    ? 'Sample'
                     : '30%'}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.18em] text-brand-text-muted">
@@ -124,25 +156,43 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
                     ? 'Pure Extrait'
                     : brand.designVariant === 'discovery-niche'
                     ? 'Pocket Trials'
+                    : brand.designVariant === 'sampling-concierge'
+                    ? 'Before Full Size'
                     : 'Oil Strength'}
                 </span>
               </div>
               <div className="h-8 w-px bg-brand-border-light" />
               <div>
                 <span className="block font-serif text-xl sm:text-2xl text-brand-text font-light">
-                  {brand.designVariant === 'discovery-niche' ? '42°C' : '10-12h'}
+                  {brand.designVariant === 'discovery-niche'
+                    ? '42°C'
+                    : brand.designVariant === 'sampling-concierge'
+                    ? '6'
+                    : '10-12h'}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.18em] text-brand-text-muted">
-                  {brand.designVariant === 'discovery-niche' ? 'Heat Resilience' : 'Endurance'}
+                  {brand.designVariant === 'discovery-niche'
+                    ? 'Heat Resilience'
+                    : brand.designVariant === 'sampling-concierge'
+                    ? 'Formats to Try'
+                    : 'Endurance'}
                 </span>
               </div>
               <div className="h-8 w-px bg-brand-border-light" />
               <div>
                 <span className="block font-serif text-xl sm:text-2xl text-brand-text font-light">
-                  {brand.designVariant === 'discovery-niche' ? '₹149' : 'Private'}
+                  {brand.designVariant === 'discovery-niche'
+                    ? '₹149'
+                    : brand.designVariant === 'sampling-concierge'
+                    ? '200+'
+                    : 'Private'}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.18em] text-brand-text-muted">
-                  {brand.designVariant === 'discovery-niche' ? 'Trials First' : 'Consultation'}
+                  {brand.designVariant === 'discovery-niche'
+                    ? 'Trials First'
+                    : brand.designVariant === 'sampling-concierge'
+                    ? 'Houses Stocked'
+                    : 'Consultation'}
                 </span>
               </div>
             </div>
@@ -153,7 +203,11 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
             <div className="lg:col-span-5 flex justify-center">
               <Link
                 href={`/${brand.slug}/product/${heroProduct.slug}`}
-                className="group relative w-full max-w-[360px] sm:max-w-[420px] aspect-[3/4] flex flex-col items-center justify-between p-8 rounded-none border border-brand-border bg-brand-surface/70 backdrop-blur-sm hover:border-brand-accent/40 transition-all duration-700 overflow-hidden shadow-sm"
+                className={`group relative w-full flex flex-col items-center justify-between rounded-none border border-brand-border bg-brand-surface/70 backdrop-blur-sm hover:border-brand-accent/40 transition-all duration-700 overflow-hidden shadow-sm ${
+                  brand.designVariant === 'sampling-concierge'
+                    ? 'max-w-[240px] sm:max-w-[360px] lg:max-w-[420px] mx-auto aspect-[3/4] p-5 sm:p-8'
+                    : 'max-w-[360px] sm:max-w-[420px] aspect-[3/4] p-8'
+                }`}
               >
                 {/* Subtle Radial Glow */}
                 <div
@@ -162,7 +216,7 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
 
                 {/* Top Badge */}
                 <div className="relative z-10 w-full flex justify-between items-center text-[10px] tracking-[0.2em] uppercase text-brand-text-muted">
-                  <span>Featured Blend</span>
+                  <span>{brand.designVariant === 'sampling-concierge' ? 'Featured' : 'Featured Blend'}</span>
                   <span className="text-brand-accent">₹{heroProduct.price}</span>
                 </div>
 
@@ -177,10 +231,12 @@ export default function HeroSection({ brand, heroProduct }: HeroSectionProps) {
                     {heroProduct.name}
                   </h3>
                   <p className="text-[11px] text-brand-text-muted mt-1 capitalize font-light">
-                    {heroProduct.fragranceFamily.slice(0, 2).join(' · ')} &mdash; {heroProduct.intensity} presence
+                    {brand.designVariant === 'sampling-concierge'
+                      ? heroProduct.size
+                      : `${heroProduct.fragranceFamily.slice(0, 2).join(' · ')} — ${heroProduct.intensity} presence`}
                   </p>
                   <span className="text-[10px] tracking-[0.2em] uppercase text-brand-accent mt-2 block opacity-0 group-hover:opacity-100 transition-opacity">
-                    Discover Details →
+                    {brand.designVariant === 'sampling-concierge' ? 'View product →' : 'Discover Details →'}
                   </span>
                 </div>
               </Link>

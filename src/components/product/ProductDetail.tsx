@@ -7,6 +7,7 @@ import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/brand-utils';
+import { formatLabel } from '@/lib/sampling-format';
 import BottleVisual from '@/components/shop/BottleVisual';
 import ProductCard from '@/components/shop/ProductCard';
 
@@ -14,9 +15,10 @@ interface ProductDetailProps {
   product: Product;
   brand: BrandConfig;
   similarProducts: Product[];
+  relatedFormats?: Product[];
 }
 
-export default function ProductDetail({ product, brand, similarProducts }: ProductDetailProps) {
+export default function ProductDetail({ product, brand, similarProducts, relatedFormats = [] }: ProductDetailProps) {
   const router = useRouter();
   const { isInCart, addItem } = useCart(brand.slug);
   const [selectedFormat, setSelectedFormat] = useState<'standard' | 'trial'>('standard');
@@ -26,6 +28,7 @@ export default function ProductDetail({ product, brand, similarProducts }: Produ
   const isOriental = brand.designVariant === 'oriental-artisanal';
   const isLuxury = brand.designVariant === 'luxury-editorial';
   const isDiscovery = brand.designVariant === 'discovery-niche';
+  const isSampling = brand.designVariant === 'sampling-concierge';
 
   const formatLongevity = (l: string) => {
     const map: Record<string, string> = {
@@ -41,6 +44,7 @@ export default function ProductDetail({ product, brand, similarProducts }: Produ
     if (isOriental) return '100% Pure Alcohol-Free Attar Oil';
     if (isLuxury) return '35% Haute Parfumerie Pure Extrait';
     if (isDiscovery) return 'EDP Concentrate · Indian Heat Tested';
+    if (isSampling) return product.concentration || formatLabel(product.format);
     return '30% Extrait de Parfum Strength';
   };
 
@@ -111,9 +115,37 @@ export default function ProductDetail({ product, brand, similarProducts }: Produ
                   {formatPrice(currentPrice)}
                 </span>
                 <span className="text-xs text-brand-text-muted font-light">
-                  {isDiscovery && selectedFormat === 'trial' ? '10ml Pocket Discovery Spray' : `${product.size} Full Bottle`}
+                  {isDiscovery && selectedFormat === 'trial'
+                    ? '10ml Pocket Discovery Spray'
+                    : isSampling
+                    ? `${product.size}${product.format ? ` · ${formatLabel(product.format)}` : ''}`
+                    : `${product.size} Full Bottle`}
                 </span>
               </div>
+
+              {isSampling && relatedFormats.length > 0 && (
+                <div className="mt-6 border border-brand-border p-4 bg-brand-surface">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-brand-text-muted block mb-3 font-medium">
+                    Other listed formats
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {relatedFormats.map((alt) => (
+                      <Link
+                        key={alt.id}
+                        href={`/${brand.slug}/product/${alt.slug}`}
+                        className="p-3 text-left border border-brand-border hover:border-brand-accent/40 transition-all"
+                      >
+                        <span className="block text-xs font-normal text-brand-text">
+                          {formatLabel(alt.format)} · {alt.size}
+                        </span>
+                        <span className="block text-[11px] text-brand-accent font-serif mt-0.5">
+                          {formatPrice(alt.price)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Discovery Size Selector (if World of Perfumers) */}
               {isDiscovery && (
@@ -229,22 +261,30 @@ export default function ProductDetail({ product, brand, similarProducts }: Produ
                     ? 'GO TO CART →'
                     : isDiscovery && selectedFormat === 'trial'
                     ? 'Acquire 10ml Pocket Trial (₹149)'
+                    : isSampling
+                    ? `Add ${formatLabel(product.format)} — ${formatPrice(product.price)}`
                     : 'Acquire Full Bottle'}
                 </button>
 
-                {/* Scent Concierge Guidance Link */}
-                <div className="p-4 border border-brand-border bg-brand-surface flex items-center justify-between">
+                {/* Contextual shopping help */}
+                <div className="p-4 border border-brand-border bg-brand-surface flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2.5">
                     <span className="text-brand-accent text-xs">✦</span>
                     <span className="text-xs text-brand-text-muted font-light">
-                      Wondering how this compares to your favorites?
+                      {isSampling
+                        ? 'Like this style but want something fresher?'
+                        : 'Wondering how this compares to your favorites?'}
                     </span>
                   </div>
                   <Link
-                    href={`/${brand.slug}/finder?ref=${product.slug}&q=${encodeURIComponent(`Compare ${product.name} with other blends in the collection`)}`}
+                    href={
+                      isSampling
+                        ? `/${brand.slug}/finder?ref=${product.slug}&q=${encodeURIComponent(`I like ${product.name} but want something similar`)}`
+                        : `/${brand.slug}/finder?ref=${product.slug}&q=${encodeURIComponent(`Compare ${product.name} with other blends in the collection`)}`
+                    }
                     className="text-[10px] uppercase tracking-[0.2em] text-brand-accent hover:underline font-medium shrink-0"
                   >
-                    Consult Concierge →
+                    {isSampling ? 'Ask us →' : 'Consult Concierge →'}
                   </Link>
                 </div>
               </div>

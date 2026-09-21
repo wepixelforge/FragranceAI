@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
-import { Product, FragranceFamily, Gender } from '@/types/product';
+import { Product, FragranceFamily, Gender, ProductFormat } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 import ProductCard from './ProductCard';
 
 interface ProductGridProps {
   products: Product[];
   brand: BrandConfig;
+  initialFormat?: string;
 }
 
 type PriceRange = 'all' | 'under-500' | '500-1000' | '1000-plus';
@@ -17,6 +18,7 @@ interface Filters {
   gender: Gender | 'all';
   fragranceFamily: FragranceFamily | 'all';
   priceRange: PriceRange;
+  format: ProductFormat | 'all';
 }
 
 const genderOptions: { value: Gender | 'all'; label: string }[] = [
@@ -40,7 +42,27 @@ const familyOptions: { value: FragranceFamily | 'all'; label: string }[] = [
   { value: 'aquatic', label: 'Aquatic' },
   { value: 'aromatic', label: 'Aromatic' },
   { value: 'gourmand', label: 'Gourmand' },
+  { value: 'fougere', label: 'Fougere' },
+  { value: 'green', label: 'Green' },
+  { value: 'chypre', label: 'Chypre' },
 ];
+
+const formatOptions: { value: ProductFormat | 'all'; label: string }[] = [
+  { value: 'all', label: 'All formats' },
+  { value: 'sample', label: 'Samples' },
+  { value: 'vial', label: 'Vials' },
+  { value: 'pocket', label: 'Pocket' },
+  { value: 'miniature', label: 'Miniatures' },
+  { value: 'tester', label: 'Testers' },
+  { value: 'discovery-set', label: 'Discovery sets' },
+  { value: 'full-size', label: 'Full size' },
+];
+
+function normalizeFormat(value?: string): ProductFormat | 'all' {
+  if (!value) return 'all';
+  if (value === 'samples') return 'sample';
+  return formatOptions.some((opt) => opt.value === value) ? (value as ProductFormat) : 'all';
+}
 
 const priceOptions: { value: PriceRange; label: string }[] = [
   { value: 'all', label: 'All Prices' },
@@ -49,12 +71,15 @@ const priceOptions: { value: PriceRange; label: string }[] = [
   { value: '1000-plus', label: '₹1,000+' },
 ];
 
-export default function ProductGrid({ products, brand }: ProductGridProps) {
+export default function ProductGrid({ products, brand, initialFormat }: ProductGridProps) {
   const [filters, setFilters] = useState<Filters>({
     gender: 'all',
     fragranceFamily: 'all',
     priceRange: 'all',
+    format: normalizeFormat(initialFormat),
   });
+
+  const isSampling = brand.designVariant === 'sampling-concierge';
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -75,6 +100,14 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
       if (filters.priceRange === 'under-500' && product.price >= 500) return false;
       if (filters.priceRange === '500-1000' && (product.price < 500 || product.price > 1000)) return false;
       if (filters.priceRange === '1000-plus' && product.price < 1000) return false;
+
+      if (filters.format !== 'all') {
+        if (filters.format === 'sample' || filters.format === 'vial') {
+          if (product.format !== 'sample' && product.format !== 'vial') return false;
+        } else if (product.format !== filters.format) {
+          return false;
+        }
+      }
 
       return true;
     });
@@ -97,7 +130,9 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
           </div>
           {activeFilterCount > 0 && (
             <button
-              onClick={() => setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all' })}
+              onClick={() =>
+                setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all', format: 'all' })
+              }
               className="text-xs tracking-wider uppercase text-brand-accent hover:underline transition-all"
             >
               Reset Filters ({activeFilterCount})
@@ -118,11 +153,15 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
                     ? 'Private Atelier Fragrance Consultation'
                     : brand.slug === 'worldofperfumers'
                     ? 'Olfactory Discovery Guidance'
+                    : brand.slug === 'thescentstories'
+                    ? "Can't decide?"
                     : 'Personal Fragrance Consultation'}
                 </span>
+                {brand.slug !== 'thescentstories' && (
                 <span className="text-[9px] tracking-widest uppercase px-1.5 py-0.5 rounded border border-brand-accent/30 text-brand-accent">
                   AI
                 </span>
+                )}
               </div>
               <p className="text-xs text-brand-text-muted mt-1 leading-relaxed">
                 {brand.slug === 'tmperfumehouse'
@@ -131,6 +170,8 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
                   ? 'Describe your desired atmosphere: "Dark sensual evening extrait for formal occasions" or "Pure Assam oud blend".'
                   : brand.slug === 'worldofperfumers'
                   ? 'Identify creations engineered for your climate and explore low-risk 10ml trials before choosing a full bottle.'
+                  : brand.slug === 'thescentstories'
+                  ? "Tell me what you're looking for — a scent, an occasion, or a budget."
                   : 'Describe your occasion, budget, or preferred notes in natural language for a bespoke recommendation.'}
               </p>
             </div>
@@ -146,6 +187,8 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
               ? 'Enter Atelier →'
               : brand.slug === 'worldofperfumers'
               ? 'Find My Formula →'
+              : brand.slug === 'thescentstories'
+              ? 'Ask us →'
               : 'Open Concierge →'}
           </Link>
         </div>
@@ -197,6 +240,35 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
               ))}
           </div>
 
+          {isSampling && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-brand-text-muted mr-2 font-mono">
+                Format
+              </span>
+              {formatOptions
+                .filter((opt) => {
+                  if (opt.value === 'all') return true;
+                  if (opt.value === 'sample' || opt.value === 'vial') {
+                    return products.some((p) => p.format === 'sample' || p.format === 'vial');
+                  }
+                  return products.some((p) => p.format === opt.value);
+                })
+                .map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setFilters((prev) => ({ ...prev, format: opt.value }))}
+                    className={`rounded-full px-3 py-1 text-xs tracking-wider uppercase transition-all duration-200 ${
+                      filters.format === opt.value
+                        ? 'border border-brand-accent bg-brand-accent/15 text-brand-accent font-medium'
+                        : 'border border-brand-border bg-transparent text-brand-text-muted hover:border-brand-border-light hover:text-brand-text'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+            </div>
+          )}
+
           {/* Price selection */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-widest text-brand-text-muted mr-2 font-mono">
@@ -230,7 +302,9 @@ export default function ProductGrid({ products, brand }: ProductGridProps) {
         <div className="py-24 text-center hairline-border rounded-2xl bg-brand-surface/40">
           <p className="font-serif text-lg text-brand-text-muted">No flacons match your selected criteria.</p>
           <button
-            onClick={() => setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all' })}
+            onClick={() =>
+              setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all', format: 'all' })
+            }
             className="mt-4 text-xs uppercase tracking-widest font-medium transition-colors hover:underline"
             style={{ color: brand.colors.accent }}
           >

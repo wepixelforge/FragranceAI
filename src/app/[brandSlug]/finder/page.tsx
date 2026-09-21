@@ -12,8 +12,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const brand = getBrand(brandSlug);
   if (!brand) return {};
   return {
-    title: `Fragrance Finder — ${brand.name}`,
-    description: `Find your perfect fragrance from ${brand.name}. Describe what you love and our AI assistant will recommend the best matches.`,
+    title: brand.slug === 'thescentstories' ? `Need help? — ${brand.name}` : `Fragrance Finder — ${brand.name}`,
+    description:
+      brand.slug === 'thescentstories'
+        ? `Tell us what you are looking for and we will suggest fragrances from the ${brand.name} collection.`
+        : `Find your perfect fragrance from ${brand.name}. Describe what you love and our AI assistant will recommend the best matches.`,
   };
 }
 

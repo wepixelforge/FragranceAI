@@ -28,6 +28,10 @@ export function serializeProductForGrounding(product: Product): GroundedProductC
     inspired_by: product.similarTo || [],
     description: product.description,
     tags: product.tags,
+    format: product.format || null,
+    house_brand: product.houseBrand || null,
+    original_price: product.originalPrice ?? null,
+    concentration: product.concentration || null,
   };
 }
 

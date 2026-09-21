@@ -45,6 +45,12 @@ export default function Header({ brand }: HeaderProps) {
           { key: 'trials', label: '10ml Trials', href: `/${brand.slug}/shop?trial=true` },
           { key: 'finder', label: 'Scent Lab', href: `/${brand.slug}/finder` },
         ];
+      case 'sampling-concierge':
+        return [
+          { key: 'shop', label: 'Catalogue', href: `/${brand.slug}/shop` },
+          { key: 'samples', label: 'Samples', href: `/${brand.slug}/shop?format=sample` },
+          { key: 'discover', label: 'Discover', href: `/${brand.slug}#shop-by-occasion` },
+        ];
       case 'catalogue-modern':
       default:
         return [
@@ -65,6 +71,8 @@ export default function Header({ brand }: HeaderProps) {
         return 'Private Consultation';
       case 'discovery-niche':
         return '✦ Scent Concierge';
+      case 'sampling-concierge':
+        return 'Need help?';
       default:
         return '✦ Find My Fragrance';
     }
@@ -78,6 +86,8 @@ export default function Header({ brand }: HeaderProps) {
         return 'Haute Parfumerie · Atelier';
       case 'discovery-niche':
         return 'Climate-Tested Perfumery';
+      case 'sampling-concierge':
+        return 'Samples · Pocket · Full size';
       default:
         return 'Recreated Extraits';
     }

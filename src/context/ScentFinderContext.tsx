@@ -336,6 +336,7 @@ export function ScentFinderProvider({ brand, products, children }: ScentFinderPr
             ...(userTurn ? [{ ...userTurn, queued: false }] : []),
           ];
           setMessages(messagesRef.current);
+          setActivePreferences({});
         }
 
         const firstMsg: ConversationMessage = {

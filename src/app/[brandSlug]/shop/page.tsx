@@ -5,6 +5,7 @@ import ProductGrid from '@/components/shop/ProductGrid';
 
 interface PageProps {
   params: Promise<{ brandSlug: string }>;
+  searchParams: Promise<{ format?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -17,8 +18,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function ShopPage({ params }: PageProps) {
+export default async function ShopPage({ params, searchParams }: PageProps) {
   const { brandSlug } = await params;
+  const query = await searchParams;
   const brand = getBrand(brandSlug);
 
   if (!brand) {
@@ -41,6 +43,8 @@ export default async function ShopPage({ params }: PageProps) {
             ? 'The Atelier Archives'
             : brand.designVariant === 'discovery-niche'
             ? 'Perfumery Lab Catalog'
+            : brand.designVariant === 'sampling-concierge'
+            ? 'The collection'
             : 'The Extrait Collection'}
         </h1>
         <p className="mt-3 text-sm sm:text-base text-brand-text-muted max-w-2xl leading-relaxed">
@@ -48,7 +52,7 @@ export default async function ShopPage({ params }: PageProps) {
         </p>
       </div>
 
-      <ProductGrid products={products} brand={brand} />
+      <ProductGrid products={products} brand={brand} initialFormat={query.format} />
     </div>
   );
 }

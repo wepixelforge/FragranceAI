@@ -97,6 +97,33 @@ html.light {
   --brand-user-bubble: #141e30;
 }
 
+[data-brand="thescentstories"] {
+  /* Dark atmosphere — deep charcoal, never pure #000 */
+  --brand-primary: #f3eee6;
+  --brand-primary-fg: #161412;
+  --brand-accent: #b89a6a;
+  --brand-accent-fg: #161412;
+  --brand-bg: #141210;
+  --brand-surface: #1c1916;
+  --brand-surface-hover: #24201c;
+  --brand-text: #f3eee6;
+  --brand-text-muted: #a39b90;
+  --brand-border: rgba(243, 238, 230, 0.1);
+  --brand-border-light: rgba(243, 238, 230, 0.05);
+  --brand-stage: #1a1714;
+  --brand-input-bg: #1c1916;
+  --brand-input-border: rgba(243, 238, 230, 0.16);
+  --brand-user-bubble: #24201c;
+  --tss-background: var(--brand-bg);
+  --tss-surface: var(--brand-surface);
+  --tss-text: var(--brand-text);
+  --tss-muted: var(--brand-text-muted);
+  --tss-border: var(--brand-border);
+  --tss-accent: var(--brand-accent);
+  --tss-stage: var(--brand-stage);
+  color-scheme: dark;
+}
+
 [data-brand="worldofperfumers"] {
   --brand-primary: #0b0b0a;
   --brand-primary-fg: #ede8df;
@@ -134,6 +161,35 @@ html.light [data-brand="tmperfumehouse"] {
   --brand-input-bg: #ffffff;
   --brand-input-border: rgba(28, 27, 26, 0.14);
   --brand-user-bubble: #ebe5da;
+}
+
+[data-theme="light"][data-brand="thescentstories"],
+[data-theme="light"] [data-brand="thescentstories"],
+html.light [data-brand="thescentstories"] {
+  /* Light atmosphere — warm ivory, never pure #fff */
+  --brand-primary: #1c1916;
+  --brand-primary-fg: #f6f1e8;
+  --brand-accent: #8a6a45;
+  --brand-accent-fg: #f6f1e8;
+  --brand-bg: #f6f1e8;
+  --brand-surface: #fffcf7;
+  --brand-surface-hover: #efe8dc;
+  --brand-text: #1c1916;
+  --brand-text-muted: #6b645a;
+  --brand-border: rgba(28, 25, 22, 0.12);
+  --brand-border-light: rgba(28, 25, 22, 0.06);
+  --brand-stage: #efe8dc;
+  --brand-input-bg: #fffcf7;
+  --brand-input-border: rgba(28, 25, 22, 0.16);
+  --brand-user-bubble: #efe8dc;
+  --tss-background: var(--brand-bg);
+  --tss-surface: var(--brand-surface);
+  --tss-text: var(--brand-text);
+  --tss-muted: var(--brand-text-muted);
+  --tss-border: var(--brand-border);
+  --tss-accent: var(--brand-accent);
+  --tss-stage: var(--brand-stage);
+  color-scheme: light;
 }
 
 [data-theme="light"][data-brand="worldofperfumers"],
@@ -312,6 +368,15 @@ html {
 
 [data-theme="light"] .image-stage {
   background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.7) 0%, rgba(220, 214, 203, 0.4) 100%);
+}
+
+[data-brand="thescentstories"] .image-stage {
+  background: var(--tss-stage, var(--brand-stage));
+}
+
+[data-theme="light"] [data-brand="thescentstories"] .image-stage,
+html.light [data-brand="thescentstories"] .image-stage {
+  background: var(--tss-stage, var(--brand-stage));
 }
 
 /* Subtle atmospheric backdrop blur */

@@ -33,6 +33,13 @@ import {
   unusualFragranceBriefQuestion,
 } from './request-match-quality';
 import { extractUnusualConcept } from './conversation-callback';
+import { applySamplingContextToStage1, detectFormatEducationQuestion } from './sampling-format';
+import {
+  extractCanonicalFamilies,
+  FAMILY_ALTERNATION,
+  normalizeFragranceLanguage,
+  stripInventedCompanionFamilies,
+} from './fragrance-vocabulary';
 
 /**
  * Normalizes any string intent to the CanonicalIntent enum.
@@ -286,19 +293,19 @@ export function extractBudgetUpdate(lower: string): {
     return { isBudgetPhrase: true, max: wordNum, min: null, remove: false };
   }
 
-  const limitMatch = lower.match(/(\d+)\s*(?:rs\.?|rupees|inr|₹|bucks)?\s*(?:is\s+my\s+(?:limit|budget|max)|limit)/i);
+  const limitMatch = lower.match(/([\d,]+)\s*(?:rs\.?|rupees|inr|₹|bucks)?\s*(?:is\s+my\s+(?:limit|budget|max)|limit)/i);
   if (limitMatch) {
-    return { isBudgetPhrase: true, max: parseInt(limitMatch[1], 10), min: null, remove: false };
+    return { isBudgetPhrase: true, max: parseInt(limitMatch[1].replace(/,/g, ''), 10), min: null, remove: false };
   }
 
   const prefixMatch = lower.match(
-    /(?:i\s+have|i\'ve\s+got|i\s+can\s+spend(?:\s+up\s+to)?|my\s+budget(?:\s+is)?|budget(?:\s+is)?|keep\s+it\s+(?:under|below)|can\s+go\s+up\s+to|let\'?s\s+make\s+the\s+budget|i\s+only\s+want\s+to\s+spend|i\s+don\'?t\s+want\s+to\s+spend\s+more\s+than|under|below|within|max|up\s+to)\s*(?:₹|rs\.?|inr|bucks)?\s*(\d+)/i
+    /(?:i\s+have|i\'ve\s+got|i\s+can\s+spend(?:\s+up\s+to)?|my\s+budget(?:\s+is)?|budget(?:\s+is)?|keep\s+it\s+(?:under|below)|can\s+go\s+up\s+to|let\'?s\s+make\s+the\s+budget|i\s+only\s+want\s+to\s+spend|i\s+don\'?t\s+want\s+to\s+spend\s+more\s+than|under|below|within|max|up\s+to)\s*(?:₹|rs\.?|inr|bucks)?\s*([\d,]+)/i
   );
   if (prefixMatch) {
-    return { isBudgetPhrase: true, max: parseInt(prefixMatch[1], 10), min: null, remove: false };
+    return { isBudgetPhrase: true, max: parseInt(prefixMatch[1].replace(/,/g, ''), 10), min: null, remove: false };
   }
 
-  const postfixMatch = lower.match(/(\d+)\s*(?:rs\.?|rupees|inr|bucks)/i);
+  const postfixMatch = lower.match(/([\d,]+)\s*(?:rs\.?|rupees|inr|bucks)/i);
   if (
     postfixMatch &&
     (lower.includes('have') ||
@@ -312,7 +319,7 @@ export function extractBudgetUpdate(lower: string): {
       lower.includes('max') ||
       lower.split(' ').length <= 4)
   ) {
-    return { isBudgetPhrase: true, max: parseInt(postfixMatch[1], 10), min: null, remove: false };
+    return { isBudgetPhrase: true, max: parseInt(postfixMatch[1].replace(/,/g, ''), 10), min: null, remove: false };
   }
 
   return { isBudgetPhrase: false, max: null, min: null, remove: false };
@@ -480,6 +487,7 @@ export const ATTRIBUTE_KEYWORDS = {
   citrus: ['citrus', 'lemon', 'bergamot'],
   aquatic: ['aquatic', 'marine', 'ocean'],
   floral: ['floral', 'rose', 'jasmine'],
+  fruity: ['fruity', 'frooty', 'fruitty', 'fruty', 'fruitier', 'fruit-forward', 'fruit forward', 'fruits'],
   warm: ['warm', 'warmer', 'cozy', 'warmth', 'ambery'],
   musk: ['musk', 'musky', 'musk-based', 'musky fragrance', 'clean musk', 'white musk'],
   leather: ['leather', 'leathery', 'suede'],
@@ -697,10 +705,18 @@ export function detectResetIntent(message: string): boolean {
   }
 
   if (
-    /\bforget\s+(everything|all(\s+(of\s+)?(this|that))?|what\s+i\s+(told|said|shared)|all(\s+my)?\s+preferences?|my\s+preferences?)\b/.test(
+    /\bforg[eo]t\s+(everything|all(\s+(of\s+)?(this|that))?|what\s+i\s+(told|said|shared)|all(\s+my)?\s+preferences?|my\s+preferences?)\b/.test(
       t
     )
   ) {
+    return true;
+  }
+
+  if (/\b(clear|wipe)\s+everything\b/.test(t)) {
+    return true;
+  }
+
+  if (/\bignore\s+everything(\s+before\s+this)?\b/.test(t)) {
     return true;
   }
 
@@ -719,6 +735,119 @@ export function detectResetIntent(message: string): boolean {
   return false;
 }
 
+/** "forget that" / "forgot that" — undo last preference, not a full reset. */
+export function detectForgetSpecificFamily(message: string): string | null {
+  const t = normalizeFragranceLanguage(message).toLowerCase();
+  if (detectResetIntent(t) || detectForgetLastRequest(t)) return null;
+  const match = t.match(new RegExp(`\\bforg[eo]t\\s+(?:the\\s+)?(${FAMILY_ALTERNATION})\\b`));
+  return match?.[1] || null;
+}
+
+const FORGETTABLE_NOTES = 'vanilla|vanillic|creamy|coconut|lactonic';
+
+export function detectForgetSpecificNote(message: string): string | null {
+  const t = normalizeFragranceLanguage(message).toLowerCase();
+  if (detectResetIntent(t) || detectForgetLastRequest(t)) return null;
+  const match = t.match(new RegExp(`\\bforg[eo]t\\s+(?:the\\s+)?(${FORGETTABLE_NOTES})\\b`));
+  if (!match) return null;
+  return match[1] === 'vanillic' ? 'vanilla' : match[1];
+}
+
+function forgetNoteAliases(note: string): string[] {
+  if (note === 'vanilla') return ['vanilla', 'vanillic'];
+  return [note];
+}
+
+function creamyFollowUpNotes(lower: string, extra: string[] = []): string[] {
+  const notes = new Set<string>(['creamy', ...extra]);
+  if (/\b(vanilla|vanillic)\b/i.test(lower)) notes.add('vanilla');
+  if (/\b(coconut|lactonic)\b/i.test(lower)) notes.add('coconut');
+  return Array.from(notes);
+}
+
+function creamyFollowUpStyle(lower: string): string {
+  return /\brich\b/i.test(lower) ? 'rich' : 'creamy';
+}
+
+function buildForgetNoteStage1(
+  note: string,
+  extraFamily?: string | null,
+  extraStyle?: string | null
+): Stage1IntentOutput {
+  const hasFollowOn = Boolean(extraFamily || extraStyle);
+  const updates: PreferenceUpdateItem[] = [
+    { field: 'preferred_notes', operation: 'REMOVE', value: forgetNoteAliases(note) },
+  ];
+  if (extraFamily) updates.push({ field: 'fragrance_families', operation: 'ADD', value: [extraFamily] });
+  if (extraStyle) updates.push({ field: 'style', operation: 'SET', value: extraStyle });
+  return {
+    intent: hasFollowOn ? 'RECOMMENDATION' : 'PREFERENCE_UPDATE',
+    request_type: 'refinement',
+    is_new_request: false,
+    is_refinement: true,
+    requested_changes: ['forget_note'],
+    fragrance_families: extraFamily ? [extraFamily] : [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    style: extraStyle || undefined,
+    needs_recommendations: hasFollowOn,
+    needs_clarification: false,
+    requires_product_data: hasFollowOn,
+    updates,
+    preferences: {},
+  };
+}
+
+export function detectForgetLastRequest(message: string): boolean {
+  const t = message
+    .toLowerCase()
+    .replace(/[?.!,]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (detectResetIntent(t)) return false;
+  return /^(forg[eo]t)\s+(that|this|it)(\s+please)?$/.test(t);
+}
+
+function buildForgetLastStage1(currentState?: ConversationState): Stage1IntentOutput {
+  const last = currentState?.lastPreferenceChange;
+  if (!last) {
+    return {
+      intent: 'CLARIFICATION',
+      request_type: 'other',
+      is_new_request: false,
+      is_refinement: false,
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: true,
+      requires_product_data: false,
+      ambiguous_term: 'forget that',
+      clarification_question:
+        'What would you like me to forget — the fruity preference, the budget, the occasion, or something else?',
+      suggested_interpretations: ['Forget the last scent family', 'Forget the budget', 'Forget the occasion', 'Start over'],
+      preferences: {},
+    };
+  }
+  return {
+    intent: 'PREFERENCE_UPDATE',
+    request_type: 'refinement',
+    is_new_request: false,
+    is_refinement: true,
+    requested_changes: ['forget_last', `forget_last:${last.kind}:${last.value}`],
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: false,
+    needs_clarification: false,
+    requires_product_data: false,
+    preferences: {},
+  };
+}
+
 const CONSULTATION_FAMILIES = [
   'fresh',
   'floral',
@@ -732,6 +861,8 @@ const CONSULTATION_FAMILIES = [
   'oud',
   'musky',
   'amber',
+  'fruity',
+  'aromatic',
 ] as const;
 
 export function detectInstructionOverride(message: string): boolean {
@@ -751,7 +882,9 @@ export function detectInstructionOverride(message: string): boolean {
 }
 
 function mentionedConsultationFamily(message: string): string | null {
-  const lower = message.toLowerCase();
+  const lower = normalizeFragranceLanguage(message).toLowerCase();
+  const extracted = extractCanonicalFamilies(lower);
+  if (extracted[0]) return extracted[0];
   for (const family of CONSULTATION_FAMILIES) {
     if (new RegExp(`\\b${family}\\b`, 'i').test(lower)) return family;
   }
@@ -759,10 +892,12 @@ function mentionedConsultationFamily(message: string): string | null {
 }
 
 export function detectReplacementFamily(message: string): string | null {
-  const lower = message.toLowerCase();
+  const lower = normalizeFragranceLanguage(message).toLowerCase();
   if (/\b(keep|still|also|and also|stay)\b/.test(lower)) return null;
   const match = lower.match(
-    /\b(?:actually\s+(?:make\s+it|i\s+want(?:\s+something)?|switch(?:\s+it)?\s+to)|(?:make|switch|change)\s+it(?:\s+to)?|instead)\s+(?:something\s+)?(fresh|floral|woody|sweet|spicy|gourmand|citrus|aquatic|oriental|oud|musky|amber)\b/
+    new RegExp(
+      `\\b(?:actually[,.]?\\s+(?:make\\s+it|i\\s+want(?:\\s+something)?|switch(?:\\s+it)?\\s+to)|(?:make|switch|change)\\s+it(?:\\s+to)?|instead)\\s+(?:something\\s+)?(${FAMILY_ALTERNATION})\\b`
+    )
   );
   return match?.[1] || null;
 }
@@ -808,7 +943,7 @@ export function detectProductAttributeQuestion(message: string, products: Produc
 }
 
 const PRODUCT_FACT_CUES =
-  /\b(notes?|longevity|lasts?|lasting|strong|intensity|projection|sillage|office|inspired|inspiration|price|cost|how much|size|family|accord|heart|base|opening|drydown|sweet|tell me more|more about)\b/i;
+  /\b(notes?|longevity|lasts?|lasting|strong|intensity|projection|sillage|office|inspired|inspiration|price|cost|how much|size|family|accord|heart|base|opening|drydown|sweet|tell me more|more about|formats?|tester|sample|full bottle)\b/i;
 
 function lastDiscussedNames(state?: ConversationState, products: Product[] = []): string[] {
   const refs = [
@@ -1148,6 +1283,7 @@ export function sanitizeInferredFragranceAttributes(
     }
   }
 
+  res.fragrance_families = stripInventedCompanionFamilies(message, res.fragrance_families || []);
   return res;
 }
 
@@ -1284,6 +1420,9 @@ export function detectAmbiguousDescriptor(
   if (/\b(oud|agarwood)\b/i.test(lower)) knownFamilies.push('oud');
   if (/\b(musk|musky)\b/i.test(lower)) knownFamilies.push('musky');
   if (/\b(oriental|amber|ambery)\b/i.test(lower)) knownFamilies.push('oriental');
+  if (/\b(fruity|frooty|fruit-forward|fruitier|fruits?)\b/i.test(normalizeFragranceLanguage(lower))) {
+    knownFamilies.push('fruity');
+  }
   resolveStyleFamilies(lower).forEach((family) => {
     if (!knownFamilies.includes(family)) knownFamilies.push(family);
   });
@@ -1398,6 +1537,19 @@ export function detectAmbiguousDescriptor(
     };
   }
 
+  // Creamy is a real texture, but not a family — clarify unless the user already named a direction.
+  const hasCreamyAlone =
+    /\bcreamy\b/i.test(lower) &&
+    !/\b(woody|woods?|vanilla|vanillic|coconut|lactonic|gourmand|sweet|oud|floral|fresh|citrus)\b/i.test(lower);
+  if (hasCreamyAlone && !state?.pendingClarification) {
+    return {
+      term: 'creamy',
+      question:
+        'What kind of creamy direction do you mean — soft/vanillic, creamy woods, coconut/lactonic, or something richer?',
+      interpretations: ['Soft/vanillic', 'Creamy woods', 'Coconut/lactonic', 'Richer and woody'],
+    };
+  }
+
   // "clear" as a scent adjective is ambiguous — never map to subtle/fresh/clean/reset/cart.
   const hasClearAsScentDescriptor =
     /\bclear\b/i.test(lower) &&
@@ -1421,9 +1573,9 @@ export function detectAmbiguousDescriptor(
   if (discoveryMatch) {
     const word = discoveryMatch[1];
     const isKnownWord =
-      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger|arabian|arabic|attar|bakhoor)\b/i.test(
+      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|fruity|frooty|fruitier|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger|arabian|arabic|attar|bakhoor)\b/i.test(
         word
-      ) || isKnownStyleWord(word);
+      ) || isKnownStyleWord(word) || extractCanonicalFamilies(word).length > 0;
     if (!isKnownWord && word.length > 2) {
       return {
         term: word,
@@ -1681,7 +1833,7 @@ export function validateAndEnforcePolarity(
   if (!res.updates) {
     res.updates = [];
   }
-  const clean = normalizeText(rawMessage);
+  const clean = normalizeFragranceLanguage(normalizeText(rawMessage));
   const lower = clean.toLowerCase();
 
   const styleFamilies = resolveStyleFamilies(lower);
@@ -1732,18 +1884,24 @@ export function validateAndEnforcePolarity(
     res.updates = (res.updates || []).filter(
       (u) => u.field === 'fragrance_families' && ambig.preservedFamilies?.includes(String(u.value))
     );
+    if (ambig.term === 'creamy' && /\b(i\s+want\s+something|looking\s+for|give\s+me\s+something)\b/i.test(lower)) {
+      res.is_new_request = true;
+      res.request_type = 'new_consultation';
+      res.fragrance_families = [];
+    }
     return res;
   }
 
   // Check for clarification follow-up resolution
   if (currentState?.pendingClarification) {
     const isClarificationAnswer =
-      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|light|lighter|subtle|leather|suede|wood|gasoline|linen|upholstery)\b/i.test(lower) ||
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|light|lighter|subtle|leather|suede|wood|gasoline|linen|upholstery|vanilla|vanillic|coconut|lactonic)\b/i.test(lower) ||
       lower.startsWith('something ') ||
       lower.startsWith('i mean ') ||
       lower.startsWith('more of ');
 
     if (isClarificationAnswer) {
+      const pendingTerm = (currentState.pendingClarification.ambiguousTerm || '').toLowerCase();
       res.intent = 'RECOMMENDATION';
       res.needs_recommendations = true;
       res.needs_clarification = false;
@@ -1755,7 +1913,7 @@ export function validateAndEnforcePolarity(
       if (/\b(wood|woody|polished\s+wood)\b/i.test(lower)) {
         res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'woody']));
       }
-      if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower)) {
+      if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower) && pendingTerm !== 'creamy') {
         res.warmth = 'warmer';
         if (!res.updates.some(u => u.field === 'warmth')) {
           res.updates.push({ field: 'warmth', operation: 'SET', value: 'warmer' });
@@ -1767,12 +1925,25 @@ export function validateAndEnforcePolarity(
           res.updates.push({ field: 'intensity', operation: 'SET', value: 'subtle' });
         }
       }
-      if (/\b(creamy|soft|sweet|gourmand|vanilla)\b/i.test(lower)) {
+      if (/\b(creamy|soft|sweet|gourmand|vanilla)\b/i.test(lower) && pendingTerm !== 'creamy') {
         res.sweetness = 'sweeter';
         res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'gourmand']));
         if (!res.updates.some(u => u.field === 'sweetness')) {
           res.updates.push({ field: 'sweetness', operation: 'SET', value: 'sweeter' });
         }
+      }
+      if (pendingTerm === 'creamy') {
+        const mentioned = extractCanonicalFamilies(lower);
+        res.fragrance_families = mentioned;
+        res.preferred_notes = creamyFollowUpNotes(lower, res.preferred_notes);
+        res.style = creamyFollowUpStyle(lower);
+        res.is_new_request = true;
+        res.is_refinement = false;
+        res.request_type = 'new_consultation';
+        res.updates = (res.updates || []).filter((u) => u.field !== 'fragrance_families' && u.field !== 'preferred_notes' && u.field !== 'style');
+        res.updates.push({ field: 'fragrance_families', operation: 'SET', value: mentioned });
+        res.updates.push({ field: 'preferred_notes', operation: 'SET', value: res.preferred_notes });
+        res.updates.push({ field: 'style', operation: 'SET', value: res.style });
       }
     }
   }
@@ -1786,9 +1957,10 @@ export function validateAndEnforcePolarity(
   const citrusPol = analyzePolarity(lower, 'citrus');
   const aquaticPol = analyzePolarity(lower, 'aquatic');
   const floralPol = analyzePolarity(lower, 'floral');
+  const fruityPol = analyzePolarity(lower, 'fruity');
 
   const polarities = [
-    sweetPol, oudPol, strongPol, woodyPol, spicyPol, freshPol, citrusPol, aquaticPol, floralPol
+    sweetPol, oudPol, strongPol, woodyPol, spicyPol, freshPol, citrusPol, aquaticPol, floralPol, fruityPol
   ];
 
   // 1. Handle Reversal
@@ -2007,6 +2179,13 @@ export function validateAndEnforcePolarity(
       res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'woody']));
     }
   }
+  if (fruityPol.isPositive && !replacementLocked) {
+    if (!res.fragrance_families?.includes('fruity')) {
+      res.fragrance_families = Array.from(new Set([...(res.fragrance_families || []), 'fruity']));
+    }
+  }
+
+  res.fragrance_families = stripInventedCompanionFamilies(rawMessage, res.fragrance_families || []);
 
   // 4. Detect pure negative preference message (e.g. "i dont like sweet perfume", "no leather")
   const hasPositiveOccasion = Boolean(res.occasion);
@@ -2068,6 +2247,11 @@ export function validateAndEnforcePolarity(
       res.style = 'sophisticated';
       if (!res.updates.some(u => u.field === 'style')) {
         res.updates.push({ field: 'style', operation: 'SET', value: 'sophisticated' });
+      }
+    } else if (/\brich\b/i.test(lower)) {
+      res.style = 'rich';
+      if (!res.updates.some((u) => u.field === 'style')) {
+        res.updates.push({ field: 'style', operation: 'SET', value: 'rich' });
       }
     }
   }
@@ -2161,7 +2345,7 @@ export async function classifyIntentAndExtractPreferences(
   history: ChatMessage[] = [],
   currentState?: ConversationState
 ): Promise<Stage1IntentOutput> {
-  const cleanMessage = normalizeText(message);
+  const cleanMessage = normalizeFragranceLanguage(normalizeText(message));
   const trimmed = cleanMessage.trim();
   const lower = trimmed.toLowerCase();
 
@@ -2178,6 +2362,37 @@ export async function classifyIntentAndExtractPreferences(
   // Instant fast-path conversational shortcuts
   const isGreetingWord = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(lower);
   const isHowAreYou = /^(how\s+are\s+you|how\'s\s+it\s+going|how\s+are\s+things)[?.]?$/i.test(lower);
+
+  if (detectResetIntent(trimmed)) {
+    return buildResetStage1();
+  }
+  if (detectForgetLastRequest(trimmed)) {
+    return buildForgetLastStage1(currentState);
+  }
+  const forgetFamilyEarly = detectForgetSpecificFamily(trimmed);
+  if (forgetFamilyEarly) {
+    return {
+      intent: 'PREFERENCE_UPDATE',
+      request_type: 'refinement',
+      is_new_request: false,
+      is_refinement: true,
+      requested_changes: ['forget_family'],
+      excluded_families: [],
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      needs_recommendations: false,
+      needs_clarification: false,
+      updates: [{ field: 'fragrance_families', operation: 'REMOVE', value: [forgetFamilyEarly] }],
+      preferences: {},
+    };
+  }
+  const forgetNoteEarly = detectForgetSpecificNote(trimmed);
+  if (forgetNoteEarly) {
+    const extraFamily = detectReplacementFamily(trimmed) || extractCanonicalFamilies(lower)[0] || null;
+    const extraStyle = /\brich\b/i.test(lower) ? 'rich' : null;
+    return buildForgetNoteStage1(forgetNoteEarly, extraFamily, extraStyle);
+  }
 
   if ((isGreetingWord || isHowAreYou) && lower.split(' ').length <= 4) {
     return {
@@ -2377,7 +2592,11 @@ export async function classifyIntentAndExtractPreferences(
     }
     validated.requires_product_data = doesIntentRequireProducts(validated.intent, validated);
     const grounded = coerceUnusualScentIntent(validated, effectiveQuery, products, currentState, history);
-    return applyExplicitReference(grounded, effectiveQuery, products);
+    return finalizeBrandStage1(
+      applyExplicitReference(grounded, effectiveQuery, products),
+      effectiveQuery,
+      brand
+    );
   }
 
   // 2. Deterministic Fallback Classifier
@@ -2398,11 +2617,32 @@ export async function classifyIntentAndExtractPreferences(
     return buildResetStage1();
   }
   fallbackResult.requires_product_data = doesIntentRequireProducts(fallbackResult.intent, fallbackResult);
-  return applyExplicitReference(
-    coerceUnusualScentIntent(fallbackResult, effectiveQuery, products, currentState, history),
+  return finalizeBrandStage1(
+    applyExplicitReference(
+      coerceUnusualScentIntent(fallbackResult, effectiveQuery, products, currentState, history),
+      effectiveQuery,
+      products
+    ),
     effectiveQuery,
-    products
+    brand
   );
+}
+
+function finalizeBrandStage1(
+  stage1: Stage1IntentOutput,
+  message: string,
+  brand: BrandConfig
+): Stage1IntentOutput {
+  if (brand.slug !== 'thescentstories') return stage1;
+  if (detectFormatEducationQuestion(message) && !stage1.needs_recommendations) {
+    return {
+      ...applySamplingContextToStage1(stage1, message),
+      intent: 'PRODUCT_INFO',
+      needs_recommendations: false,
+      requires_product_data: Boolean(stage1.target_product_names?.length),
+    };
+  }
+  return applySamplingContextToStage1(stage1, message);
 }
 
 /**
@@ -2516,7 +2756,8 @@ CRITICAL RULES:
      If they decline, cart_confirmation: "CANCEL".
 
 2b. RESET_CONSULTATION — wipe conversational preference state, NEVER the cart, NEVER recommend:
-   - Semantic reset (not an exact-string list): "reset", "reset everything", "start over", "start fresh", "start from scratch", "forget everything", "forget all my preferences", "forget what I told you", "clear our conversation", "let's start again", "let's begin again", "wipe the current preferences", "I want to start over".
+   - Semantic reset (not an exact-string list): "reset", "reset everything", "start over", "start fresh", "start from scratch", "forget everything", "forgot everything", "forget all that", "forget all of this", "clear everything", "ignore everything before this", "forget all my preferences", "forget what I told you", "clear our conversation", "let's start again", "let's begin again", "wipe the current preferences", "I want to start over".
+   - "forget that" / "forgot that" is NOT a full reset. Use PREFERENCE_UPDATE with requested_changes: ["forget_last"] when the last introduced preference is unambiguous; otherwise CLARIFICATION asking what to forget.
    - intent: "RESET_CONSULTATION", needs_recommendations: false, cart_action: null, fragrance_families: [].
    - Do NOT call the recommendation engine. Do NOT pick a closest/partial match. Do NOT mutate the cart.
    - DISTINCT from fragrance "fresh":
@@ -2531,6 +2772,7 @@ CRITICAL RULES:
    - "creamy" does NOT automatically mean gourmand or sweet. Do not set fragrance_families to gourmand solely from creamy. You may keep preferred_notes: ["creamy"].
    - "soft" does NOT automatically mean intensity=subtle. Only set intensity when the user said light/subtle/intimate/skin scent/not strong.
    - "clear" as a fragrance adjective is AMBIGUOUS. Do NOT map it to subtle, fresh, or clean. Set intent: "CLARIFICATION", needs_clarification: true, needs_recommendations: false, clarification_question: "When you say 'clear,' do you mean clean/fresh, light, or subtle?" Preserve other confident attributes (woody, date-night, etc.) in fragrance_families / occasion.
+   - "fruity" / "frooty" / "fruit-forward" / "fruitier" / "something fruity" is a REAL fragrance family. Set fragrance_families: ["fruity"] only. Do NOT also add fresh, sweet, or citrus unless the user said those words. Fruity alone is a valid preference and must produce recommendations, not clarification and not NO_MATCH.
 
 3. PRODUCT INFO & COMPARISON:
    - "Tell me about [Product]", "What are the notes in [Product]?", "How long does [Product] last?", "Is [Product] good for office?", "Is [Product] strong?":
@@ -2806,6 +3048,11 @@ Return ONLY valid JSON matching the schema.`;
       product_references: productReferences,
       cart_action: normalizeParsedCartAction(parsed.cart_action),
       cart_confirmation: normalizeParsedCartConfirmation(parsed.cart_confirmation),
+      format_preference: parsed.format_preference || null,
+      exploration_intent: parsed.exploration_intent || null,
+      experience_level: parsed.experience_level || null,
+      travel_intent: Boolean(parsed.travel_intent),
+      gifting_intent: Boolean(parsed.gifting_intent),
       confidence: parsed.confidence || 0.95,
       needs_recommendations,
       needs_clarification: Boolean(parsed.needs_clarification),
@@ -2846,7 +3093,7 @@ export function fallbackIntentClassifier(
   currentState?: ConversationState,
   history: ChatMessage[] = []
 ): Stage1IntentOutput {
-  const clean = normalizeText(message);
+  const clean = normalizeFragranceLanguage(normalizeText(message));
   const lower = clean.toLowerCase().trim();
   const activeConsultationExists = hasActiveConsultation(currentState);
 
@@ -2862,6 +3109,48 @@ export function fallbackIntentClassifier(
 
   if (detectResetIntent(clean)) {
     return buildResetStage1();
+  }
+  if (detectForgetLastRequest(clean)) {
+    return buildForgetLastStage1(currentState);
+  }
+  const forgetFamilyFallback = detectForgetSpecificFamily(clean);
+  if (forgetFamilyFallback) {
+    return {
+      intent: 'PREFERENCE_UPDATE',
+      request_type: 'refinement',
+      is_new_request: false,
+      is_refinement: true,
+      requested_changes: ['forget_family'],
+      excluded_families: [],
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      needs_recommendations: false,
+      needs_clarification: false,
+      updates: [{ field: 'fragrance_families', operation: 'REMOVE', value: [forgetFamilyFallback] }],
+      preferences: {},
+    };
+  }
+  const forgetNoteFallback = detectForgetSpecificNote(clean);
+  if (forgetNoteFallback) {
+    const extraFamily = detectReplacementFamily(clean) || extractCanonicalFamilies(lower)[0] || null;
+    const extraStyle = /\brich\b/i.test(lower) ? 'rich' : null;
+    return buildForgetNoteStage1(forgetNoteFallback, extraFamily, extraStyle);
+  }
+
+  if (brand.slug === 'thescentstories' && detectFormatEducationQuestion(clean)) {
+    return {
+      intent: 'PRODUCT_INFO',
+      request_type: 'other',
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: false,
+      requires_product_data: false,
+      preferences: {},
+    };
   }
 
   const productFollowUpEarly = detectProductFollowUp(lower, products, currentState);
@@ -2889,19 +3178,21 @@ export function fallbackIntentClassifier(
   if (currentState?.pendingClarification) {
     const isClarificationAnswer =
       isAffirmativeReply(lower) ||
-      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|oud|oriental|amber|arabian|arabic|light|lighter|subtle|leather|suede|wood|gasoline|linen|upholstery)\b/i.test(lower) ||
+      /\b(creamy|soft|warm|warmer|cozy|comforting|unusual|dark|darker|experimental|sweet|fresh|woody|spicy|rich|clean|oud|oriental|amber|arabian|arabic|light|lighter|subtle|leather|suede|wood|gasoline|linen|upholstery|vanilla|vanillic|coconut|lactonic)\b/i.test(lower) ||
       lower.startsWith('something ') ||
       lower.startsWith('i mean ') ||
       lower.startsWith('more of ');
 
     if (isClarificationAnswer) {
+      const pendingTerm = (currentState.pendingClarification.ambiguousTerm || '').toLowerCase();
       const fams: string[] = [...resolveStyleFamilies(lower), ...resolveStyleFamilies(currentState.pendingClarification.originalQuery || '')];
       const updates: PreferenceUpdateItem[] = [];
       let warmthVal: 'warmer' | null = null;
       let sweetnessVal: 'sweeter' | null = null;
       let intensityVal: string | null = null;
+      let styleVal: string | null = null;
 
-      if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower)) {
+      if (/\b(warm|warmer|cozy|comforting)\b/i.test(lower) && pendingTerm !== 'creamy') {
         warmthVal = 'warmer';
         updates.push({ field: 'warmth', operation: 'SET', value: 'warmer' });
       }
@@ -2909,7 +3200,7 @@ export function fallbackIntentClassifier(
         intensityVal = 'subtle';
         updates.push({ field: 'intensity', operation: 'SET', value: 'subtle' });
       }
-      if (/\b(creamy|soft|sweet|gourmand|vanilla)\b/i.test(lower)) {
+      if (/\b(creamy|soft|sweet|gourmand|vanilla)\b/i.test(lower) && pendingTerm !== 'creamy') {
         fams.push('gourmand');
         sweetnessVal = 'sweeter';
         updates.push({ field: 'fragrance_families', operation: 'SET', value: ['gourmand'] });
@@ -2932,6 +3223,35 @@ export function fallbackIntentClassifier(
         if (fams.length === 0) {
           fams.push('oud', 'oriental', 'spicy');
         }
+      }
+
+      if (pendingTerm === 'creamy') {
+        const mentioned = extractCanonicalFamilies(lower);
+        const notes = creamyFollowUpNotes(lower, leatherNotes);
+        styleVal = creamyFollowUpStyle(lower);
+        return {
+          intent: 'RECOMMENDATION',
+          request_type: 'new_consultation',
+          is_new_request: true,
+          is_refinement: false,
+          fragrance_families: mentioned,
+          preferred_notes: notes,
+          excluded_notes: [],
+          excluded_families: [],
+          style: styleVal,
+          warmth: warmthVal,
+          sweetness: sweetnessVal,
+          intensity: intensityVal,
+          needs_recommendations: true,
+          needs_clarification: false,
+          requires_product_data: true,
+          preferences: { fragrance_families: mentioned, preferred_notes: notes },
+          updates: [
+            { field: 'fragrance_families', operation: 'SET', value: mentioned },
+            { field: 'preferred_notes', operation: 'SET', value: notes },
+            { field: 'style', operation: 'SET', value: styleVal },
+          ],
+        };
       }
 
       const prevFams = currentState.activeRequest?.families || [];
@@ -2969,12 +3289,14 @@ export function fallbackIntentClassifier(
         value: ambigMatch.preservedFamilies,
       });
     }
+    const creamyNewBrief =
+      ambigMatch.term === 'creamy' && /\b(i\s+want\s+something|looking\s+for|give\s+me\s+something)\b/i.test(lower);
     return {
       intent: 'CLARIFICATION',
-      request_type: 'other',
-      is_new_request: false,
+      request_type: creamyNewBrief ? 'new_consultation' : 'other',
+      is_new_request: creamyNewBrief,
       is_refinement: false,
-      fragrance_families: ambigMatch.preservedFamilies || [],
+      fragrance_families: creamyNewBrief ? [] : ambigMatch.preservedFamilies || [],
       preferred_notes: [],
       excluded_notes: [],
       excluded_families: [],
@@ -2999,7 +3321,9 @@ export function fallbackIntentClassifier(
   if (isCustomerObjection) {
     const hasSimRequest = lower.includes('something similar') || lower.includes('similar to') || lower.includes('show me similar');
     if (!hasSimRequest) {
-      const explicitFamilyMatch = lower.match(/\b(fresh|woody|citrus|aquatic|floral|oud|spicy|sweet|oriental|musky|gourmand)\b/i);
+      const explicitFamilyMatch = lower.match(
+        new RegExp(`\\b(${FAMILY_ALTERNATION})\\b`, 'i')
+      );
       const hasPreferenceSignal =
         (lower.includes('i like') || lower.includes('i want') || lower.includes('prefer') || lower.includes('looking for') || lower.includes('give me')) &&
         explicitFamilyMatch;
@@ -3419,6 +3743,7 @@ export function fallbackIntentClassifier(
       !lower.includes('spicy') &&
       !lower.includes('citrus') &&
       !lower.includes('sweet') &&
+      !lower.includes('fruity') &&
       !lower.includes('sugary') &&
       !lower.includes('expensive') &&
       !lower.includes('sophisticated') &&
@@ -3456,6 +3781,7 @@ export function fallbackIntentClassifier(
   const citrusPol = analyzePolarity(lower, 'citrus');
   const aquaticPol = analyzePolarity(lower, 'aquatic');
   const floralPol = analyzePolarity(lower, 'floral');
+  const fruityPol = analyzePolarity(lower, 'fruity');
 
   if (sweetPol.isReversal) {
     const isExplicitRec = lower.includes('recommend') || lower.includes('show') || lower.includes('for a');
@@ -3589,7 +3915,7 @@ export function fallbackIntentClassifier(
     if (/\b(\d+\s*(?:rs|rupees|bucks|₹)|under|below|within|budget|affordable|cheap|cheaper|expensive|spend)\b/i.test(text)) count++;
     if (/\b(not\s+(?:too\s+)?sweet|no\s+sweet|sweet|sugary|gourmand|vanilla)\b/i.test(text)) count++;
     if (/\b(strong|intense|subtle|light|long\s*lasting|longevity|loud|projection|sillage|beast)\b/i.test(text)) count++;
-    if (/\b(woody|floral|fresh|citrus|aquatic|spicy|oud|musk|musky|leather)\b/i.test(text)) count++;
+    if (/\b(woody|floral|fresh|citrus|aquatic|spicy|oud|musk|musky|leather|fruity)\b/i.test(text)) count++;
     if (/\b(warm|warmer|cozy|cool|cooler)\b/i.test(text)) count++;
     return count > 1;
   }
@@ -3806,7 +4132,8 @@ export function fallbackIntentClassifier(
 
   // 14. REFERENCE PERFUMES (TEST 21, 22, 23)
   const isWearingReference = lower.includes('usually wear') || lower.includes('currently wear') || lower.includes('i wear');
-  const referencePerfume = extractKnownReferencePerfume(clean, products);
+  const droppedReference = isReferenceDropRequest(clean);
+  const referencePerfume = droppedReference ? null : extractKnownReferencePerfume(clean, products);
 
   if (
     isWearingReference &&
@@ -3832,11 +4159,13 @@ export function fallbackIntentClassifier(
     };
   }
 
+  const mentionedFamiliesNow = extractCanonicalFamilies(lower);
   const isPureSimilarityPhrase =
     Boolean(referencePerfume) &&
     !isStrengthenWarm &&
     !isWarmthRequested &&
     !isFreshnessRequested &&
+    mentionedFamiliesNow.length === 0 &&
     (lower.includes('similar to') ||
       lower.includes('something similar') ||
       lower.includes('show me similar') ||
@@ -3919,9 +4248,16 @@ export function fallbackIntentClassifier(
   if (sweetPol.isPositive) families.push('sweet');
   if (oudPol.isPositive) families.push('oud');
   if (muskPol.isPositive) families.push('musky');
+  if (fruityPol.isPositive) families.push('fruity');
+  extractCanonicalFamilies(lower).forEach((family) => {
+    if (!families.includes(family)) families.push(family);
+  });
   resolveStyleFamilies(lower).forEach((family) => {
     if (!families.includes(family)) families.push(family);
   });
+  const dedupedFamilies = stripInventedCompanionFamilies(clean, families);
+  families.length = 0;
+  families.push(...dedupedFamilies);
 
   let occasion: string | null = null;
   if (/\b(going\s+out\s+with\s+someone|going\s+out|date|date\s+night|romantic)\b/i.test(lower)) occasion = 'date-night';
@@ -3940,6 +4276,7 @@ export function fallbackIntentClassifier(
   let style: string | null = null;
   if (isExpensive) style = 'sophisticated';
   else if (isInteresting || isBoring) style = 'distinctive';
+  else if (/\brich\b/i.test(lower)) style = 'rich';
 
   const warmth: 'warmer' | 'moderate-warm' | null = isBoundedWarm ? 'moderate-warm' : (isStrengthenWarm || isWarmthRequested ? 'warmer' : null);
   const warmthMax: 'warm' | null = isBoundedWarm ? 'warm' : null;
@@ -4074,8 +4411,13 @@ export function fallbackIntentClassifier(
     freshness,
     style,
     gender,
-    reference_perfume: referencePerfume,
-    is_similarity_request: Boolean(referencePerfume),
+    reference_perfume: droppedReference ? null : referencePerfume,
+    is_similarity_request: Boolean(referencePerfume) && !droppedReference && (
+      lower.includes('similar') ||
+      lower.includes('like ') ||
+      lower.includes('alternative to') ||
+      lower.includes('inspired by')
+    ),
     budget: { min: null, max: bMax },
     needs_recommendations: true,
     needs_clarification: false,

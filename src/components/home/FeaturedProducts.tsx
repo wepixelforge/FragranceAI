@@ -29,6 +29,12 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
           subtitle: 'Engineered for extreme heat resilience. Available in 10ml trials and 50ml EDPs.',
           cta: 'Browse Lab Catalog',
         };
+      case 'sampling-concierge':
+        return {
+          title: 'Featured',
+          subtitle: 'A few pieces from the collection — official samples and travel sizes you can try first.',
+          cta: 'Shop the catalogue',
+        };
       default:
         return {
           title: 'Featured Fragrances',
@@ -41,7 +47,7 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
   const info = getSectionTitle();
 
   return (
-    <section className="py-24 sm:py-32 border-t border-brand-border bg-brand-bg relative">
+    <section id="featured" className="py-24 sm:py-32 border-t border-brand-border bg-brand-bg relative">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-14 border-b border-brand-border pb-6 gap-4">
           <div>

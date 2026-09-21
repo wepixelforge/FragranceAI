@@ -31,26 +31,26 @@ export default function Footer({ brand }: FooterProps) {
           {/* Navigation Links */}
           <div className="md:col-span-3">
             <h4 className="text-[10px] uppercase tracking-widest font-mono text-brand-accent mb-4">
-              Archive & Navigation
+              {brand.slug === 'thescentstories' ? 'Shop' : 'Archive & Navigation'}
             </h4>
             <nav className="flex flex-col gap-2.5">
               <Link
                 href={`/${brand.slug}`}
                 className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                Maison Entrance
+                {brand.slug === 'thescentstories' ? 'Home' : 'Maison Entrance'}
               </Link>
               <Link
                 href={`/${brand.slug}/shop`}
                 className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                Complete Collection
+                {brand.slug === 'thescentstories' ? 'Catalogue' : 'Complete Collection'}
               </Link>
               <Link
-                href={`/${brand.slug}/finder`}
+                href={brand.slug === 'thescentstories' ? `/${brand.slug}/shop?format=sample` : `/${brand.slug}/finder`}
                 className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                Scent Concierge
+                {brand.slug === 'thescentstories' ? 'Samples' : 'Scent Concierge'}
               </Link>
             </nav>
           </div>
@@ -58,17 +58,19 @@ export default function Footer({ brand }: FooterProps) {
           {/* Consultation Column */}
           <div className="md:col-span-4">
             <h4 className="text-[10px] uppercase tracking-widest font-mono text-brand-accent mb-4">
-              Private Consultation
+              {brand.slug === 'thescentstories' ? 'Need a hand?' : 'Private Consultation'}
             </h4>
             <p className="text-xs text-brand-text-muted leading-relaxed mb-4 font-light">
-              Consult with our digital sommelier to explore creations aligned with your preferred accords, longevity, and climate.
+              {brand.slug === 'thescentstories'
+                ? 'Not sure what to choose? Tell us an occasion, a budget, or a fragrance you already love.'
+                : 'Consult with our digital sommelier to explore creations aligned with your preferred accords, longevity, and climate.'}
             </p>
             <Link
               href={`/${brand.slug}/finder`}
               className="group inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium transition-colors hover:text-brand-accent"
               style={{ color: brand.colors.accent }}
             >
-              <span>Begin Scent Session</span>
+              <span>{brand.slug === 'thescentstories' ? 'Ask us' : 'Begin Scent Session'}</span>
               <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </Link>
           </div>
@@ -76,10 +78,14 @@ export default function Footer({ brand }: FooterProps) {
 
         <div className="mt-14 border-t border-brand-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] uppercase tracking-widest text-brand-text-muted/60 font-mono">
           <p>
-            Concept demonstration curated for {brand.name}.
+            {brand.slug === 'thescentstories'
+              ? `${brand.name} · Mumbai`
+              : `Concept demonstration curated for ${brand.name}.`}
           </p>
           <p>
-            Independent evaluation prototype · Editorial discovery engine
+            {brand.slug === 'thescentstories'
+              ? 'Authentic samples · Pocket sizes · Full bottles'
+              : 'Independent evaluation prototype · Editorial discovery engine'}
           </p>
         </div>
       </div>

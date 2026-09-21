@@ -10,6 +10,7 @@ import {
   Product,
 } from '@/types/product';
 import { resolveStyleFamilies } from './style-aliases';
+import { extractCanonicalFamilies, normalizeFragranceLanguage } from './fragrance-vocabulary';
 
 /**
  * Known reference designer / niche perfumes for deep inspiration matching.
@@ -63,13 +64,20 @@ export function messageHasReferenceCue(message: string): boolean {
   return REFERENCE_CUE.test(message);
 }
 
-/** Explicit drop of a named/active reference, including "forget the Dior Sauvage reference". */
-export function isReferenceDropRequest(message: string): boolean {
+/** Explicit drop of a named/active reference, including "forget Sauvage" and "forget the Dior Sauvage reference". */
+export function isReferenceDropRequest(message: string, activeReference?: string | null): boolean {
   const t = message.toLowerCase();
-  return (
-    /\b(forget|drop|remove|ignore)\b.{0,48}\breference\b/.test(t) ||
-    /\bno\s+more\s+reference\b/.test(t)
-  );
+  if (/\b(forget|drop|remove|ignore)\b.{0,48}\breference\b/.test(t)) return true;
+  if (/\bno\s+more\s+reference\b/.test(t)) return true;
+  const named = [...POPULAR_REFERENCE_PERFUMES];
+  if (activeReference) named.push(activeReference.toLowerCase());
+  for (const ref of named) {
+    const escaped = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`\\b(forget|drop|remove|ignore)\\b.{0,40}\\b${escaped}\\b`, 'i').test(t)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function titleCaseReference(raw: string): string {
@@ -335,17 +343,27 @@ export function parseQuery(raw: string): ParsedQuery {
     'musky': 'musky',
     'musk': 'musky',
     'aromatic': 'aromatic',
+    'fruity': 'fruity',
+    'frooty': 'fruity',
+    'fruit-forward': 'fruity',
+    'fruitier': 'fruity',
   };
 
   const families: FragranceFamily[] = [];
+  const normalizedQuery = normalizeFragranceLanguage(query);
   for (const [kw, fam] of Object.entries(familyMap)) {
     // Only add if not explicitly excluded
-    if (query.includes(kw) && !exclusions.fragranceFamilies?.includes(fam)) {
+    if (normalizedQuery.includes(kw) && !exclusions.fragranceFamilies?.includes(fam)) {
       // Avoid false positive if preceded by "hate", "no", "not"
       const negated = new RegExp(`(?:hate|don't like|no|not|avoid)\\s+(?:very\\s+)?${kw}`, 'i');
-      if (!negated.test(query) && !families.includes(fam)) {
+      if (!negated.test(normalizedQuery) && !families.includes(fam)) {
         families.push(fam);
       }
+    }
+  }
+  for (const fam of extractCanonicalFamilies(normalizedQuery)) {
+    if (!exclusions.fragranceFamilies?.includes(fam) && !families.includes(fam)) {
+      families.push(fam);
     }
   }
   if (families.length > 0) preferences.fragranceFamilies = families;

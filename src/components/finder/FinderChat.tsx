@@ -10,8 +10,10 @@ import {
 } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 import { formatPrice } from '@/lib/brand-utils';
+import { formatLabel, relatedFormatProducts } from '@/lib/sampling-format';
 import { sanitizeUserFacingResponse } from '@/lib/sanitize-user-text';
 import BottleVisual from '@/components/shop/BottleVisual';
+import { useCart } from '@/context/CartContext';
 import { useScentFinder, ConversationMessage } from '@/context/ScentFinderContext';
 import ConsultationDebugPanel from '@/components/finder/ConsultationDebugPanel';
 
@@ -140,7 +142,9 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
               {brand.finder.assistantName}
             </span>
             <span className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted hidden sm:inline font-light">
-              Personal Fragrance Consultation · {brand.name}
+              {brand.slug === 'thescentstories'
+                ? `Shopping help · ${brand.name}`
+                : `Personal Fragrance Consultation · ${brand.name}`}
             </span>
           </div>
         </div>
@@ -184,7 +188,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
             {/* Suggested Consultation Starter Prompts */}
             <div className="w-full space-y-3 text-left">
               <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent block font-medium">
-                Example Inquiries:
+                {brand.slug === 'thescentstories' ? 'Quick starts' : 'Example Inquiries:'}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {starterPrompts.map((prompt, i) => (
@@ -260,6 +264,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
                 <CuratedRecommendationGroup
                   results={message.results}
                   brand={brand}
+                  catalogue={products}
                 />
               )}
             </div>
@@ -301,7 +306,11 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe your desired mood, occasion, or notes..."
+              placeholder={
+                brand.slug === 'thescentstories'
+                  ? "Tell me what you're looking for..."
+                  : 'Describe your desired mood, occasion, or notes...'
+              }
               className="flex-1 bg-brand-input-bg border border-brand-input-border focus:border-brand-accent text-brand-text placeholder-brand-text-muted/60 text-xs sm:text-sm px-4 sm:px-5 py-3.5 outline-none transition-colors"
             />
             <button
@@ -326,13 +335,22 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
 function CuratedRecommendationGroup({
   results,
   brand,
+  catalogue,
 }: {
   results: RecommendationResult[];
   brand: BrandConfig;
+  catalogue: Product[];
 }) {
   const primary = results[0];
   const alternatives = results.slice(1);
   const isDiscovery = brand.designVariant === 'discovery-niche';
+  const isSampling = brand.designVariant === 'sampling-concierge';
+  const { addItem, isInCart } = useCart(brand.slug);
+  const siblings = primary ? relatedFormatProducts(primary.product, catalogue) : [];
+  const tryFirst = siblings.find((item) => item.format === 'sample' || item.format === 'vial')
+    || (primary?.product.format === 'sample' || primary?.product.format === 'vial' ? primary.product : undefined);
+  const fullSize = siblings.find((item) => item.format === 'full-size' || item.format === 'tester')
+    || (primary?.product.format === 'full-size' || primary?.product.format === 'tester' ? primary.product : undefined);
 
   if (!primary) return null;
 
@@ -347,7 +365,7 @@ function CuratedRecommendationGroup({
           {/* Left: Product Flacon Showcase */}
           <div className="lg:col-span-5 aspect-square sm:aspect-[4/3] lg:aspect-square bg-brand-stage flex items-center justify-center p-8 relative overflow-hidden">
             <div className="absolute top-4 left-4 z-20 text-[9px] uppercase tracking-[0.25em] text-brand-accent font-medium">
-              Primary Selection
+              {isSampling ? 'Your match' : 'Primary Selection'}
             </div>
             <div className="relative z-10 transition-transform duration-700 ease-out hover:scale-104">
               <BottleVisual key={primary.product.id} product={primary.product} brand={brand} size="md" />
@@ -369,6 +387,9 @@ function CuratedRecommendationGroup({
               <h3 className="font-serif text-2xl sm:text-3xl text-brand-text font-normal mt-1 leading-snug">
                 {primary.product.name}
               </h3>
+              {isSampling && primary.product.houseBrand && (
+                <p className="mt-1 text-xs text-brand-text-muted">{primary.product.houseBrand}</p>
+              )}
 
               {/* Conversational Match Rationale */}
               <p className="mt-3 text-xs sm:text-sm text-brand-text-muted font-light leading-relaxed italic border-l border-brand-accent/30 pl-3">
@@ -389,7 +410,11 @@ function CuratedRecommendationGroup({
             {/* Action Row */}
             <div className="mt-6 pt-4 border-t border-brand-border-light flex flex-wrap items-center justify-between gap-4">
               <div className="text-[10px] text-brand-text-muted font-light">
-                {isDiscovery ? '10ml trial from ₹149' : `${primary.product.size} Extrait`}
+                {isDiscovery
+                  ? '10ml trial from ₹149'
+                  : isSampling
+                  ? `${formatLabel(primary.product.format)} · ${primary.product.size}`
+                  : `${primary.product.size} Extrait`}
               </div>
 
               <div className="flex items-center gap-3">
@@ -409,6 +434,43 @@ function CuratedRecommendationGroup({
                 </Link>
               </div>
             </div>
+
+            {isSampling && (tryFirst || fullSize) && (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {tryFirst && (
+                  <button
+                    type="button"
+                    onClick={() => addItem(tryFirst.id, brand.slug)}
+                    className="border border-brand-border px-4 py-3 text-left hover:border-brand-accent/50"
+                  >
+                    <span className="block text-[9px] uppercase tracking-[0.2em] text-brand-accent">Try first</span>
+                    <span className="block mt-1 text-xs text-brand-text">
+                      {formatLabel(tryFirst.format)} — {formatPrice(tryFirst.price)}
+                    </span>
+                    <span className="block mt-1 text-[10px] text-brand-text-muted">
+                      {isInCart(tryFirst.id) ? 'In cart' : 'Add sample'}
+                    </span>
+                  </button>
+                )}
+                {fullSize && fullSize.id !== tryFirst?.id && (
+                  <button
+                    type="button"
+                    onClick={() => addItem(fullSize.id, brand.slug)}
+                    className="border border-brand-border px-4 py-3 text-left hover:border-brand-accent/50"
+                  >
+                    <span className="block text-[9px] uppercase tracking-[0.2em] text-brand-accent">
+                      If you already know it
+                    </span>
+                    <span className="block mt-1 text-xs text-brand-text">
+                      {formatLabel(fullSize.format)} — {formatPrice(fullSize.price)}
+                    </span>
+                    <span className="block mt-1 text-[10px] text-brand-text-muted">
+                      {isInCart(fullSize.id) ? 'In cart' : 'Add full size'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -10,7 +10,11 @@ export type FragranceFamily =
   | 'musky' 
   | 'oriental'
   | 'aromatic'
-  | 'gourmand';
+  | 'gourmand'
+  | 'fougere'
+  | 'green'
+  | 'chypre'
+  | 'fruity';
 
 export type Occasion = 
   | 'date-night' 
@@ -30,6 +34,35 @@ export type Longevity = 'light' | 'moderate' | 'long-lasting' | 'beast-mode';
 export type Intensity = 'subtle' | 'moderate' | 'strong' | 'projection-beast';
 
 export type MatchTier = 'Best Match' | 'Great Match' | 'Good Option' | 'Alternative' | 'Spotlight' | 'Comparison Candidate' | 'Closest Match';
+
+export type ProductFormat =
+  | 'sample'
+  | 'vial'
+  | 'pocket'
+  | 'miniature'
+  | 'tester'
+  | 'discovery-set'
+  | 'full-size';
+
+export type FormatIntent =
+  | 'TRY_SAMPLE'
+  | 'TRY_VIAL'
+  | 'POCKET_SIZE'
+  | 'MINIATURE'
+  | 'TESTER'
+  | 'DISCOVERY_SET'
+  | 'FULL_SIZE'
+  | 'NO_FORMAT_PREFERENCE';
+
+export type ExplorationIntent =
+  | 'sampling'
+  | 'travel'
+  | 'gifting'
+  | 'full-bottle-confidence'
+  | 'compare-several'
+  | null;
+
+export type ExperienceLevel = 'beginner' | 'experienced' | null;
 
 export interface Product {
   id: string;
@@ -63,6 +96,11 @@ export interface Product {
   similarTo: string[];
   featured?: boolean;
   imageUrl?: string;
+  houseBrand?: string;
+  format?: ProductFormat;
+  lineageId?: string;
+  originalPrice?: number;
+  concentration?: string;
 }
 
 export interface Exclusions {
@@ -104,6 +142,11 @@ export interface StructuredPreferences {
   exclusions?: Exclusions;
   vibes?: string[];
   rawQuery?: string;
+  formatPreference?: FormatIntent;
+  explorationIntent?: ExplorationIntent;
+  experienceLevel?: ExperienceLevel;
+  travelIntent?: boolean;
+  giftingIntent?: boolean;
 }
 
 export interface MatchReasonDetail {

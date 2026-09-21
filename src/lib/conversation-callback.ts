@@ -1,5 +1,6 @@
 import { ChatMessage, ConversationState, Stage1IntentOutput } from '@/types/chat';
 import { Product } from '@/types/product';
+import { extractCanonicalFamilies, normalizeFragranceLanguage } from './fragrance-vocabulary';
 
 export type ConversationCallbackKind =
   | 'unusual_repeat'
@@ -62,6 +63,8 @@ const FAMILY_TOKENS = [
   'powdery',
   'vanilla',
   'fruity',
+  'frooty',
+  'fruitier',
 ] as const;
 
 const STOPWORDS = new Set([
@@ -180,8 +183,10 @@ function stripComparativeNoise(text: string): string {
 }
 
 export function extractFamiliesFromText(text: string): string[] {
-  const haystack = stripComparativeNoise(text);
-  return FAMILY_TOKENS.filter((family) => new RegExp(`\\b${family}\\b`, 'i').test(haystack));
+  const haystack = normalizeFragranceLanguage(stripComparativeNoise(text));
+  const fromTokens = FAMILY_TOKENS.filter((family) => new RegExp(`\\b${family}\\b`, 'i').test(haystack))
+    .map((family) => (family === 'frooty' || family === 'fruitier' ? 'fruity' : family));
+  return Array.from(new Set([...fromTokens, ...extractCanonicalFamilies(haystack)]));
 }
 
 function significantTokens(text: string): string[] {

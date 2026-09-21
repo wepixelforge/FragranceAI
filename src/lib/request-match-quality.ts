@@ -63,6 +63,7 @@ const OLFACTIVE_DIRECTIONS = new Set<string>([
   'fresh',
   'woody',
   'floral',
+  'fruity',
   'oriental',
   'spicy',
   'citrus',

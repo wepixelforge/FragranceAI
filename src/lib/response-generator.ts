@@ -26,6 +26,12 @@ import {
   ConversationCallback,
 } from './conversation-callback';
 import { analyzeScentConcept, isUnsupportedScentConcept } from './request-match-quality';
+import {
+  detectFormatEducationQuestion,
+  formatEducationReply,
+  formatLabel,
+  relatedFormatProducts,
+} from './sampling-format';
 
 export { sanitizeUserFacingResponse } from './sanitize-user-text';
 
@@ -526,6 +532,9 @@ async function callGroqStage2(
     case 'worldofperfumers':
       brandVoicePrompt = `You are "${assistantName}", fragrance exploration guide for World of Perfumers. Tone: Approachable, exploratory, curious, and welcoming.`;
       break;
+    case 'thescentstories':
+      brandVoicePrompt = `You are "${assistantName}", fragrance and sampling concierge for The Scent Stories. Tone: Calm, consultative, concise, premium. Guide on BOTH fragrance direction and the sensible format (sample, pocket, miniature, tester, discovery set, full size). Never push samples when the customer already knows the scent. Never invent formats or prices. Do not sound chatty or salesy.`;
+      break;
     default:
       brandVoicePrompt = `You are "${assistantName}", artisanal fragrance advisor. Tone: Warm, authentic, and knowledgeable.`;
       break;
@@ -594,6 +603,11 @@ CRITICAL RULES:
    - You MUST explain ONLY these validated canonical products.
    - Do NOT choose, reorder, replace, or invent products.
    - RECOMMENDATION_COUNT = ${presentation.recommendationCount}. This is the exact number of products the customer will see.
+   - NEVER say "3 options" or any other count unless it equals RECOMMENDATION_COUNT.
+   - Describe ONLY preferences that appear in the canonical conversation state. Do not infer "fresh", "sweet", or "citrus" from the products if those are not active state fields.
+   - A budget is a hard constraint, not a fragrance style. If the only active preference is a budget (for example under ₹1,000) and there is no scent family, note, occasion, or style, do NOT write "Based on under ₹1,000". Say naturally that you found N options under that budget (N = RECOMMENDATION_COUNT), then explain products from their actual families and notes.
+   - Do not invent a fragrance direction from the budget alone.
+   - When several scent dimensions are active (for example creamy, vanillic, rich, woody), explain the recommendation using the combination that actually fits the chosen product. Do not blindly list every state field. Do not mention preferences that are not in ACTIVE CONSULTATION CONTEXT.
    - If RECOMMENDATION_COUNT is 1: singular language is correct. Discuss only that product.
    - If RECOMMENDATION_COUNT is 2 or more: you MUST name the primary/closest match (rank 1) AND also name the other canonical products as additional options. Never write as if only one fragrance is being recommended.
    - If RECOMMENDATION_COUNT > 0: NEVER say you could not find options, never say you don't have anything, never open with "I'm sorry" / "I'm afraid" / "Unfortunately", and never contradict the canonical result.
@@ -720,6 +734,83 @@ ${options.actionContext ? `\nSTRUCTURED APPLICATION CONTEXT & POLICIES:\n${JSON.
   return sanitized.length > 0 ? sanitized : null;
 }
 
+function optionCountPhrase(n: number): string {
+  if (n === 1) return 'one option';
+  if (n === 2) return 'two options';
+  if (n === 3) return 'three options';
+  return `${n} options`;
+}
+
+function hasActiveScentDirection(activeReq: {
+  families?: string[];
+  style?: string | null;
+  preferredNotes?: string[];
+  occasion?: string | null;
+  season?: string | null;
+  intensity?: string | null;
+  freshness?: string | null;
+  warmth?: string | null;
+  isSimilarityRequest?: boolean;
+}): boolean {
+  return Boolean(
+    (activeReq.families && activeReq.families.length > 0) ||
+      activeReq.style ||
+      (activeReq.preferredNotes && activeReq.preferredNotes.length > 0) ||
+      activeReq.occasion ||
+      activeReq.season ||
+      activeReq.intensity ||
+      activeReq.freshness ||
+      activeReq.warmth ||
+      activeReq.isSimilarityRequest
+  );
+}
+
+function budgetOnlyIntro(count: number, max: number): string {
+  const phrase = optionCountPhrase(count);
+  return count === 1
+    ? `Here is an option under ₹${max}`
+    : `Here are ${phrase} under ₹${max}`;
+}
+
+function creamyDirectionIntro(
+  activeReq: { families?: string[]; style?: string | null; preferredNotes?: string[] },
+  primaryName: string,
+  product: Product
+): string | null {
+  const notes = (activeReq.preferredNotes || []).map((n) => n.toLowerCase());
+  const hasCreamy = notes.includes('creamy') || (activeReq.style || '').toLowerCase() === 'creamy';
+  const hasVanilla = notes.includes('vanilla') || notes.includes('vanillic');
+  const hasWoody = (activeReq.families || []).some((f) => f.toLowerCase() === 'woody');
+  const hasRich = (activeReq.style || '').toLowerCase() === 'rich';
+  if (!hasCreamy && !hasVanilla) return null;
+
+  const hay = [
+    ...(product.topNotes || []),
+    ...(product.heartNotes || []),
+    ...(product.baseNotes || []),
+  ]
+    .join(' ')
+    .toLowerCase();
+  const productHasVanilla = /vanilla/.test(hay);
+
+  if (hasRich && hasWoody && hasVanilla && productHasVanilla) {
+    return `${primaryName} fits the rich, woody direction while keeping the soft vanilla character you mentioned`;
+  }
+  if (hasRich && hasWoody && hasVanilla) {
+    return `Looking at a rich, woody direction that keeps the creamy vanillic character you asked for, I recommend ${primaryName}`;
+  }
+  if (hasRich && hasWoody && hasCreamy) {
+    return `Looking at a rich, creamy-woody direction, I recommend ${primaryName}`;
+  }
+  if (hasWoody && hasVanilla) {
+    return `${primaryName} keeps the creamy vanillic character in a woody direction`;
+  }
+  if (hasCreamy && hasVanilla && !hasWoody) {
+    return `Looking at a soft, creamy vanillic direction, I recommend ${primaryName}`;
+  }
+  return null;
+}
+
 /**
  * Deterministic Grounded Fallback Response Generator
  */
@@ -756,6 +847,10 @@ export function fallbackResponseGenerator(
       return `Here are some other options. My top recommendation is ${primaryName}`;
     }
     return `Here are some different ${direction.label} options. My top recommendation is ${primaryName}`;
+  }
+
+  if (brand.slug === 'thescentstories' && detectFormatEducationQuestion(message)) {
+    return formatEducationReply(message);
   }
 
   // 1. OUT OF SCOPE
@@ -898,6 +993,14 @@ export function fallbackResponseGenerator(
   // 5. RESET
   if (stage1.intent === 'RESET_CONSULTATION') {
     return `Absolutely — we're starting fresh. What kind of fragrance are you looking for?`;
+  }
+
+  if (stage1.requested_changes?.includes('forget_last')) {
+    const tagged = stage1.requested_changes.find((c) => c.startsWith('forget_last:') && c !== 'forget_last');
+    const dropped = tagged?.split(':')[2];
+    return dropped
+      ? `I've dropped the ${dropped} preference. What would you like instead?`
+      : `I've dropped the last preference. What would you like instead?`;
   }
 
   // 5c. CUSTOMER OBJECTION — Acknowledge non-defensively with verified brand differentiator
@@ -1044,6 +1147,19 @@ export function fallbackResponseGenerator(
     if (/\b(how much|price|cost|₹)\b/.test(q)) {
       return `${p.name} is priced at ₹${p.price} for ${p.size}.`;
     }
+    if (brand.slug === 'thescentstories' && /\b(format|sample|full bottle|tester|miniature|pocket|vial|size)\b/.test(q)) {
+      const siblings = relatedFormatProducts(p, options.catalogueProducts || retrievedProducts);
+      const formats = [p, ...siblings]
+        .filter((item) => item.format)
+        .map((item) => `${formatLabel(item.format)} (${item.size}, ${formatPrice(item.price)})`);
+      if (/\bnotes?\b/.test(q)) {
+        return `${p.name} has ${joinNotes(p.topNotes)} as its top notes, with ${joinNotes(p.heartNotes)} in the heart, followed by ${joinNotes(p.baseNotes)}.`;
+      }
+      if (formats.length > 0) {
+        return `${p.name} is listed as ${formatLabel(p.format)} — ${p.size} at ${formatPrice(p.price)}. Available related formats in this catalogue: ${formats.join('; ')}.`;
+      }
+      return `${p.name} is listed as ${formatLabel(p.format)} — ${p.size} at ${formatPrice(p.price)}. The catalogue does not list additional formats for this fragrance.`;
+    }
     if (/\boffice|workplace|workwear|daily wear\b/.test(q)) {
       const officeOk = p.occasion.some((o) => /office|daily|casual|travel/i.test(o));
       return officeOk
@@ -1157,16 +1273,19 @@ export function fallbackResponseGenerator(
     const fams = activeReq.families?.length > 0 ? activeReq.families.join('/') : '';
     const occ = activeReq.occasion ? activeReq.occasion.replace('-', ' ') : '';
     const dir = [fams, occ].filter(Boolean).join(' ');
+    const budgetOnly = Boolean(activeReq.budget?.max) && !hasActiveScentDirection(activeReq);
 
     let intro = `Based on your request`;
 
     if (stage1.intent === 'SHOW_ALTERNATIVES') {
       intro = alternativesIntro(primary.product.name);
+    } else if (budgetOnly) {
+      intro = budgetOnlyIntro(results.length, activeReq.budget!.max!);
     } else if (isRefinement && stage1.remove_budget) {
       intro = `Understood — I've removed the budget constraint while keeping your ${dir || 'current'} preferences. My best match is ${primary.product.name}`;
     } else if (isRefinement && stage1.relative_price === 'cheaper') {
       intro = `Looking at more accessible options with the same scent profile. My best match is ${primary.product.name} at ₹${primary.product.price}`;
-    } else if (isRefinement && activeReq.budget?.max && (stage1.budget?.max || stage1.updates?.some((u) => u.field === 'budget.max') || message.toLowerCase().includes('500') || message.toLowerCase().includes('1000') || message.toLowerCase().includes('700') || message.toLowerCase().includes('budget') || message.toLowerCase().includes('have'))) {
+    } else if (isRefinement && dir && activeReq.budget?.max && (stage1.budget?.max || stage1.updates?.some((u) => u.field === 'budget.max') || message.toLowerCase().includes('500') || message.toLowerCase().includes('1000') || message.toLowerCase().includes('700') || message.toLowerCase().includes('budget') || message.toLowerCase().includes('have'))) {
       intro = `Got it — I'll keep the ${dir || 'current'} direction and bring the budget limit to ₹${activeReq.budget.max}. My best match is ${primary.product.name}`;
     } else if (isRefinement && (stage1.warmth === 'moderate-warm' || activeReq.warmth === 'moderate-warm')) {
       intro = `Adjusted — keeping a balanced, moderate warmth without being overly heavy for the ${occ || 'current'} direction. My best match is ${primary.product.name}`;
@@ -1181,23 +1300,40 @@ export function fallbackResponseGenerator(
     } else if (isSimilarity && referenceName) {
       intro = `Since you like ${referenceName}, I recommend ${primary.product.name}`;
     } else {
-      const criteria: string[] = [];
-      if (activeReq.families?.length > 0) criteria.push(activeReq.families.join(' + '));
-      if (activeReq.occasion) criteria.push(activeReq.occasion.replace('-', ' '));
-      if (activeReq.season) criteria.push(activeReq.season);
-      if (activeReq.budget?.max) criteria.push(`under ₹${activeReq.budget.max}`);
-      if (activeReq.intensity) criteria.push(`${activeReq.intensity} intensity`);
-
-      const excludedDesc = activeReq.excludedFamilies?.length > 0 ? `excluding ${activeReq.excludedFamilies.join('/')}` : '';
-
-      if (criteria.length > 0) {
-        intro = excludedDesc
-          ? `Based on ${criteria.join(' + ')} (${excludedDesc}), I recommend ${primary.product.name}`
-          : `Based on ${criteria.join(' + ')}, I recommend ${primary.product.name}`;
-      } else if (excludedDesc) {
-        intro = `Looking at options ${excludedDesc}, I recommend ${primary.product.name}`;
+      const comboIntro = creamyDirectionIntro(activeReq, primary.product.name, primary.product);
+      if (comboIntro) {
+        intro = comboIntro;
       } else {
-        intro = `From our catalogue, I recommend ${primary.product.name}`;
+        const criteria: string[] = [];
+        if (activeReq.families?.length > 0) criteria.push(activeReq.families.join(' + '));
+        if (activeReq.style && !criteria.some((c) => c.toLowerCase().includes(activeReq.style!.toLowerCase()))) {
+          criteria.push(activeReq.style);
+        }
+        if (activeReq.preferredNotes?.some((n) => n.toLowerCase() === 'creamy') && !criteria.some((c) => /creamy/i.test(c))) {
+          criteria.push('creamy');
+        }
+        if (activeReq.preferredNotes?.some((n) => /vanilla/i.test(n)) && !criteria.some((c) => /vanilla/i.test(c))) {
+          criteria.push('vanillic');
+        }
+        if (activeReq.freshness && !activeReq.families?.some((f) => f.toLowerCase() === 'fresh')) {
+          criteria.push('fresh');
+        }
+        if (activeReq.occasion) criteria.push(activeReq.occasion.replace('-', ' '));
+        if (activeReq.season) criteria.push(activeReq.season);
+        if (activeReq.budget?.max) criteria.push(`under ₹${activeReq.budget.max}`);
+        if (activeReq.intensity) criteria.push(`${activeReq.intensity} intensity`);
+
+        const excludedDesc = activeReq.excludedFamilies?.length > 0 ? `excluding ${activeReq.excludedFamilies.join('/')}` : '';
+
+        if (criteria.length > 0) {
+          intro = excludedDesc
+            ? `Based on ${criteria.join(' + ')} (${excludedDesc}), I recommend ${primary.product.name}`
+            : `Based on ${criteria.join(' + ')}, I recommend ${primary.product.name}`;
+        } else if (excludedDesc) {
+          intro = `Looking at options ${excludedDesc}, I recommend ${primary.product.name}`;
+        } else {
+          intro = `From our catalogue, I recommend ${primary.product.name}`;
+        }
       }
     }
 
@@ -1223,16 +1359,39 @@ export function fallbackResponseGenerator(
         alts.length > 0
           ? `If you want more projection, these options step up. ${primary.product.name} is the closest match`
           : `If you want more projection, ${primary.product.name} steps up from the previous recommendation`;
-    } else if (alts.length > 0 && presentation.recommendationCount >= 2 && !intro.toLowerCase().includes('here are')) {
-      intro = `${intro}, and I've included ${presentation.recommendationCount} options`;
+    } else if (alts.length > 0 && results.length >= 2 && !intro.toLowerCase().includes('here are')) {
+      const countWord = results.length === 2 ? 'two' : results.length === 3 ? 'three' : String(results.length);
+      intro = `${intro}. I found ${countWord} options`;
+    }
+
+    let formatWhy = '';
+    if (brand.slug === 'thescentstories' && primary.product.format) {
+      const format = primary.product.format;
+      const exploration = currentState.activeRequest?.explorationIntent;
+      const experience = currentState.activeRequest?.experienceLevel;
+      if (format === 'sample' || format === 'vial') {
+        formatWhy =
+          experience === 'experienced'
+            ? ` This is the official sample SKU listed for that direction.`
+            : ` If you have not tried it before, this sample is the lower-commitment way to start.`;
+      } else if (format === 'discovery-set') {
+        formatWhy = ` This is a discovery set, so you can try several fragrances rather than committing to one bottle.`;
+      } else if (format === 'pocket' || format === 'miniature') {
+        formatWhy = ` This is a smaller ${formatLabel(format).toLowerCase()} — useful if you want something compact.`;
+      } else if (format === 'full-size' || format === 'tester') {
+        formatWhy =
+          exploration === 'full-bottle-confidence'
+            ? ` Since you already know the scent, this is the full-size option listed in the catalogue.`
+            : ` This is the larger format listed for that fragrance.`;
+      }
     }
 
     if (alts.length > 0) {
       const altNames = alts.map((a) => `${a.product.name} (₹${a.product.price})`).join(' and ');
-      return `${intro}.\n\n${whyPrimary}\n\nAlso included: ${altNames}.`;
+      return `${intro}.\n\n${whyPrimary}${formatWhy}\n\nAlso included: ${altNames}.`;
     }
 
-    return `${intro}.\n\n${whyPrimary}`;
+    return `${intro}.\n\n${whyPrimary}${formatWhy}`;
   }
 
   // 10. PURE PREFERENCE UPDATES WITHOUT IMMEDIATE PRODUCTS

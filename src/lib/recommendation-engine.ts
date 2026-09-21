@@ -16,6 +16,8 @@ import {
   isMeaningfulPartialMatch,
   isUnsupportedScentConcept,
 } from './request-match-quality';
+import { productMatchesFormat, samplingScoreBonus } from './sampling-format';
+import { productMatchesRequestedFamily } from './fragrance-vocabulary';
 
 /**
  * Score weights for deterministic soft ranking.
@@ -54,6 +56,7 @@ const FAMILY_NEIGHBORS: Record<string, string[]> = {
   floral: ['sweet', 'oriental'],
   sweet: ['gourmand', 'floral', 'oriental'],
   gourmand: ['sweet', 'oriental'],
+  fruity: [],
 };
 
 function relatedFamiliesFor(requested: string[]): string[] {
@@ -296,6 +299,20 @@ export function isHardCandidateValid(
   if (exclusions.gender && exclusions.gender.length > 0) {
     if (exclusions.gender.includes(product.gender)) {
       return { valid: false, reason: `Excluded gender: ${product.gender}` };
+    }
+  }
+
+  // 10. Explicit format (The Scent Stories). Products without format are unaffected.
+  if (
+    preferences.formatPreference &&
+    preferences.formatPreference !== 'NO_FORMAT_PREFERENCE' &&
+    product.format
+  ) {
+    if (!productMatchesFormat(product, preferences.formatPreference)) {
+      return {
+        valid: false,
+        reason: `Format ${product.format} does not match requested ${preferences.formatPreference}`,
+      };
     }
   }
 
@@ -839,7 +856,9 @@ export function getRecommendations(
       if (!matchesRequestedNote) return false;
     }
     if (hasFamilyFilter) {
-      const matchesFam = preferences.fragranceFamilies!.some((f) => r.product.fragranceFamily.includes(f));
+      const matchesFam = preferences.fragranceFamilies!.some((f) =>
+        productMatchesRequestedFamily(r.product, f)
+      );
       const matchesOcc = preferences.occasion && preferences.occasion.length > 0 && preferences.occasion.some((occ) => r.product.occasion.includes(occ));
       const matchesNote = preferences.notes && preferences.notes.length > 0 && r.matchReasons.some((m) => m.type === 'notes');
       if (!matchesFam && !matchesOcc && !matchesNote) {
@@ -1068,7 +1087,7 @@ function scoreProduct(product: Product, prefs: StructuredPreferences): Recommend
   // 1. Fragrance Family Matching
   if (prefs.fragranceFamilies && prefs.fragranceFamilies.length > 0) {
     const matchedFamilies = prefs.fragranceFamilies.filter((f) =>
-      product.fragranceFamily.includes(f)
+      productMatchesRequestedFamily(product, f)
     );
     if (matchedFamilies.length > 0) {
       const familyScore = WEIGHTS.fragranceFamily * (matchedFamilies.length / prefs.fragranceFamilies.length);
@@ -1484,6 +1503,25 @@ function scoreProduct(product: Product, prefs: StructuredPreferences): Recommend
         });
       }
     }
+  }
+
+  const formatBonus = samplingScoreBonus(product, {
+    formatPreference: prefs.formatPreference,
+    explorationIntent: prefs.explorationIntent,
+    experienceLevel: prefs.experienceLevel,
+    travelIntent: prefs.travelIntent,
+    giftingIntent: prefs.giftingIntent,
+  });
+  if (formatBonus !== 0) {
+    score += formatBonus;
+    matchReasons.push({
+      type: 'tag',
+      label:
+        formatBonus > 0
+          ? `Sensible ${product.format || 'format'} for this request`
+          : 'Less suitable format for this request',
+      score: formatBonus,
+    });
   }
 
   // Ensure products with zero matching criteria stay at 0
