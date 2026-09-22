@@ -176,6 +176,23 @@ export function formatEducationReply(message: string): string {
   return 'Format changes size and packaging, not the fragrance identity. I will only recommend a sample, pocket size, miniature, tester, discovery set, or full bottle when that exact SKU exists in the catalogue.';
 }
 
+export function isHairBodyMistProduct(product: Product): boolean {
+  const hay = [product.name, product.size, product.description, ...(product.tags || [])]
+    .join(' ')
+    .toLowerCase();
+  return (
+    (product.tags || []).some((tag) => /hair-body-mist|body-mist|hair-mist/i.test(tag)) ||
+    /\b(hair\s*&\s*body|hair and body|body mist|hair mist|perfume mist)\b/.test(hay)
+  );
+}
+
+export function userRequestsBodyMist(message?: string | null): boolean {
+  if (!message) return false;
+  return /\b(mist|body spray|hair fragrance|body fragrance|hair\s*&\s*body|hair and body|non-perfume)\b/i.test(
+    message
+  );
+}
+
 export function formatLabel(format?: ProductFormat): string {
   switch (format) {
     case 'sample':

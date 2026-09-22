@@ -925,15 +925,13 @@ export function fallbackResponseGenerator(
       return `Done — I've removed all ${cleared} item${cleared === 1 ? '' : 's'} from your cart. Your cart is now empty.`;
     }
     if (action === 'ADD_TO_CART') {
-      if (nameList.length > 0) {
+      const addSucceeded = options.actionContext?.cart_action?.success === true && nameList.length > 0;
+      if (addSucceeded) {
         const listed =
           nameList.length === 1
             ? nameList[0]
             : `${nameList.slice(0, -1).join(', ')} and ${nameList[nameList.length - 1]}`;
-        if (failed?.length) {
-          return `Done — I’ve added ${listed} to your cart. I couldn’t find ${failed.join(', ')} in this collection.`;
-        }
-        return `Done — I’ve added ${nameList.length} fragrance${nameList.length === 1 ? '' : 's'} to your cart: ${listed}.`;
+        return `Added ${listed} to your cart.`;
       }
       if (failed?.length) {
         return `I couldn’t find ${failed.join(', ')} in this collection, so nothing was added. You can browse the current brand’s fragrances or tell me another name.`;

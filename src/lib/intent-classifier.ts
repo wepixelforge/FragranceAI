@@ -741,6 +741,47 @@ export function detectResetIntent(message: string): boolean {
   return false;
 }
 
+/**
+ * When reset language is combined with a new shopping request in one utterance
+ * ("Start fresh. I want something woody."), return the shopping remainder.
+ * Reset-only messages return null.
+ */
+export function extractPostResetConsultation(message: string): string | null {
+  if (!detectResetIntent(message)) return null;
+  const rest = message
+    .replace(/[?.!,]+/g, ' ')
+    .replace(
+      /\b(please\s+)?(let'?s\s+)?(i\s+want\s+to\s+)?(start|begin)(\s+\w+){0,3}\s+(over|again|fresh|from\s+scratch)\b/gi,
+      ' '
+    )
+    .replace(/\breset(\s+everything)?\b/gi, ' ')
+    .replace(
+      /\bforg[eo]t\s+(everything|all(\s+(of\s+)?(this|that))?|what\s+i\s+(told|said|shared)|all(\s+my)?\s+preferences?|my\s+preferences?)\b/gi,
+      ' '
+    )
+    .replace(/\b(clear|wipe)\s+everything\b/gi, ' ')
+    .replace(/\bignore\s+everything(\s+before\s+this)?\b/gi, ' ')
+    .replace(
+      /\b(clear|wipe)\s+((our|the|my|the\s+current)\s+)?(conversation|consultation|preferences?|current\s+preferences?)\b/gi,
+      ' '
+    )
+    .replace(/^(and|then|now|so)\s+/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!rest || rest.length < 3) return null;
+  if (detectResetIntent(rest)) return null;
+
+  const families = extractCanonicalFamilies(rest);
+  if (families.length > 0) return rest;
+  if (
+    /\b(i\s+want|i\s+need|looking\s+for|recommend|show\s+me|give\s+me|something)\b/i.test(rest)
+  ) {
+    return rest;
+  }
+  return null;
+}
+
 /** "forget that" / "forgot that" — undo last preference, not a full reset. */
 export function detectForgetSpecificFamily(message: string): string | null {
   const t = normalizeFragranceLanguage(message).toLowerCase();
@@ -2407,7 +2448,9 @@ export async function classifyIntentAndExtractPreferences(
   const isHowAreYou = /^(how\s+are\s+you|how\'s\s+it\s+going|how\s+are\s+things)[?.]?$/i.test(lower);
 
   if (detectResetIntent(trimmed)) {
-    return buildResetStage1();
+    const remainder = extractPostResetConsultation(trimmed);
+    if (!remainder) return buildResetStage1();
+    return classifyIntentAndExtractPreferences(remainder, brand, products, [], undefined);
   }
   if (detectForgetLastRequest(trimmed)) {
     return buildForgetLastStage1(currentState);
@@ -3163,7 +3206,9 @@ export function fallbackIntentClassifier(
   }
 
   if (detectResetIntent(clean)) {
-    return buildResetStage1();
+    const remainder = extractPostResetConsultation(clean);
+    if (!remainder) return buildResetStage1();
+    return fallbackIntentClassifier(remainder, brand, products, undefined, history);
   }
   if (detectForgetLastRequest(clean)) {
     return buildForgetLastStage1(currentState);

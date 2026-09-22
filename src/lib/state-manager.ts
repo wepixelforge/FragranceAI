@@ -21,6 +21,7 @@ import {
 import { isReferenceDropRequest, isComparativePreferenceRefinement } from './query-parser';
 import { parseSamplingContext } from './sampling-format';
 import { isFreshConsultationQuery } from './fragrance-vocabulary';
+import { detectResetIntent } from './intent-classifier';
 
 export function normalizeOccasion(raw?: string | null): string | null {
   if (!raw) return null;
@@ -187,7 +188,7 @@ export function updateConversationState(
   discussedProductIdsOrMessage: string[] | string = [],
   userMessage?: string
 ): ConversationState {
-  const base = currentState || createInitialConversationState();
+  let base = currentState || createInitialConversationState();
   const discussedProductIds = Array.isArray(discussedProductIdsOrMessage)
     ? discussedProductIdsOrMessage
     : [];
@@ -200,6 +201,13 @@ export function updateConversationState(
   const rawMsgEarly = typeof discussedProductIdsOrMessage === 'string'
     ? discussedProductIdsOrMessage
     : (userMessage || '');
+
+  if (
+    detectResetIntent(rawMsgEarly) &&
+    stage1.intent !== 'CART_ASSISTANCE'
+  ) {
+    base = createInitialConversationState();
+  }
 
   // 1a. FORGET LAST PREFERENCE ("forget that") — not a full reset
   if (stage1.requested_changes?.includes('forget_last')) {

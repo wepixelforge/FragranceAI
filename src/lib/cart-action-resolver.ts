@@ -292,6 +292,18 @@ function delegatedCountFromRefs(refs: string[]): number | null {
   return null;
 }
 
+function isFormatOrConcentrationToken(token: string): boolean {
+  const t = token
+    .toLowerCase()
+    .replace(/[·•]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!t) return true;
+  return /^(official\s+sample|sample|vial|edp|edt|extrait|parfum|eau de parfum|eau de toilette|\d+(\.\d+)?ml(?: official sample)?(?: edp| edt)?)$/i.test(
+    t
+  );
+}
+
 export function sanitizeCartProductReferences(
   references: string[] | undefined,
   message: string,
@@ -310,7 +322,9 @@ export function sanitizeCartProductReferences(
     const named = findNamedProductsInText(raw, products);
     const fuzzy = named.length > 0 ? named : ([matchBrandProductByName(raw, products)].filter(Boolean) as Product[]);
     if (fuzzy.length === 0) {
-      out.push(raw);
+      if (!isFormatOrConcentrationToken(raw)) {
+        out.push(raw);
+      }
       continue;
     }
     for (const product of fuzzy) {
@@ -615,7 +629,9 @@ function leftoverNameCandidates(message: string, matched: Product[]): string[] {
 export function extractCartProductReferences(message: string, products: Product[]): string[] {
   const named = findNamedProductsInText(message, products);
   if (named.length > 0) {
-    const extras = leftoverNameCandidates(message, named);
+    const extras = leftoverNameCandidates(message, named).filter(
+      (part) => !isFormatOrConcentrationToken(part)
+    );
     return [...named.map((p) => p.name), ...extras];
   }
   const contextual = extractContextualReferences(message);
@@ -953,10 +969,15 @@ export function resolveCartProductReferences(options: {
     return clarify('I’m not sure which fragrances you mean. Could you name them?');
   }
 
+  const meaningfulFailed =
+    resolved.length > 0
+      ? failed.filter((item) => !isFormatOrConcentrationToken(item.reference))
+      : failed;
+
   return {
     action,
     resolved,
-    failed,
+    failed: meaningfulFailed,
     needsClarification: false,
     clarificationQuestion,
   };

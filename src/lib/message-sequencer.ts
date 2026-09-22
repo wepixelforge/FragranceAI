@@ -145,6 +145,10 @@ export function normalizeAssistantMessages(
     ];
   }
 
+  if (intent === 'CART_ASSISTANCE') {
+    return [sanitized];
+  }
+
   // 2. RESET Archetype: 2 crisp thoughts
   if (intent === 'RESET_CONSULTATION') {
     return [

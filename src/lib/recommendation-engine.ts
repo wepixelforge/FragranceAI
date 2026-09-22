@@ -22,7 +22,7 @@ import {
   isMeaningfulPartialMatch,
   isUnsupportedScentConcept,
 } from './request-match-quality';
-import { productMatchesFormat, samplingScoreBonus } from './sampling-format';
+import { productMatchesFormat, samplingScoreBonus, isHairBodyMistProduct, userRequestsBodyMist } from './sampling-format';
 import { productMatchesRequestedFamily } from './fragrance-vocabulary';
 
 /**
@@ -779,7 +779,7 @@ export function getRecommendations(
 
   const candidatesBeforeFilter = products.map((p) => p.id);
   const candidatesRemoved: RemovedCandidateDetail[] = [];
-  const hardValidProducts: Product[] = [];
+  let hardValidProducts: Product[] = [];
 
   for (const product of products) {
     const hardCheck = isHardCandidateValid(product, preferences, { excludeProductIds, relativePriceCap });
@@ -791,6 +791,20 @@ export function getRecommendations(
         name: product.name,
         reason: hardCheck.reason || 'Failed hard constraints',
       });
+    }
+  }
+
+  if (!userRequestsBodyMist(queryText)) {
+    const conventional = hardValidProducts.filter((product) => !isHairBodyMistProduct(product));
+    if (conventional.length > 0) {
+      for (const mist of hardValidProducts.filter((product) => isHairBodyMistProduct(product))) {
+        candidatesRemoved.push({
+          id: mist.id,
+          name: mist.name,
+          reason: 'Hair/body mist held back unless conventional fragrance matches are unavailable',
+        });
+      }
+      hardValidProducts = conventional;
     }
   }
 
