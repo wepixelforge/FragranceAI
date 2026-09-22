@@ -4,8 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/brand-utils';
+import { formatLabel } from '@/lib/sampling-format';
 import BottleVisual from '@/components/shop/BottleVisual';
 import { BrandConfig } from '@/types/brand';
+import { Product } from '@/types/product';
+
+function cartConcentrationOrFormat(product: Product): string {
+  if (product.concentration) return product.concentration;
+  return formatLabel(product.format);
+}
 
 export default function CartPageClient({ brand }: { brand: BrandConfig }) {
   const brandSlug = brand.slug;
@@ -16,7 +23,7 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
 
   return (
-    <div className="min-h-[75vh] bg-brand-bg text-brand-text py-12 sm:py-16">
+    <div className={`min-h-[75vh] bg-brand-bg text-brand-text py-12 sm:py-16 ${brand.slug === 'thescentstories' ? 'pb-28 sm:pb-16' : ''}`}>
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         
         {/* Editorial Header */}
@@ -80,7 +87,7 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
                       href={`/${itemBrand.slug}/product/${product.slug}`}
                       className="h-20 w-20 shrink-0 border border-brand-border bg-brand-stage flex items-center justify-center overflow-hidden hover:opacity-90 transition-opacity"
                     >
-                      <BottleVisual product={product} brand={itemBrand} size="sm" />
+                      <BottleVisual product={product} brand={itemBrand} size="sm" compact />
                     </Link>
                     <div>
                       <span className="text-[9px] uppercase tracking-[0.2em] text-brand-accent font-medium block">
@@ -93,7 +100,9 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
                         {product.name}
                       </Link>
                       <span className="text-xs text-brand-text-muted font-light block mt-1">
-                        {product.size} &middot; Extrait Concentration
+                        {brand.slug === 'thescentstories'
+                          ? `${product.size} \u00b7 ${cartConcentrationOrFormat(product)}`
+                          : `${product.size} \u00b7 ${product.concentration || 'Extrait Concentration'}`}
                       </span>
                       <span className="text-xs font-serif text-brand-text mt-1 block sm:hidden">
                         {formatPrice(product.price)} each

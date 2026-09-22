@@ -18,7 +18,7 @@ import {
   Longevity,
   Season,
 } from '@/types/product';
-import { isReferenceDropRequest } from './query-parser';
+import { isReferenceDropRequest, isComparativePreferenceRefinement } from './query-parser';
 import { parseSamplingContext } from './sampling-format';
 import { isFreshConsultationQuery } from './fragrance-vocabulary';
 
@@ -480,8 +480,11 @@ export function updateConversationState(
   const isProductFactualIntent =
     stage1.intent === 'PRODUCT_INFO' || stage1.intent === 'COMPARE_PRODUCTS';
 
+  const isComparativeRefinement = isComparativePreferenceRefinement(rawUserText);
+
   const isDirectedNewRequest =
     stage1.is_new_request === true &&
+    !isComparativeRefinement &&
     !isProductFactualIntent &&
     stage1.intent !== 'BUDGET_CHANGE' &&
     stage1.intent !== 'SHOW_ALTERNATIVES' &&
@@ -490,7 +493,8 @@ export function updateConversationState(
 
   const isExplicitRefinement =
     !isDirectedNewRequest &&
-    (stage1.is_refinement === true ||
+    (isComparativeRefinement ||
+      stage1.is_refinement === true ||
       stage1.request_type === 'refinement' ||
       stage1.intent === 'PREFERENCE_UPDATE' ||
       stage1.intent === 'BUDGET_CHANGE' ||
@@ -537,7 +541,7 @@ export function updateConversationState(
       sweetness: stage1.sweetness || null,
       longevity: stage1.longevity || null,
       style: stage1.style || null,
-      relativePrice: null, // Reset relative price on new request
+      relativePrice: stage1.relative_price ?? null,
       isSimilarityRequest: Boolean(stage1.is_similarity_request),
       formatPreference: stage1.format_preference ?? null,
       explorationIntent: stage1.exploration_intent ?? null,
@@ -570,7 +574,12 @@ export function updateConversationState(
     } else if (stage1.reference_perfume && (stage1.is_similarity_request || messageMentionsSimilarity)) {
       activeRequest.isSimilarityRequest = true;
       backgroundContext.referencePerfume = stage1.reference_perfume;
-    } else if (stage1.fragrance_families && stage1.fragrance_families.length > 0 && !/\b(reference|like|similar|clone|dupe|cheaper|alternative)\b/i.test(rawUserText)) {
+    } else if (
+      !isComparativeRefinement &&
+      stage1.fragrance_families &&
+      stage1.fragrance_families.length > 0 &&
+      !/\b(reference|like|similar|clone|dupe|cheaper|alternative)\b/i.test(rawUserText)
+    ) {
       if (activeRequest.isSimilarityRequest) {
         activeRequest.isSimilarityRequest = false;
         activeRequest.relativePrice = null;
@@ -879,6 +888,14 @@ export function updateConversationState(
       activeRequest.relativePrice = null;
       backgroundContext.referencePerfume = null;
     } else if (stage1.is_similarity_request && (messageMentionsSimilarity || stage1.reference_perfume)) {
+      activeRequest.isSimilarityRequest = true;
+      if (stage1.reference_perfume) {
+        backgroundContext.referencePerfume = stage1.reference_perfume;
+      }
+    } else if (
+      isComparativeRefinement &&
+      (backgroundContext.referencePerfume || activeRequest.isSimilarityRequest)
+    ) {
       activeRequest.isSimilarityRequest = true;
       if (stage1.reference_perfume) {
         backgroundContext.referencePerfume = stage1.reference_perfume;

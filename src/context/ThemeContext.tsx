@@ -14,6 +14,19 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'fragrance_theme';
 
+function brandDefaultTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const path = window.location.pathname || '';
+    if (path === '/thescentstories' || path.startsWith('/thescentstories/')) {
+      return 'light';
+    }
+  } catch {
+    // Ignore path errors
+  }
+  return 'dark';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('dark');
   const [mounted, setMounted] = useState(false);
@@ -27,9 +40,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.documentElement.classList.toggle('light', savedTheme === 'light');
       } else {
-        // Default is dark
-        document.documentElement.setAttribute('data-theme', 'dark');
-        document.documentElement.classList.remove('light');
+        const initial = brandDefaultTheme();
+        setThemeState(initial);
+        document.documentElement.setAttribute('data-theme', initial);
+        document.documentElement.classList.toggle('light', initial === 'light');
       }
     } catch {
       // Ignore localStorage errors (e.g. private browsing)

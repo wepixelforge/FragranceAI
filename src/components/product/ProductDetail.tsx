@@ -91,7 +91,11 @@ export default function ProductDetail({ product, brand, similarProducts, related
 
               {/* Stage Subtitle */}
               <div className="relative z-10 text-center border-t border-brand-border-light pt-4 w-full text-[10px] uppercase tracking-[0.2em] text-brand-text-muted font-light">
-                {product.size} &mdash; Artisanal Batch
+                {isSampling
+                  ? [product.size, product.concentration || formatLabel(product.format)]
+                      .filter(Boolean)
+                      .join(' — ')
+                  : `${product.size} — Artisanal Batch`}
               </div>
             </div>
           </div>
@@ -300,17 +304,17 @@ export default function ProductDetail({ product, brand, similarProducts, related
             <div className="flex items-baseline justify-between mb-8">
               <div>
                 <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
-                  Curated Pairings
+                  {isSampling ? 'Related fragrances' : 'Curated Pairings'}
                 </span>
                 <h2 className="font-serif text-2xl sm:text-3xl font-normal text-brand-text mt-1">
-                  Complementary Creations
+                  {isSampling ? 'You may also like' : 'Complementary Creations'}
                 </h2>
               </div>
               <Link
                 href={`/${brand.slug}/shop`}
                 className="text-[10px] uppercase tracking-[0.2em] text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                View Full Archives →
+                {isSampling ? 'Explore more →' : 'View Full Archives →'}
               </Link>
             </div>
 

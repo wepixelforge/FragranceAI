@@ -27,12 +27,21 @@ type Draft = {
   concentration?: string;
 };
 
+function inferConcentration(draft: Draft): string | undefined {
+  if (draft.concentration) return draft.concentration;
+  const source = `${draft.name} ${draft.description}`;
+  if (/\bEDP\b/i.test(source)) return 'EDP';
+  if (/\bEDT\b/i.test(source)) return 'EDT';
+  return undefined;
+}
+
 function item(draft: Draft): Product {
   return {
     brandSlug: 'thescentstories',
     bestFor: [],
     similarTo: [],
     ...draft,
+    concentration: inferConcentration(draft),
   };
 }
 
@@ -166,10 +175,10 @@ export const thescentstoriesProducts: Product[] = applyTssCanonicalImages([
   item({
     id: 'tss-07',
     slug: 'ck-sheer-peach-1-2ml',
-    name: 'Calvin Klein Sheer Peach 1.2ml Official Sample',
+    name: 'Calvin Klein Sheer Peach 1.2ml Hair & Body Mist',
     houseBrand: 'Calvin Klein',
     format: 'sample',
-    size: '1.2ml official sample',
+    size: '1.2ml hair & body perfume mist',
     price: 300,
     gender: 'women',
     fragranceFamily: ['floral', 'fresh', 'fruity'],
@@ -180,8 +189,8 @@ export const thescentstoriesProducts: Product[] = applyTssCanonicalImages([
     season: ['spring', 'summer'],
     longevity: 'light',
     intensity: 'subtle',
-    tags: ['official-sample', 'floral'],
-    description: 'Official 1.2ml sample of Calvin Klein Sheer Peach.',
+    tags: ['hair-body-mist', 'floral', 'fruity'],
+    description: 'Official 1.2ml Calvin Klein Sheer Peach hair & body perfume mist. A try-size body mist, not a conventional perfume sample.',
   }),
   item({
     id: 'tss-08',

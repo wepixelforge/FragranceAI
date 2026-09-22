@@ -11,6 +11,7 @@ interface BottleVisualProps {
   size?: 'sm' | 'md' | 'lg';
   interactive?: boolean;
   priority?: boolean;
+  compact?: boolean;
 }
 
 export default function BottleVisual({
@@ -18,6 +19,7 @@ export default function BottleVisual({
   brand,
   size = 'md',
   priority = false,
+  compact = false,
 }: BottleVisualProps) {
   const [imageError, setImageError] = useState(false);
   const cardStyle = brand.layout?.cardStyle || 'modern-flacon';
@@ -86,17 +88,26 @@ export default function BottleVisual({
   // Photographic Product Image (authentic brand imagery, e.g. World of Perfumers)
   if (product.imageUrl && !imageError) {
     const sizeContainerClass =
-      size === 'sm'
+      compact && size === 'sm'
+        ? 'h-full w-full max-h-full max-w-full'
+        : size === 'sm'
         ? 'h-36 w-32 max-h-full max-w-full'
         : size === 'lg'
         ? 'h-80 w-64 sm:h-96 sm:w-80 max-h-full max-w-full'
         : 'h-52 w-44 sm:h-64 sm:w-52 max-h-full max-w-full';
 
+    const padClass =
+      compact && size === 'sm'
+        ? 'p-0.5'
+        : isScentStories
+          ? 'p-4 sm:p-5'
+          : 'p-3 sm:p-4';
+
     return (
       <div
-        className={`relative flex items-center justify-center select-none ${sizeContainerClass} ${
-          isScentStories ? 'p-4 sm:p-5' : 'p-3 sm:p-4'
-        } transition-transform duration-500 group-hover:scale-105`}
+        className={`relative flex items-center justify-center select-none ${sizeContainerClass} ${padClass} ${
+          compact ? '' : 'transition-transform duration-500 group-hover:scale-105'
+        }`}
       >
         <Image
           src={product.imageUrl}
@@ -109,7 +120,9 @@ export default function BottleVisual({
                 ? '(max-width: 640px) 80vw, 420px'
                 : '(max-width: 640px) 45vw, 208px'
           }
-          className="object-contain object-center p-2 sm:p-3 select-none"
+          className={`object-contain object-center select-none ${
+            compact && size === 'sm' ? 'p-0' : 'p-2 sm:p-3'
+          }`}
           onError={() => setImageError(true)}
           priority={priority}
         />

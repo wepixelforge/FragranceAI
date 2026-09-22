@@ -32,6 +32,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
 
   const isDedicatedFinderPage = pathname.endsWith('/finder');
   const isScentStories = brand.slug === 'thescentstories';
+  const isTssCart = isScentStories && pathname.includes('/cart');
   const contextualPrompt = (() => {
     if (!isScentStories) return getBrandWelcomeMessage(brand);
     if (pathname.includes('/cart')) return 'Need help choosing between these?';
@@ -74,7 +75,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
+    <div className={`fixed z-50 flex flex-col items-end pointer-events-none ${isTssCart ? 'bottom-3 right-3 sm:bottom-6 sm:right-6' : 'bottom-6 right-6'}`}>
       {/* Expanded Consultation Panel */}
       {isOpen && (
         <div className="pointer-events-auto mb-3 w-[92vw] sm:w-[390px] max-h-[540px] h-[75vh] rounded-none border border-brand-border bg-brand-bg/98 backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in-up">
@@ -274,7 +275,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
       {!isOpen && (
         <div className="pointer-events-auto flex items-center gap-3 sm:gap-3.5 select-none animate-fade-in">
           {/* Speech Bubble */}
-          {!hasOpenedConsultant && !messages.some((m) => m.type === 'user') && (
+          {!hasOpenedConsultant && !messages.some((m) => m.type === 'user') && !isTssCart && (
             <div
               role="button"
               tabIndex={0}
@@ -305,7 +306,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
             type="button"
             onClick={openConsultant}
             aria-label="Open fragrance consultant"
-            className="relative group cursor-pointer w-14 h-14 sm:w-16 sm:h-16 md:w-[70px] md:h-[70px] rounded-full p-[3px] bg-gradient-to-br from-brand-accent/60 via-brand-border to-brand-accent/30 hover:from-brand-accent hover:via-brand-accent/70 hover:to-brand-accent/50 shadow-[0_4px_24px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_32px_rgba(183,154,100,0.35)] transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent"
+            className={`relative group cursor-pointer rounded-full p-[3px] bg-gradient-to-br from-brand-accent/60 via-brand-border to-brand-accent/30 hover:from-brand-accent hover:via-brand-accent/70 hover:to-brand-accent/50 shadow-[0_4px_24px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_32px_rgba(183,154,100,0.35)] transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent ${isTssCart ? 'w-11 h-11 sm:w-16 sm:h-16 md:w-[70px] md:h-[70px]' : 'w-14 h-14 sm:w-16 sm:h-16 md:w-[70px] md:h-[70px]'}`}
           >
             {/* Inner Circular Image Container */}
             <div className="w-full h-full rounded-full overflow-hidden bg-brand-stage relative flex items-center justify-center border border-black/40">

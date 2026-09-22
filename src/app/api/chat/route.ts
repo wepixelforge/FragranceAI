@@ -13,7 +13,11 @@ import {
   findProductByNameOrFuzzy,
   doesIntentRequireProducts,
   normalizeText,
+  fallbackIntentClassifier,
+  applyExplicitReference,
 } from '@/lib/intent-classifier';
+import { parseSamplingContext } from '@/lib/sampling-format';
+import { productMatchesRequestedFamily } from '@/lib/fragrance-vocabulary';
 import {
   updateConversationState,
   toStructuredPreferences,
@@ -318,13 +322,64 @@ export async function POST(req: NextRequest) {
 
         const isSurpriseMe = Boolean(stage1.is_surprise_me || stage1.intent === 'surprise_me');
 
-        const recResponse = getRecommendations(
+        let recResponse = getRecommendations(
           structuredPrefs,
           products,
           3,
           excludeIds,
           isSurpriseMe
         );
+
+        const requestedFamilies = updatedState.activeRequest?.families || stage1.fragrance_families || [];
+        const catalogueHasRequestedFamily = requestedFamilies.some((family) =>
+          products.some((product) => productMatchesRequestedFamily(product, family))
+        );
+        const userStatedHardConstraint =
+          /₹|rs\.?|under|below|budget|cheaper|full[- ]size|sample|pocket|not |don't |dont |avoid|except/i.test(
+            cleanMessage
+          );
+        const falseEmptyFamilyMatch =
+          recResponse.results.length === 0 &&
+          !isShowAlternatives &&
+          !isSurpriseMe &&
+          catalogueHasRequestedFamily &&
+          !userStatedHardConstraint;
+
+        if (falseEmptyFamilyMatch) {
+          const sampled = parseSamplingContext(cleanMessage);
+          const strippedPrefs = {
+            ...structuredPrefs,
+            formatPreference: sampled.formatPreference ?? undefined,
+            budget: undefined,
+            intensity: /\b(strong|subtle|light|soft|intense|beast)\b/i.test(cleanMessage)
+              ? structuredPrefs.intensity
+              : undefined,
+            intensityPreference: undefined,
+            intensityMax: undefined,
+            exclusions: {
+              ...(structuredPrefs.exclusions || {}),
+              intensity: undefined,
+              sillage: undefined,
+            },
+          };
+          recResponse = getRecommendations(strippedPrefs, products, 3, excludeIds, false);
+
+          if (recResponse.results.length === 0) {
+            const fallbackStage1 = applyExplicitReference(
+              fallbackIntentClassifier(cleanMessage, brand, products, activeState, history),
+              cleanMessage,
+              products,
+              activeState
+            );
+            const fallbackState = updateConversationState(activeState, fallbackStage1, cleanMessage);
+            const fallbackPrefs = toStructuredPreferences(fallbackState, cleanMessage);
+            const fallbackRecs = getRecommendations(fallbackPrefs, products, 3, excludeIds, false);
+            if (fallbackRecs.results.length > 0) {
+              updatedState = fallbackState;
+              recResponse = fallbackRecs;
+            }
+          }
+        }
 
         candidatesBeforeFilter = recResponse.candidatesBeforeFilter || [];
         candidatesRemoved = recResponse.candidatesRemoved || [];

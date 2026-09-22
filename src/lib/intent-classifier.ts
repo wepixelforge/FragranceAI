@@ -9,7 +9,13 @@ import {
   PreferenceUpdateItem,
 } from '@/types/chat';
 import { safeGroqCompletion, getGroqModel } from './groq-client';
-import { parseQuery, extractKnownReferencePerfume, isReferenceDropRequest } from './query-parser';
+import {
+  parseQuery,
+  extractKnownReferencePerfume,
+  isReferenceDropRequest,
+  extractRelativePricePreference,
+  isComparativePreferenceRefinement,
+} from './query-parser';
 import { resolveStyleFamilies, isKnownStyleWord, isAffirmativeReply } from './style-aliases';
 import {
   extractCartEntitiesWithGroq,
@@ -1307,7 +1313,8 @@ const REFERENCE_SKIP_INTENTS: CanonicalIntent[] = [
 export function applyExplicitReference(
   result: Stage1IntentOutput,
   message: string,
-  products: Product[] = []
+  products: Product[] = [],
+  currentState?: ConversationState
 ): Stage1IntentOutput {
   if (REFERENCE_SKIP_INTENTS.includes(result.intent as CanonicalIntent)) {
     return result;
@@ -1320,8 +1327,31 @@ export function applyExplicitReference(
     };
   }
 
+  const cheaper = extractRelativePricePreference(message);
   const extracted = extractKnownReferencePerfume(message, products);
-  if (!extracted) return result;
+  const existingReference = currentState?.backgroundContext?.referencePerfume || null;
+  const existingSimilarity = Boolean(currentState?.activeRequest?.isSimilarityRequest);
+
+  if (!extracted) {
+    const preserveExisting =
+      Boolean(existingReference) &&
+      (existingSimilarity || isComparativePreferenceRefinement(message));
+    const res: Stage1IntentOutput = { ...result };
+    if (preserveExisting) {
+      res.reference_perfume = existingReference;
+      res.is_similarity_request = true;
+      res.needs_recommendations = true;
+      res.requires_product_data = true;
+    }
+    if (cheaper && !res.relative_price) {
+      res.relative_price = cheaper;
+      res.updates = [
+        ...(res.updates || []).filter((u) => u.field !== 'relative_price'),
+        { field: 'relative_price', operation: 'SET', value: cheaper },
+      ];
+    }
+    return res;
+  }
 
   const isWearingOnly =
     /\b(usually\s+wear|currently\s+wear|i\s+wear)\b/i.test(message) &&
@@ -1347,6 +1377,13 @@ export function applyExplicitReference(
         reference_fragrances: [...existing, res.reference_perfume],
       };
     }
+  }
+  if (cheaper && !res.relative_price) {
+    res.relative_price = cheaper;
+    res.updates = [
+      ...(res.updates || []).filter((u) => u.field !== 'relative_price'),
+      { field: 'relative_price', operation: 'SET', value: cheaper },
+    ];
   }
   return res;
 }
@@ -2154,7 +2191,13 @@ export function validateAndEnforcePolarity(
 
   const mentionsSimilarityNow = /\b(like|similar\s+to|alternative\s+to|inspired\s+by|clone\s+of|dupe\s+of|reminds\s+me|usually\s+wear|compared\s+to|than)\b/.test(lower);
   const dropsReference = isReferenceDropRequest(rawMessage);
-  if (dropsReference || (!mentionsSimilarityNow && (freshPol.isPositive || detectReplacementFamily(lower) || detectNewDirectionRequest(rawMessage, currentState)))) {
+  const comparativeRefinement = isComparativePreferenceRefinement(rawMessage);
+  if (
+    dropsReference ||
+    (!comparativeRefinement &&
+      !mentionsSimilarityNow &&
+      (freshPol.isPositive || detectReplacementFamily(lower) || detectNewDirectionRequest(rawMessage, currentState)))
+  ) {
     res.is_similarity_request = false;
     if (dropsReference || !mentionsSimilarityNow) {
       res.reference_perfume = null;
@@ -2593,7 +2636,7 @@ export async function classifyIntentAndExtractPreferences(
     validated.requires_product_data = doesIntentRequireProducts(validated.intent, validated);
     const grounded = coerceUnusualScentIntent(validated, effectiveQuery, products, currentState, history);
     return finalizeBrandStage1(
-      applyExplicitReference(grounded, effectiveQuery, products),
+      applyExplicitReference(grounded, effectiveQuery, products, currentState),
       effectiveQuery,
       brand
     );
@@ -2621,7 +2664,8 @@ export async function classifyIntentAndExtractPreferences(
     applyExplicitReference(
       coerceUnusualScentIntent(fallbackResult, effectiveQuery, products, currentState, history),
       effectiveQuery,
-      products
+      products,
+      currentState
     ),
     effectiveQuery,
     brand
@@ -2968,8 +3012,10 @@ Return ONLY valid JSON matching the schema.`;
     if (parsed.intensity && !normalizedUpdates.some((u) => u.field === 'intensity')) {
       normalizedUpdates.push({ field: 'intensity', operation: 'SET', value: parsed.intensity });
     }
-    if (parsed.relative_price && !normalizedUpdates.some((u) => u.field === 'relative_price')) {
-      normalizedUpdates.push({ field: 'relative_price', operation: 'SET', value: parsed.relative_price });
+    const relativePrice =
+      parsed.relative_price || extractRelativePricePreference(message);
+    if (relativePrice && !normalizedUpdates.some((u) => u.field === 'relative_price')) {
+      normalizedUpdates.push({ field: 'relative_price', operation: 'SET', value: relativePrice });
     }
 
     let refPerfume = parsed.reference_perfume || null;
@@ -2978,7 +3024,14 @@ Return ONLY valid JSON matching the schema.`;
     }
     const isSimReq = Boolean(
       parsed.is_similarity_request ||
-      (refPerfume && (lower.includes('similar') || lower.includes('like ') || lower.includes('alternative to') || lower.includes('inspired by')))
+      (refPerfume &&
+        (lower.includes('similar') ||
+          lower.includes('like ') ||
+          lower.includes('alternative') ||
+          lower.includes('inspired by') ||
+          lower.includes('same vibe') ||
+          lower.includes('something like') ||
+          Boolean(relativePrice)))
     );
 
     const resolvedIntent = refPerfume && isSimReq && effectiveIntent === 'RECOMMENDATION' ? 'SIMILAR_TO_REFERENCE' : effectiveIntent;
@@ -3029,7 +3082,7 @@ Return ONLY valid JSON matching the schema.`;
       occasion: parsed.occasion || null,
       budget: normBudget,
       remove_budget: removeBudget,
-      relative_price: parsed.relative_price || null,
+      relative_price: relativePrice || null,
       fragrance_families: parsed.fragrance_families || [],
       preferred_notes: parsed.preferred_notes || [],
       excluded_notes: parsed.excluded_notes || [],
@@ -3686,19 +3739,20 @@ export function fallbackIntentClassifier(
   }
 
   // 9. RELATIVE PRICE ("something cheaper" - TEST 33 - NEVER INVENT 600!)
-  if (
-    lower.includes('something cheaper') ||
-    lower.includes('cheaper') ||
-    lower.includes('less expensive') ||
-    lower.includes('lower price')
-  ) {
+  if (extractRelativePricePreference(lower)) {
+    const cheaperReference = extractKnownReferencePerfume(clean, products);
+    const cheaperSimilarity =
+      Boolean(cheaperReference) ||
+      /\b(similar|something like|alternative to|same vibe|dupe|clone)\b/i.test(lower);
     return {
-      intent: 'REFINE_RECOMMENDATION',
-      request_type: 'refinement',
-      is_new_request: false,
-      is_refinement: true,
+      intent: cheaperReference ? 'SIMILAR_TO_REFERENCE' : 'REFINE_RECOMMENDATION',
+      request_type: cheaperReference && !activeConsultationExists ? 'new_consultation' : 'refinement',
+      is_new_request: Boolean(cheaperReference) && !activeConsultationExists,
+      is_refinement: !(cheaperReference && !activeConsultationExists),
       relative_price: 'cheaper',
       budget: { min: null, max: null }, // DO NOT invent a numeric budget!
+      reference_perfume: cheaperReference,
+      is_similarity_request: cheaperSimilarity,
       updates: [{ field: 'relative_price', operation: 'SET', value: 'cheaper' }],
       fragrance_families: [],
       preferred_notes: [],
@@ -3706,7 +3760,7 @@ export function fallbackIntentClassifier(
       excluded_families: [],
       needs_recommendations: true,
       needs_clarification: false,
-      preferences: {},
+      preferences: cheaperReference ? { reference_fragrances: [cheaperReference] } : {},
     };
   }
 

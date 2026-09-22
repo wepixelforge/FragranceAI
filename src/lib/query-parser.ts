@@ -58,7 +58,7 @@ export const POPULAR_REFERENCE_PERFUMES = [
 ];
 
 const REFERENCE_CUE =
-  /\b(like|similar\s+to|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|i\s+wear|compared\s+to|than)\b/i;
+  /\b(like|similar(\s+to)?|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|i\s+wear|compared\s+to|than|same vibe|something like)\b/i;
 
 export function messageHasReferenceCue(message: string): boolean {
   return REFERENCE_CUE.test(message);
@@ -150,6 +150,31 @@ export function extractKnownReferencePerfume(
   if (matches.length === 0) return null;
   matches.sort((a, b) => b.length - a.length || a.index - b.index);
   return matches[0].name;
+}
+
+export function extractRelativePricePreference(message: string): 'cheaper' | null {
+  const t = message.toLowerCase();
+  if (
+    /\b(cheaper|less expensive|lower price|more affordable|for less|budget[- ]friendly)\b/.test(t) ||
+    /\bsame vibe but cheaper\b/.test(t) ||
+    /\bsimilar but more affordable\b/.test(t)
+  ) {
+    return 'cheaper';
+  }
+  return null;
+}
+
+export function isComparativePreferenceRefinement(message: string): boolean {
+  const t = message.toLowerCase().trim();
+  if (isReferenceDropRequest(t)) return false;
+  if (/\bforg[eo]t\s+(everything|all)\b/.test(t)) return false;
+  return (
+    /\bmake\s+it\s+(warmer|fresher|cooler|sweeter|stronger|softer|lighter|cheaper|less\s+sweet|more\s+affordable)\b/.test(
+      t
+    ) ||
+    /^(warmer|fresher|cooler|stronger|softer|lighter|cheaper|less\s+sweet)[.!?]?$/.test(t) ||
+    /\b(make\s+it\s+)?(less\s+sweet|more\s+affordable)\b/.test(t)
+  );
 }
 
 /**

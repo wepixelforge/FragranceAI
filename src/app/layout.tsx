@@ -37,11 +37,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               (function() {
                 try {
                   var saved = localStorage.getItem('fragrance_theme');
-                  if (saved === 'light') {
+                  var path = location.pathname || '';
+                  var tss = path === '/thescentstories' || path.indexOf('/thescentstories/') === 0;
+                  if (saved === 'light' || saved === 'dark') {
+                    document.documentElement.setAttribute('data-theme', saved);
+                    if (saved === 'light') document.documentElement.classList.add('light');
+                    else document.documentElement.classList.remove('light');
+                  } else if (tss) {
                     document.documentElement.setAttribute('data-theme', 'light');
                     document.documentElement.classList.add('light');
                   } else {
                     document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.classList.remove('light');
                   }
                 } catch (e) {}
               })();

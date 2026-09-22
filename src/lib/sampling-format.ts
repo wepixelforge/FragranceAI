@@ -83,11 +83,11 @@ export function applySamplingContextToStage1(
   const parsed = parseSamplingContext(message);
   return {
     ...stage1,
-    format_preference: stage1.format_preference ?? parsed.formatPreference,
-    exploration_intent: stage1.exploration_intent ?? parsed.explorationIntent,
-    experience_level: stage1.experience_level ?? parsed.experienceLevel,
-    travel_intent: stage1.travel_intent ?? parsed.travelIntent,
-    gifting_intent: stage1.gifting_intent ?? parsed.giftingIntent,
+    format_preference: parsed.formatPreference ?? null,
+    exploration_intent: parsed.explorationIntent ?? stage1.exploration_intent ?? null,
+    experience_level: parsed.experienceLevel ?? stage1.experience_level ?? null,
+    travel_intent: parsed.travelIntent || Boolean(stage1.travel_intent),
+    gifting_intent: parsed.giftingIntent || Boolean(stage1.gifting_intent),
   };
 }
 
