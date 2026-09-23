@@ -147,6 +147,8 @@ export interface StructuredPreferences {
   experienceLevel?: ExperienceLevel;
   travelIntent?: boolean;
   giftingIntent?: boolean;
+  scentiraDecantOnly?: boolean;
+  requestedSizeMl?: 5 | 10 | 20 | null;
 }
 
 export interface MatchReasonDetail {

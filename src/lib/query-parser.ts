@@ -58,7 +58,7 @@ export const POPULAR_REFERENCE_PERFUMES = [
 ];
 
 const REFERENCE_CUE =
-  /\b(like|similar(\s+to)?|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|i\s+wear|compared\s+to|than|same vibe|something like)\b/i;
+  /\b(like|similar(\s+to)?|alternative\s+to|inspired\s+by|reminds\s+me\s+of|clone\s+of|dupe\s+of|usually\s+wear|currently\s+wear|already\s+(use|wear)|i\s+(use|wear)|compared\s+to|than|same vibe|something like)\b/i;
 
 export function messageHasReferenceCue(message: string): boolean {
   return REFERENCE_CUE.test(message);

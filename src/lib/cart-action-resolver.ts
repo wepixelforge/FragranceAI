@@ -143,9 +143,33 @@ function isBareClearCommand(lower: string): boolean {
   );
 }
 
-export function detectCartIntent(message: string, products: Product[] = []): CartMutationAction | null {
+function isBareCanonicalSelection(message: string): boolean {
+  const t = message
+    .toLowerCase()
+    .replace(/[?.!,]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /^(please\s+)?((the\s+)?(first|second|third|fourth|fifth)(\s+one)?(\s+and\s+(the\s+)?(first|second|third|fourth|fifth)(\s+one)?)?|both(\s+of\s+(them|these|those))?|all(\s+of\s+(them|these|those))?|first\s+and\s+third)$/.test(
+    t
+  );
+}
+
+export function detectCartIntent(
+  message: string,
+  products: Product[] = [],
+  currentState?: ConversationState
+): CartMutationAction | null {
   const lower = message.toLowerCase();
   const named = products.length > 0 ? findNamedProductsInText(message, products) : [];
+
+  if (
+    currentState?.lastCanonicalProductSet &&
+    currentState.lastCanonicalProductSet.length > 0 &&
+    isBareCanonicalSelection(message) &&
+    !isDiscoveryRequest(lower)
+  ) {
+    return 'ADD_TO_CART';
+  }
 
   if (isAddVerb(lower) && !isRemoveVerb(lower) && !isClearVerb(lower)) {
     return 'ADD_TO_CART';
@@ -204,12 +228,20 @@ export function detectCartIntent(message: string, products: Product[] = []): Car
   return null;
 }
 
-export function isExplicitCartActionQuery(message: string, products: Product[] = []): boolean {
-  return detectCartIntent(message, products) != null;
+export function isExplicitCartActionQuery(
+  message: string,
+  products: Product[] = [],
+  currentState?: ConversationState
+): boolean {
+  return detectCartIntent(message, products, currentState) != null;
 }
 
-export function inferCartActionType(message: string, products: Product[] = []): CartMutationAction {
-  return detectCartIntent(message, products) || 'VIEW_CART';
+export function inferCartActionType(
+  message: string,
+  products: Product[] = [],
+  currentState?: ConversationState
+): CartMutationAction {
+  return detectCartIntent(message, products, currentState) || 'VIEW_CART';
 }
 
 function countFromToken(raw: string): number | null {
@@ -493,6 +525,72 @@ export function matchBrandProductByName(query: string, products: Product[]): Pro
   return bestFuzzy;
 }
 
+const GENERIC_PRODUCT_NAME_TOKENS = new Set([
+  'edp',
+  'edt',
+  'extrait',
+  'parfum',
+  'perfume',
+  'cologne',
+  'sample',
+  'official',
+  'discovery',
+  'set',
+  'tester',
+  'vial',
+  'pocket',
+  'miniature',
+  'mini',
+  'hair',
+  'body',
+  'mist',
+  'ml',
+  'and',
+  'the',
+  'of',
+  'for',
+  'with',
+  'de',
+  'la',
+  'le',
+  'eau',
+  'size',
+  'full',
+  'travel',
+  'pack',
+  'prestige',
+]);
+
+function hasBoundedPhrase(haystack: string, phrase: string): boolean {
+  if (!phrase) return false;
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`, 'i').test(haystack);
+}
+
+function strippedProductNameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[×x]\s*\d+(\.\d+)?/g, ' ')
+    .replace(/\d+(\.\d+)?\s*ml/g, ' ')
+    .replace(/[^a-z0-9\s&-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((token) => token && !GENERIC_PRODUCT_NAME_TOKENS.has(token) && !/^\d+$/.test(token));
+}
+
+function distinctiveProductPhrases(name: string): string[] {
+  const tokens = strippedProductNameTokens(name);
+  const phrases: string[] = [];
+  if (tokens.length >= 2) phrases.push(tokens.join(' '));
+  for (let n = Math.min(3, tokens.length); n >= 2; n--) {
+    for (let i = 0; i <= tokens.length - n; i++) {
+      phrases.push(tokens.slice(i, i + n).join(' '));
+    }
+  }
+  return Array.from(new Set(phrases)).sort((a, b) => b.length - a.length);
+}
+
 export function findNamedProductsInText(text: string, products: Product[]): Product[] {
   if (!text) return [];
   const sorted = [...products].sort((a, b) => b.name.length - a.name.length);
@@ -503,6 +601,7 @@ export function findNamedProductsInText(text: string, products: Product[]): Prod
     found = false;
     const lower = remaining.toLowerCase();
     for (const p of sorted) {
+      if (matched.some((item) => item.id === p.id)) continue;
       const name = p.name.toLowerCase();
       const idx = lower.indexOf(name);
       if (idx === -1) continue;
@@ -515,7 +614,29 @@ export function findNamedProductsInText(text: string, products: Product[]): Prod
       break;
     }
   }
-  return matched;
+
+  if (matched.length > 0) return matched;
+
+  const phraseHits = new Map<string, Product[]>();
+  for (const product of products) {
+    for (const phrase of distinctiveProductPhrases(product.name)) {
+      if (!hasBoundedPhrase(text, phrase)) continue;
+      const list = phraseHits.get(phrase) || [];
+      list.push(product);
+      phraseHits.set(phrase, list);
+      break;
+    }
+  }
+
+  const used = new Set<string>();
+  const partial: Product[] = [];
+  for (const [, hits] of [...phraseHits.entries()].sort((a, b) => b[0].length - a[0].length)) {
+    const unused = hits.filter((product) => !used.has(product.id));
+    if (unused.length !== 1) continue;
+    partial.push(unused[0]);
+    used.add(unused[0].id);
+  }
+  return partial;
 }
 
 function isContextualToken(raw: string): boolean {
@@ -1060,7 +1181,9 @@ export async function extractCartEntitiesWithGroq(options: {
   const { message, brand, products, canonicalSet, contextProductName } = options;
   const catalogueNames = products.map((p) => p.name);
   const numberedSet = canonicalSet.map((p, idx) => `${idx + 1}. ${p.name}`).join('\n') || '(none)';
-  const detected = detectCartIntent(message, products);
+  const detected = detectCartIntent(message, products, {
+    lastCanonicalProductSet: canonicalSet,
+  } as ConversationState);
 
   const prompt = `You extract cart-action entities for "${brand.name}".
 Return ONLY JSON:
@@ -1101,7 +1224,9 @@ Current product page: ${contextProductName || '(none)'}
     const last = text.lastIndexOf('}');
     if (first !== -1 && last > first) text = text.slice(first, last + 1);
     const parsed = JSON.parse(text);
-    const action = detectCartIntent(message, products) || inferCartActionType(message, products);
+    const action =
+      detectCartIntent(message, products, { lastCanonicalProductSet: canonicalSet } as ConversationState) ||
+      inferCartActionType(message, products, { lastCanonicalProductSet: canonicalSet } as ConversationState);
     const parsedAction: CartMutationAction =
       parsed.cart_action === 'ADD_TO_CART' ||
       parsed.cart_action === 'REMOVE_FROM_CART' ||
@@ -1248,7 +1373,7 @@ export function planCartAssistance(options: {
     };
   }
 
-  const action = (stage1.cart_action || detectCartIntent(message, brandProducts) || 'VIEW_CART') as CartMutationAction;
+  const action = (stage1.cart_action || detectCartIntent(message, brandProducts, state) || 'VIEW_CART') as CartMutationAction;
   const cartProducts = liveCart.items
     .map((line) => brandProducts.find((p) => p.id === line.productId))
     .filter(Boolean) as Product[];

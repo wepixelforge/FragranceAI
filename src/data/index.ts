@@ -5,6 +5,7 @@ import { arabianaroma } from './brands/arabianaroma';
 import { almaham } from './brands/almaham';
 import { worldofperfumers } from './brands/worldofperfumers';
 import { thescentstories } from './brands/thescentstories';
+import { scentira } from './brands/scentira';
 import { tmperfumehouseProducts } from './products/tmperfumehouse-products';
 import { arabianaromaProducts } from './products/arabianaroma-products';
 import { almahamProducts } from './products/almaham-products';
@@ -12,7 +13,13 @@ import { worldofperfumersProducts } from './products/worldofperfumers-products';
 import { thescentstoriesProducts } from './products/thescentstories-products';
 import { applyWopCanonicalImages } from './products/worldofperfumers-images';
 import { applyTssCanonicalImages } from './products/thescentstories-images';
+import { applyScentiraCanonicalImages } from './products/scentira-images';
+import { scentiraProducts } from './products/scentira-products';
 import { enrichProducts } from '@/lib/product-enricher';
+
+function resolveBrandSlug(slug: string): string {
+  return slug.toLowerCase();
+}
 
 // ── Brand Registry ──────────────────────────────────────────────────────────
 export const brands: Record<string, BrandConfig> = {
@@ -21,6 +28,7 @@ export const brands: Record<string, BrandConfig> = {
   almaham,
   worldofperfumers,
   thescentstories,
+  scentira,
 };
 
 // ── Product Registry ────────────────────────────────────────────────────────
@@ -30,15 +38,16 @@ const productsByBrand: Record<string, Product[]> = {
   almaham: enrichProducts(almahamProducts),
   worldofperfumers: applyWopCanonicalImages(enrichProducts(worldofperfumersProducts)),
   thescentstories: applyTssCanonicalImages(enrichProducts(thescentstoriesProducts)),
+  scentira: applyScentiraCanonicalImages(enrichProducts(scentiraProducts)),
 };
 
 // ── Public API ──────────────────────────────────────────────────────────────
 export function getBrand(slug: string): BrandConfig | undefined {
-  return brands[slug];
+  return brands[resolveBrandSlug(slug)];
 }
 
 export function getProducts(brandSlug: string): Product[] {
-  return productsByBrand[brandSlug] ?? [];
+  return productsByBrand[resolveBrandSlug(brandSlug)] ?? [];
 }
 
 export function getProduct(brandSlug: string, productSlug: string): Product | undefined {
@@ -77,9 +86,10 @@ export function getProductByBrandAndId(
   brandSlug: string,
   productId: string
 ): { product: Product; brand: BrandConfig } | undefined {
-  const brand = brands[brandSlug];
+  const resolved = resolveBrandSlug(brandSlug);
+  const brand = brands[resolved];
   if (!brand) return undefined;
-  const prods = productsByBrand[brandSlug] ?? [];
+  const prods = productsByBrand[resolved] ?? [];
   const found = prods.find((p) => p.id === productId || p.slug === productId);
   if (found) {
     return { product: found, brand };

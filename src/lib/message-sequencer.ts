@@ -128,6 +128,11 @@ export function normalizeAssistantMessages(
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .trim();
 
+  if (intent === 'CAPABILITY') {
+    const sentences = splitIntoSentences(sanitized);
+    return sentences.length > 0 ? sentences.slice(0, 3) : [sanitized];
+  }
+
   // 1. GREETING Archetype: 2 concise thoughts
   if (intent === 'GREETING' || intent === 'greeting') {
     const brandName = brand ? brand.name : 'our atelier';

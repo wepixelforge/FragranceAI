@@ -124,6 +124,26 @@ html.light {
   color-scheme: dark;
 }
 
+/* Demo approximation of a light commercial storefront. Not official Scentira hex values. */
+[data-brand="scentira"] {
+  --brand-primary: #171717;
+  --brand-primary-fg: #fafafa;
+  --brand-accent: #8b5e3c;
+  --brand-accent-fg: #fafafa;
+  --brand-bg: #fafafa;
+  --brand-surface: #ffffff;
+  --brand-surface-hover: #f3f1ee;
+  --brand-text: #171717;
+  --brand-text-muted: #6b6560;
+  --brand-border: rgba(23, 23, 23, 0.12);
+  --brand-border-light: rgba(23, 23, 23, 0.06);
+  --brand-stage: #f3f1ee;
+  --brand-input-bg: #ffffff;
+  --brand-input-border: rgba(23, 23, 23, 0.16);
+  --brand-user-bubble: #f3f1ee;
+  color-scheme: light;
+}
+
 [data-brand="worldofperfumers"] {
   --brand-primary: #0b0b0a;
   --brand-primary-fg: #ede8df;
@@ -250,6 +270,27 @@ html.light [data-brand="arabianaroma"] {
   --brand-input-bg: #fcfaf6;
   --brand-input-border: rgba(21, 24, 33, 0.14);
   --brand-user-bubble: #e5ddcd;
+}
+
+[data-theme="light"][data-brand="scentira"],
+[data-theme="light"] [data-brand="scentira"],
+html.light [data-brand="scentira"] {
+  --brand-primary: #171717;
+  --brand-primary-fg: #fafafa;
+  --brand-accent: #8b5e3c;
+  --brand-accent-fg: #fafafa;
+  --brand-bg: #fafafa;
+  --brand-surface: #ffffff;
+  --brand-surface-hover: #f3f1ee;
+  --brand-text: #171717;
+  --brand-text-muted: #6b6560;
+  --brand-border: rgba(23, 23, 23, 0.12);
+  --brand-border-light: rgba(23, 23, 23, 0.06);
+  --brand-stage: #f3f1ee;
+  --brand-input-bg: #ffffff;
+  --brand-input-border: rgba(23, 23, 23, 0.16);
+  --brand-user-bubble: #f3f1ee;
+  color-scheme: light;
 }
 
 @theme inline {

@@ -39,7 +39,20 @@ import {
   unusualFragranceBriefQuestion,
 } from './request-match-quality';
 import { extractUnusualConcept } from './conversation-callback';
-import { applySamplingContextToStage1, detectFormatEducationQuestion } from './sampling-format';
+import {
+  applySamplingContextToStage1,
+  detectFormatEducationQuestion,
+  userRequestsBodyMist,
+  userRequestsSmallFormat,
+} from './sampling-format';
+import {
+  applyScentiraContextToStage1,
+  detectScentiraFormatEducation,
+  resolveScentiraNamedProduct,
+  scentiraAsksOriginalKhamrah,
+  isScentiraProductInfoAsk,
+  SCENTIRA_GROQ_NOTE,
+} from './scentira-format';
 import {
   extractCanonicalFamilies,
   FAMILY_ALTERNATION,
@@ -255,6 +268,15 @@ function parseWordsToNumber(text: string): number | null {
 /**
  * Robust extractor for natural-language budget adjustments and removals.
  */
+function parseBudgetAmount(raw: string): number {
+  return parseInt(raw.replace(/,/g, ''), 10);
+}
+
+function aroundBudgetBand(amount: number): { min: number; max: number } {
+  const pad = Math.max(200, Math.round(amount * 0.2));
+  return { min: Math.max(0, amount - pad), max: amount + pad };
+}
+
 export function extractBudgetUpdate(lower: string): {
   isBudgetPhrase: boolean;
   max: number | null;
@@ -299,16 +321,41 @@ export function extractBudgetUpdate(lower: string): {
     return { isBudgetPhrase: true, max: wordNum, min: null, remove: false };
   }
 
+  const rangeMatch = lower.match(
+    /(?:between|from)?\s*(?:₹|rs\.?|inr|rupees|bucks)?\s*([\d,]+)\s*(?:to|-|and)\s*(?:₹|rs\.?|inr|rupees|bucks)?\s*([\d,]+)/i
+  );
+  if (
+    rangeMatch &&
+    (/\b(between|from|to|range|budget)\b/.test(lower) || /₹|rs\.?|inr|rupees|bucks/.test(lower))
+  ) {
+    const a = parseBudgetAmount(rangeMatch[1]);
+    const b = parseBudgetAmount(rangeMatch[2]);
+    if (!Number.isNaN(a) && !Number.isNaN(b)) {
+      return { isBudgetPhrase: true, min: Math.min(a, b), max: Math.max(a, b), remove: false };
+    }
+  }
+
+  const aroundMatch = lower.match(
+    /\b(?:around|about|approximately|approx(?:\.|imately)?|something\s+around)\s*(?:₹|rs\.?|inr|rupees|bucks)?\s*([\d,]+)/i
+  );
+  if (aroundMatch) {
+    const amount = parseBudgetAmount(aroundMatch[1]);
+    if (!Number.isNaN(amount)) {
+      const band = aroundBudgetBand(amount);
+      return { isBudgetPhrase: true, min: band.min, max: band.max, remove: false };
+    }
+  }
+
   const limitMatch = lower.match(/([\d,]+)\s*(?:rs\.?|rupees|inr|₹|bucks)?\s*(?:is\s+my\s+(?:limit|budget|max)|limit)/i);
   if (limitMatch) {
-    return { isBudgetPhrase: true, max: parseInt(limitMatch[1].replace(/,/g, ''), 10), min: null, remove: false };
+    return { isBudgetPhrase: true, max: parseBudgetAmount(limitMatch[1]), min: null, remove: false };
   }
 
   const prefixMatch = lower.match(
-    /(?:i\s+have|i\'ve\s+got|i\s+can\s+spend(?:\s+up\s+to)?|my\s+budget(?:\s+is)?|budget(?:\s+is)?|keep\s+it\s+(?:under|below)|can\s+go\s+up\s+to|let\'?s\s+make\s+the\s+budget|i\s+only\s+want\s+to\s+spend|i\s+don\'?t\s+want\s+to\s+spend\s+more\s+than|under|below|within|max|up\s+to)\s*(?:₹|rs\.?|inr|bucks)?\s*([\d,]+)/i
+    /(?:i\s+have(?:\s+a)?\s+budget(?:\s+of)?|i\'ve\s+got(?:\s+a)?\s+budget(?:\s+of)?|i\s+can\s+spend(?:\s+up\s+to)?|my\s+budget(?:\s+is)?|budget(?:\s+is|\s+of)?|keep\s+it\s+(?:under|below)|can\s+go\s+up\s+to|let\'?s\s+make\s+the\s+budget|i\s+only\s+want\s+to\s+spend|i\s+don\'?t\s+want\s+to\s+spend\s+more\s+than|under|below|within|max|up\s+to)\s*(?:₹|rs\.?|inr|bucks)?\s*([\d,]+)/i
   );
   if (prefixMatch) {
-    return { isBudgetPhrase: true, max: parseInt(prefixMatch[1].replace(/,/g, ''), 10), min: null, remove: false };
+    return { isBudgetPhrase: true, max: parseBudgetAmount(prefixMatch[1]), min: null, remove: false };
   }
 
   const postfixMatch = lower.match(/([\d,]+)\s*(?:rs\.?|rupees|inr|bucks)/i);
@@ -323,9 +370,18 @@ export function extractBudgetUpdate(lower: string): {
       lower.includes('limit') ||
       lower.includes('for') ||
       lower.includes('max') ||
+      lower.includes('around') ||
       lower.split(' ').length <= 4)
   ) {
-    return { isBudgetPhrase: true, max: parseInt(postfixMatch[1].replace(/,/g, ''), 10), min: null, remove: false };
+    return { isBudgetPhrase: true, max: parseBudgetAmount(postfixMatch[1]), min: null, remove: false };
+  }
+
+  const currencyOnly = lower.match(/(?:₹|rs\.?|inr)\s*([\d,]+)/i);
+  if (
+    currencyOnly &&
+    /\b(budget|spend|under|below|within|around|about|up to|keep it)\b/.test(lower)
+  ) {
+    return { isBudgetPhrase: true, max: parseBudgetAmount(currencyOnly[1]), min: null, remove: false };
   }
 
   return { isBudgetPhrase: false, max: null, min: null, remove: false };
@@ -387,7 +443,7 @@ function applyCartRoutingOverride(
     }
   }
 
-  const detected = detectCartIntent(message, products);
+  const detected = detectCartIntent(message, products, currentState);
   const groqAction = normalizeParsedCartAction(result.cart_action);
   let action: 'ADD_TO_CART' | 'REMOVE_FROM_CART' | 'VIEW_CART' | 'CLEAR_CART' | null =
     detected === 'CLEAR_CART' ? 'CLEAR_CART' : detected || groqAction;
@@ -588,6 +644,258 @@ export interface AmbiguousDescriptorMatch {
   question: string;
   interpretations: string[];
   preservedFamilies?: string[];
+}
+
+const CAPABILITY_QUERY =
+  /^(what (can|do) you offer|what can you (offer|do|help( me with)?)|what can i (ask( you)?|get from you)|how can you help( me)?|what do you (do|offer)|what are you (able|here) to (do|help( with)?))$/i;
+
+const OPEN_ENDED_DISCOVERY_QUERY =
+  /^(what (fragrance|perfume|scent) would i like|what do you think i would like|what do you think which (fragrance|perfume|scent) will i like|which (fragrance|perfume|scent|one) would (suit me|i like)|which one do you think i('d| would) like|what (perfume|fragrance|scent) should i try|what do you think i should try|recommend something( for me)?|what would you recommend( for me)?|which (fragrance|perfume) (do you think )?(would|will) (i like|suit me)|what should i (try|get|buy)|which one should i try|which fragrance should i try)$/i;
+
+const SURPRISE_ME_QUERY =
+  /^(surprise me|you choose|pick (one|something|a perfume|a fragrance)( for me)?|choose (a |something |one )?(perfume|fragrance )?for me)$/i;
+
+export function isCapabilityQuery(message: string): boolean {
+  return CAPABILITY_QUERY.test(normalizeConversationalQuery(message));
+}
+
+export function isOpenEndedDiscoveryQuery(message: string): boolean {
+  const t = normalizeConversationalQuery(message);
+  if (isCapabilityQuery(t) || isSurpriseMeQuery(t)) return false;
+  return OPEN_ENDED_DISCOVERY_QUERY.test(t);
+}
+
+export function isSurpriseMeQuery(message: string): boolean {
+  return SURPRISE_ME_QUERY.test(normalizeConversationalQuery(message));
+}
+
+export function isNoPreferenceQuery(message: string): boolean {
+  const t = normalizeConversationalQuery(message);
+  if (!t) return false;
+  if (extractCanonicalFamilies(t).length > 0) return false;
+  if (/\b(under|below|budget|₹|rs\.?|rupees?|similar to|alternative to|forget|reset)\b/.test(t)) return false;
+  return /^(no preference|no particular preference|i don'?t have (a |any )?preference|i do not have (a |any )?preference|i don'?t really have (a |any )?preference|anything is fine|i('m| am) open to anything|i don'?t mind|i do not mind|i don'?t care|i do not care|whatever you recommend|i'?ll leave it to you)$/.test(
+    t
+  );
+}
+
+export function isBroadRecommendationQuery(message: string): boolean {
+  const t = normalizeConversationalQuery(message);
+  if (isCapabilityQuery(t) || isOpenEndedDiscoveryQuery(t) || isSurpriseMeQuery(t)) return false;
+  if (extractCanonicalFamilies(t).length > 0) return false;
+  if (/\b(under|below|budget|₹|rs\.?|rupees?)\b/.test(t)) return false;
+  if (isNoPreferenceQuery(t)) return true;
+  const noParticularScent =
+    /\b(no|not|don'?t have|do not have).{0,48}\b(particular|specific|exact|certain)\b.{0,24}\b(scent|fragrance|perfume|preference|idea|in mind)\b/.test(
+      t
+    ) ||
+    /\b(don'?t|do not) have (anything |any )?(specific|particular|exact|certain)( in mind)?\b/.test(t) ||
+    /\b(nothing (specific|particular)( in mind)?|no idea what i (want|like)|i don'?t know what i want|i just want you to suggest)\b/.test(
+      t
+    ) ||
+    /\bi('m| am) open to anything\b/.test(t) ||
+    /\bi don'?t really have a preference\b/.test(t) ||
+    /\bjust show me something\b/.test(t) ||
+    /\bi'?ll let you choose\b/.test(t);
+  const asksForGoodScents = /\b(suggest|recommend|show|give)\b.{0,24}\b(some )?(good )?(scents|fragrances|perfumes)\b/.test(
+    t
+  );
+  return noParticularScent || asksForGoodScents;
+}
+
+function normalizeConversationalQuery(message: string): string {
+  return message
+    .toLowerCase()
+    .replace(/[?.!,]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasMeaningfulDiscoveryState(state?: ConversationState): boolean {
+  return Boolean(
+    hasActiveConsultation(state) ||
+      state?.activeRequest?.isSimilarityRequest ||
+      state?.backgroundContext?.referencePerfume ||
+      (state?.activeRequest?.formatPreference &&
+        state.activeRequest.formatPreference !== 'NO_FORMAT_PREFERENCE')
+  );
+}
+
+function buildCapabilityStage1(): Stage1IntentOutput {
+  return {
+    intent: 'CAPABILITY',
+    request_type: 'other',
+    is_new_request: false,
+    is_refinement: false,
+    requires_product_data: false,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: false,
+    needs_clarification: false,
+    preferences: {},
+  };
+}
+
+function buildDiscoveryStartStage1(): Stage1IntentOutput {
+  return {
+    intent: 'CLARIFICATION',
+    request_type: 'other',
+    is_new_request: false,
+    is_refinement: false,
+    requires_product_data: false,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: false,
+    needs_clarification: true,
+    is_discovery_start: true,
+    clarification_question: null,
+    suggested_interpretations: [],
+    preferences: {},
+  };
+}
+
+function buildBroadRecommendationStage1(): Stage1IntentOutput {
+  return {
+    intent: 'RECOMMENDATION',
+    request_type: 'new_consultation',
+    is_new_request: true,
+    is_refinement: false,
+    requires_product_data: true,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: true,
+    needs_clarification: false,
+    is_surprise_me: true,
+    is_broad_recommendation: true,
+    preferences: {},
+  };
+}
+
+function buildOpenEndedFollowUpStage1(isSurprise: boolean): Stage1IntentOutput {
+  return {
+    intent: 'RECOMMENDATION',
+    request_type: 'refinement',
+    is_new_request: false,
+    is_refinement: true,
+    requires_product_data: true,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: true,
+    needs_clarification: false,
+    is_surprise_me: isSurprise,
+    preferences: {},
+  };
+}
+
+function buildSurpriseMeStage1(): Stage1IntentOutput {
+  return {
+    intent: 'RECOMMENDATION',
+    request_type: 'new_consultation',
+    is_new_request: true,
+    is_refinement: false,
+    requires_product_data: true,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: true,
+    needs_clarification: false,
+    is_surprise_me: true,
+    preferences: {},
+  };
+}
+
+const COMPETITOR_MENTION =
+  /\b(zara|dior|sauvage|chanel|bleu\s+de\s+chanel|fraganote|bella\s+vita|creed|aventus|tom\s+ford|baccarat|br540|versace|eros|ysl|gucci|armani)\b/i;
+
+function isDiscoveryOrSimilarityAsk(lower: string): boolean {
+  return /\b(similar to|something similar|alternative to|smells?\s+like|recommend|show me|give me|suggest|what should i (try|get|buy)|find me)\b/i.test(
+    lower
+  );
+}
+
+function isCompetitorConversationWithoutDiscovery(lower: string): boolean {
+  if (isDiscoveryOrSimilarityAsk(lower)) return false;
+  return (
+    COMPETITOR_MENTION.test(lower) ||
+    /\b(just\s+)?copies\b/.test(lower) ||
+    /\b(dupes?|clones?|knockoffs?)\b/.test(lower)
+  );
+}
+
+function routeCompetitorWithoutDiscovery(
+  message: string,
+  products: Product[]
+): Stage1IntentOutput | null {
+  const lower = message.toLowerCase();
+  if (detectNamedProductInquiry(message, products)) return null;
+  if (!isCompetitorConversationWithoutDiscovery(lower)) return null;
+
+  const reference = extractKnownReferencePerfume(message, products);
+  const isWear = /\b(i (already )?(use|wear)|usually wear|currently wear)\b/.test(lower);
+  if (isWear && reference) {
+    return {
+      intent: 'PREFERENCE_UPDATE',
+      request_type: 'other',
+      is_new_request: false,
+      is_refinement: false,
+      reference_perfume: reference,
+      is_similarity_request: false,
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: false,
+      requires_product_data: false,
+      preferences: { reference_fragrances: [reference] },
+    };
+  }
+
+  return {
+    intent: 'CUSTOMER_OBJECTION',
+    request_type: 'other',
+    is_new_request: false,
+    is_refinement: false,
+    fragrance_families: [],
+    preferred_notes: [],
+    excluded_notes: [],
+    excluded_families: [],
+    needs_recommendations: false,
+    needs_clarification: false,
+    requires_product_data: false,
+    preferences: {},
+  };
+}
+
+function routeOpenEndedDiscovery(message: string, currentState?: ConversationState): Stage1IntentOutput | null {
+  if (isCapabilityQuery(message)) {
+    return buildCapabilityStage1();
+  }
+  if (isBroadRecommendationQuery(message)) {
+    return hasMeaningfulDiscoveryState(currentState)
+      ? buildOpenEndedFollowUpStage1(false)
+      : buildBroadRecommendationStage1();
+  }
+  if (isSurpriseMeQuery(message)) {
+    return hasMeaningfulDiscoveryState(currentState)
+      ? buildOpenEndedFollowUpStage1(false)
+      : buildSurpriseMeStage1();
+  }
+  if (isOpenEndedDiscoveryQuery(message)) {
+    return hasMeaningfulDiscoveryState(currentState)
+      ? buildOpenEndedFollowUpStage1(false)
+      : buildDiscoveryStartStage1();
+  }
+  return null;
 }
 
 function buildResetStage1(): Stage1IntentOutput {
@@ -973,7 +1281,7 @@ export function detectProductAttributeQuestion(message: string, products: Produc
   if (/\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|add\s+to\s+(my\s+)?cart|smells?\s+like)\b/.test(lower)) {
     return null;
   }
-  const named = products.find((p) => lower.includes(p.name.toLowerCase()));
+  const named = findNamedProductsInText(message, products)[0];
   if (!named) {
     if (/\broyal oud\b/.test(lower)) {
       const royal = products.find((p) => p.name.toLowerCase() === 'royal oud');
@@ -983,14 +1291,33 @@ export function detectProductAttributeQuestion(message: string, products: Produc
   }
   const asksAttribute =
     /\b(is|does|can|how|what|tell)\b/.test(lower) &&
-    /\b(office|strong|sweet|fresh|last|longevity|notes?|price|cost|inspired|good\s+for|suitable|intensity|projection|sillage|warm|woody|more)\b/.test(
+    /\b(office|strong|sweet|fresh|last|longevity|notes?|price|cost|inspired|good\s+for|suitable|intensity|projection|sillage|warm|woody|more|size|format|edp|edt|extrait|concentration|perfume|mist|family|accord|how much|decant)\b/.test(
       lower
     );
   return asksAttribute ? named.name : null;
 }
 
+export function detectNamedProductInquiry(message: string, products: Product[]): string | null {
+  const lower = message.toLowerCase();
+  if (
+    /\b(i\s+want|show\s+me\s+something|recommend|similar\s+to|add\s+to\s+(my\s+)?cart|smells?\s+like|alternative\s+to)\b/.test(
+      lower
+    )
+  ) {
+    return null;
+  }
+  const fromAttribute = detectProductAttributeQuestion(message, products);
+  if (fromAttribute) return fromAttribute;
+  const named = findNamedProductsInText(message, products)[0];
+  if (!named) return null;
+  if (/\b(tell me about|what is|what are|describe|how much|is it|is this)\b/.test(lower)) {
+    return named.name;
+  }
+  return null;
+}
+
 const PRODUCT_FACT_CUES =
-  /\b(notes?|longevity|lasts?|lasting|strong|intensity|projection|sillage|office|inspired|inspiration|price|cost|how much|size|family|accord|heart|base|opening|drydown|sweet|tell me more|more about|formats?|tester|sample|full bottle)\b/i;
+  /\b(notes?|longevity|lasts?|lasting|strong|intensity|projection|sillage|office|inspired|inspiration|price|cost|how much|size|family|accord|heart|base|opening|drydown|sweet|tell me more|more about|formats?|tester|sample|full bottle|edp|edt|extrait|concentration|perfume|mist|decant)\b/i;
 
 function lastDiscussedNames(state?: ConversationState, products: Product[] = []): string[] {
   const refs = [
@@ -1018,7 +1345,7 @@ export function detectProductFollowUp(
   products: Product[],
   currentState?: ConversationState
 ): string | null {
-  const named = detectProductAttributeQuestion(message, products);
+  const named = detectNamedProductInquiry(message, products) || detectProductAttributeQuestion(message, products);
   if (named) return named;
   if (detectCompareFollowUp(message, currentState, products)) return null;
 
@@ -1357,6 +1684,7 @@ export function applyExplicitReference(
   products: Product[] = [],
   currentState?: ConversationState
 ): Stage1IntentOutput {
+  result = applySamplingContextToStage1(result, message);
   if (REFERENCE_SKIP_INTENTS.includes(result.intent as CanonicalIntent)) {
     return result;
   }
@@ -1395,7 +1723,7 @@ export function applyExplicitReference(
   }
 
   const isWearingOnly =
-    /\b(usually\s+wear|currently\s+wear|i\s+wear)\b/i.test(message) &&
+    /\b(usually\s+wear|currently\s+wear|already\s+(use|wear)|i\s+(use|wear))\b/i.test(message) &&
     !/\b(recommend|give\s+me|show\s+me|want|similar|alternative|warmer|cheaper|fresher)\b/i.test(
       message
     );
@@ -1475,6 +1803,10 @@ export function detectAmbiguousDescriptor(
   if (/\b(similar\s+to|alternative\s+to)\b/i.test(lower)) {
     return null;
   }
+  if (userRequestsSmallFormat(text) || userRequestsBodyMist(text)) {
+    return null;
+  }
+
   if (/\bsmells?\s+like\b/i.test(lower)) {
     const concept = analyzeScentConcept(text, []);
     if (concept.kind !== 'unsupported_object') {
@@ -1651,7 +1983,7 @@ export function detectAmbiguousDescriptor(
   if (discoveryMatch) {
     const word = discoveryMatch[1];
     const isKnownWord =
-      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|fruity|frooty|fruitier|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger|arabian|arabic|attar|bakhoor)\b/i.test(
+      /\b(fresh|woody|floral|spicy|citrus|aquatic|musky?|oriental|amber|ambery|sweet|sugary|gourmand|oud|leather|vanilla|rose|jasmine|fruity|frooty|fruitier|strong|light|subtle|cheap|affordable|summer|winter|spring|fall|office|work|casual|date|warm|warmer|cool|cooler|else|more|other|another|different|better|similar|cheaper|stronger|arabian|arabic|attar|bakhoor|small|compact|miniature|mini|mist|sample|pocket)\b/i.test(
         word
       ) || isKnownStyleWord(word) || extractCanonicalFamilies(word).length > 0;
     if (!isKnownWord && word.length > 2) {
@@ -1702,6 +2034,7 @@ export const OUT_OF_SCOPE_PATTERNS: RegExp[] = [
   /\bwhat\s+is\s+python\b/i,
   /\bbook\s+(?:me\s+)?(?:a\s+)?flight\b/i,
   /\b(?:write|draft)\s+(?:me\s+)?(?:a\s+)?(?:resume|cv|cover\s+letter)\b/i,
+  /\bhelp\s+me\s+with\s+(?:my\s+)?(?:resume|cv|homework|essay|cover\s+letter)\b/i,
   /\breturn\s+policy\b/i,
   /\b(?:can\s+i\s+buy|do\s+you\s+sell)\s+(?:a\s+)?(?:refrigerator|fridge|shoes|sneakers|clothes|laptop)\b/i,
 ];
@@ -1758,13 +2091,26 @@ export function analyzeMessageScope(
     detectedSignals.push('budget_price');
   }
 
-  // Check product names from catalogue
-  for (const p of products) {
-    const pName = p.name.toLowerCase();
-    if (lower.includes(pName) || (pName.length > 4 && lower.includes(pName.slice(0, -1)))) {
-      detectedSignals.push(`product:${p.name}`);
-      break;
+  // Check product names from catalogue (full name or distinctive partial)
+  const namedInScope = findNamedProductsInText(trimmed, products);
+  if (namedInScope.length > 0) {
+    detectedSignals.push(`product:${namedInScope[0].name}`);
+  } else {
+    for (const p of products) {
+      const pName = p.name.toLowerCase();
+      if (lower.includes(pName) || (pName.length > 4 && lower.includes(pName.slice(0, -1)))) {
+        detectedSignals.push(`product:${p.name}`);
+        break;
+      }
     }
+  }
+
+  const hasFormatOrSampling =
+    /\b(miniature|mini|full[- ]size|full bottle|hair mist|hair perfume|body mist|pocket|sample|discovery set|something small)\b/i.test(
+      lower
+    );
+  if (hasFormatOrSampling) {
+    detectedSignals.push('format_sampling');
   }
 
   // Check fragrance families / notes / attributes
@@ -1804,7 +2150,13 @@ export function analyzeMessageScope(
 
   // Check store conversational meta
   const isStoreMeta =
-    /^(hi|hello|hey|greetings|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+(help|do)|how\s+can\s+you\s+help|thanks?|thank\s+you|bye|goodbye|take\s+care)\b/i.test(lower.trim());
+    /^(hi|hello|hey|greetings|who\s+are\s+you|what\s+is\s+your\s+name|thanks?|thank\s+you|bye|goodbye|take\s+care)\b/i.test(
+      lower.trim()
+    ) ||
+    isCapabilityQuery(lower) ||
+    isOpenEndedDiscoveryQuery(lower) ||
+    isSurpriseMeQuery(lower) ||
+    isBroadRecommendationQuery(lower);
   if (isStoreMeta) {
     detectedSignals.push('store_meta');
   }
@@ -1871,7 +2223,7 @@ export function analyzeMessageScope(
   }
 
   const isOffDomainQuestion =
-    /^(what|who|where|when|why|how|can\s+you|could\s+you|explain|solve|book|write)\b/i.test(lower) &&
+    /^(what|who|where|when|why|how|can\s+you|could\s+you|explain|solve|book|write|help\s+me\s+with)\b/i.test(lower) &&
     !hasFragranceSignals &&
     !isStoreMeta;
 
@@ -2353,10 +2705,13 @@ export function validateAndEnforcePolarity(
   // 8. Natural Budget phrasing in complex sentences (e.g. "not really looking to spend more than a thousand")
   if (!res.budget?.max && !res.budget?.min) {
     const budgetInfo = extractBudgetUpdate(lower);
-    if (budgetInfo.isBudgetPhrase && budgetInfo.max !== null) {
-      res.budget = { min: null, max: budgetInfo.max };
-      if (!res.updates.some(u => u.field === 'budget.max')) {
+    if (budgetInfo.isBudgetPhrase && (budgetInfo.max !== null || budgetInfo.min !== null)) {
+      res.budget = { min: budgetInfo.min, max: budgetInfo.max };
+      if (budgetInfo.max !== null && !res.updates.some(u => u.field === 'budget.max')) {
         res.updates.push({ field: 'budget.max', operation: 'SET', value: budgetInfo.max });
+      }
+      if (budgetInfo.min !== null && !res.updates.some(u => u.field === 'budget.min')) {
+        res.updates.push({ field: 'budget.min', operation: 'SET', value: budgetInfo.min });
       }
     }
   }
@@ -2514,19 +2869,11 @@ export async function classifyIntentAndExtractPreferences(
     };
   }
 
-  if (/^(what\s+can\s+you\s+(help\s+me\s+with|do))[?.]?$/i.test(lower)) {
-    return {
-      intent: 'CAPABILITY',
-      request_type: 'other',
-      requires_product_data: false,
-      fragrance_families: [],
-      preferred_notes: [],
-      excluded_notes: [],
-      excluded_families: [],
-      needs_recommendations: false,
-      needs_clarification: false,
-      preferences: {},
-    };
+  const earlyOpenEnded = routeOpenEndedDiscovery(trimmed, currentState);
+  if (earlyOpenEnded) {
+    return brand.slug === 'scentira'
+      ? finalizeBrandStage1(earlyOpenEnded, trimmed, brand, products)
+      : earlyOpenEnded;
   }
 
   const productFollowUp = detectProductFollowUp(trimmed, products, currentState);
@@ -2537,6 +2884,13 @@ export async function classifyIntentAndExtractPreferences(
   const compareFollowUpEarly = detectCompareFollowUp(trimmed, currentState, products);
   if (compareFollowUpEarly) {
     return buildNamedCompareStage1(compareFollowUpEarly);
+  }
+
+  const competitorEarly = routeCompetitorWithoutDiscovery(trimmed, products);
+  if (competitorEarly) {
+    return brand.slug === 'scentira'
+      ? finalizeBrandStage1(competitorEarly, trimmed, brand, products)
+      : competitorEarly;
   }
 
   const scentConcept = analyzeScentConcept(trimmed, products);
@@ -2596,8 +2950,8 @@ export async function classifyIntentAndExtractPreferences(
   }
 
   // 0. Deterministic CART_ASSISTANCE gate for explicit cart actions
-  if (isExplicitCartActionQuery(effectiveQuery, products) && !isDiscoveryOnlyRequest(effectiveQuery)) {
-    const action = inferCartActionType(effectiveQuery, products);
+  if (isExplicitCartActionQuery(effectiveQuery, products, currentState) && !isDiscoveryOnlyRequest(effectiveQuery)) {
+    const action = inferCartActionType(effectiveQuery, products, currentState);
     if (action === 'CLEAR_CART' || action === 'VIEW_CART') {
       const result = emptyCartStage1(action, []);
       result.requires_product_data = false;
@@ -2681,7 +3035,8 @@ export async function classifyIntentAndExtractPreferences(
     return finalizeBrandStage1(
       applyExplicitReference(grounded, effectiveQuery, products, currentState),
       effectiveQuery,
-      brand
+      brand,
+      products
     );
   }
 
@@ -2711,25 +3066,64 @@ export async function classifyIntentAndExtractPreferences(
       currentState
     ),
     effectiveQuery,
-    brand
+    brand,
+    products
   );
 }
 
-function finalizeBrandStage1(
+export function finalizeBrandStage1(
   stage1: Stage1IntentOutput,
   message: string,
-  brand: BrandConfig
+  brand: BrandConfig,
+  products: Product[] = []
 ): Stage1IntentOutput {
-  if (brand.slug !== 'thescentstories') return stage1;
-  if (detectFormatEducationQuestion(message) && !stage1.needs_recommendations) {
-    return {
-      ...applySamplingContextToStage1(stage1, message),
-      intent: 'PRODUCT_INFO',
-      needs_recommendations: false,
-      requires_product_data: Boolean(stage1.target_product_names?.length),
-    };
+  if (brand.slug === 'thescentstories') {
+    if (detectFormatEducationQuestion(message) && !stage1.needs_recommendations) {
+      return {
+        ...applySamplingContextToStage1(stage1, message),
+        intent: 'PRODUCT_INFO',
+        needs_recommendations: false,
+        requires_product_data: Boolean(stage1.target_product_names?.length),
+      };
+    }
+    return applySamplingContextToStage1(stage1, message);
   }
-  return applySamplingContextToStage1(stage1, message);
+
+  if (brand.slug === 'scentira') {
+    const next = applyScentiraContextToStage1(stage1, message, products);
+    if (scentiraAsksOriginalKhamrah(message) && next.intent !== 'OUT_OF_SCOPE') {
+      return {
+        ...next,
+        intent: 'PRODUCT_INFO',
+        needs_recommendations: false,
+        requires_product_data: true,
+        target_product_names: next.target_product_names || [],
+      };
+    }
+    if (detectScentiraFormatEducation(message) && !next.needs_recommendations) {
+      return {
+        ...next,
+        intent: 'PRODUCT_INFO',
+        needs_recommendations: false,
+        requires_product_data: Boolean(next.target_product_names?.length),
+      };
+    }
+    if (isScentiraProductInfoAsk(message) && next.intent !== 'OUT_OF_SCOPE' && next.intent !== 'CART_ASSISTANCE') {
+      const named = resolveScentiraNamedProduct(message, products);
+      if (named) {
+        return {
+          ...next,
+          intent: 'PRODUCT_INFO',
+          target_product_names: [named.name],
+          needs_recommendations: false,
+          requires_product_data: true,
+        };
+      }
+    }
+    return next;
+  }
+
+  return stage1;
 }
 
 /**
@@ -2813,8 +3207,14 @@ CRITICAL RULES:
 1. SPECIALIZED SCOPE & OUT-OF-SCOPE:
    - "hi", "hello" -> intent: "GREETING", needs_recommendations: false.
    - "who are you?" -> intent: "IDENTITY", needs_recommendations: false.
-   - "what can you help me with?" -> intent: "CAPABILITY", needs_recommendations: false.
-   - Out-of-scope topics (general knowledge, geography, capitals, coding, math, weather, news, jokes, resumes, sports, translations, e.g. "What is the capital of Bhutan?", "What is 25 * 18?", "Write Python code", "Tell me a joke", "What's the weather today?"):
+   - "what can you help me with?" / "what can you offer?" / "what can I ask you?" / "how can you help me?" -> intent: "CAPABILITY", needs_recommendations: false. Never OUT_OF_SCOPE.
+   - "What fragrance would I like?" / "What do you think I would like?" / "Recommend something for me." with no current preferences -> intent: "CLARIFICATION", is_discovery_start: true, needs_recommendations: false. Never NO_MATCH. Never OUT_OF_SCOPE. Do not invent a canned question.
+   - Those same discovery questions WITH existing preferences (family, budget, occasion, reference) -> RECOMMENDATION using the current state. Do not ask the user to repeat themselves.
+   - "I don't have any particular scent in my mind" / "I don't have anything specific in mind" / "I'm open to anything" / "no preference" / "I don't have a preference" / "anything is fine" / "I don't mind" / "I'll leave it to you" / "suggest me some good scents" -> RECOMMENDATION, is_broad_recommendation: true, is_surprise_me: true, needs_recommendations: true. Immediate diverse catalogue recommendations. Do NOT ask a preference question first. Never NO_MATCH. If a budget, reference, or format is already active, keep those constraints and recommend from that state.
+   - "What should I try?" / "What should I get?" / "Which one should I try?" with no preferences -> CLARIFICATION, is_discovery_start: true, or broad recommendation. Never OUT_OF_SCOPE. With existing preferences -> RECOMMENDATION using that state.
+   - "Surprise me" / "You choose" / "Pick something for me" with no preferences -> is_surprise_me: true, needs_recommendations: true. With existing preferences, recommend from that state. Never NO_MATCH.
+   - Format discovery ("I want a miniature", "I want a full-size perfume", "I want a hair mist", "I want something small") is in-scope RECOMMENDATION. Set format_preference from the message. Never NO_MATCH when matching catalogue formats exist.
+   - Out-of-scope topics (general knowledge, geography, capitals, coding, math, weather, news, jokes, resumes, sports, translations, e.g. "What is the capital of Bhutan?", "What is 25 * 18?", "Write Python code", "Help me with my resume.", "Tell me a joke", "What's the weather today?"):
      -> intent: "OUT_OF_SCOPE", needs_recommendations: false, product_reference: null, cart_action: null. NEVER answer the unrelated non-fragrance question! Do not call recommendations.
    - Mixed intent (e.g. "What is the capital of France and recommend a fresh perfume under ₹1000" or "Tell me a joke and recommend something woody"):
      -> IGNORE the non-fragrance part completely. Classify and extract preferences ONLY for the fragrance part ("recommend a fresh perfume under ₹1000" -> RECOMMENDATION with fresh and budget max 1000).
@@ -2831,6 +3231,7 @@ CRITICAL RULES:
      Multiple named products ("Add Ocean Breeze and White Musk to my cart") -> product_references: ["Ocean Breeze", "White Musk"]. NEVER return "Ocean Breeze and White Musk" as a single product_reference.
      Commas ("Add Ocean Breeze, White Musk and Fresh Linen") -> three separate product_references.
      Contextual: "add all 3" / "add all of them" -> ["ALL"] or ["ALL:3"]. "add both" -> ["BOTH"]. "add 1 and 3" / "add the first and third" -> ["POSITION:1", "POSITION:3"]. "add the first two" -> ["FIRST_N:2"]. "add this" -> ["THIS"].
+     After a recommended set, bare "the first one" / "the second one" / "first and third" / "both" / "all of them" are CART_ASSISTANCE ADD_TO_CART using those contextual tokens — not a new recommendation.
      Do NOT invent product IDs.
    - Cart removals ("Remove Royal Oud from my cart", "Remove Ocean Breeze and White Musk"):
      -> intent: "CART_ASSISTANCE", cart_action: "REMOVE_FROM_CART", product_references: ["[Product]", ...], needs_recommendations: false.
@@ -2862,8 +3263,9 @@ CRITICAL RULES:
    - "fruity" / "frooty" / "fruit-forward" / "fruitier" / "something fruity" is a REAL fragrance family. Set fragrance_families: ["fruity"] only. Do NOT also add fresh, sweet, or citrus unless the user said those words. Fruity alone is a valid preference and must produce recommendations, not clarification and not NO_MATCH.
 
 3. PRODUCT INFO & COMPARISON:
-   - "Tell me about [Product]", "What are the notes in [Product]?", "How long does [Product] last?", "Is [Product] good for office?", "Is [Product] strong?":
-     -> intent: "PRODUCT_INFO", target_product_names: ["[Product]"], needs_recommendations: false. Do NOT start a new recommendation.
+   - "Tell me about [Product]", "What are the notes in [Product]?", "How long does [Product] last?", "Is [Product] good for office?", "Is [Product] strong?", "What size is [Product]?", "Is [Product] EDP?", "How much is [Product]?", "What is [Product]?", "Is [Product] a perfume?":
+     -> intent: "PRODUCT_INFO", target_product_names: ["exact catalogue name"], needs_recommendations: false. Resolve short or partial names against the catalogue (e.g. a distinctive substring of a listed product). Do NOT start a new recommendation. Do NOT return NO_MATCH when the product exists.
+   - Follow-ups after a product-info turn ("How much is it?", "What size?", "Is it EDP?", "What format?") stay PRODUCT_INFO using the last discussed catalogue product. Do not require the name to be repeated.
    - "Compare [Product A] and [Product B]":
      -> intent: "COMPARE_PRODUCTS", target_product_names: ["[Product A]", "[Product B]"], needs_recommendations: false.
    - After a comparison, follow-ups like "which is fresher?", "which is sweeter?", "which is better suited to office?" stay COMPARE_PRODUCTS with the same two products. Do NOT start a catalogue recommendation.
@@ -2891,7 +3293,9 @@ CRITICAL RULES:
      DO NOT invent budget = 600! Leave numeric budget as null!
 
 6. BUDGET CHANGES & REMOVAL:
-   - "I have ₹500" / "500 is my limit" -> budget: { "max": 500 }, updates: [{ "field": "budget.max", "operation": "SET", "value": 500 }].
+   - "I have ₹500" / "500 is my limit" / "I have a budget of ₹1000" / "My budget is ₹1000" / "I can spend ₹1000" / "I don't want to spend more than ₹1000" / "Keep it under ₹1000" / "Up to ₹1000" / "Within ₹1000" -> budget: { "max": that amount }.
+   - "Around ₹1000" / "Something around 1000" -> budget min/max as a reasonable band around that price (existing min/max fields). Do not leave budget.max null.
+   - "₹500 to ₹1000" / "Between ₹500 and ₹1000" -> budget: { "min": 500, "max": 1000 }.
    - "Keep it below seven hundred bucks" -> budget: { "max": 700 }, updates: [{ "field": "budget.max", "operation": "SET", "value": 700 }].
    - "I don't have a budget" / "no budget" -> remove_budget: true, budget: { "min": null, "max": null }, updates: [{ "field": "remove_budget", "operation": "REMOVE", "value": true }].
 
@@ -2920,6 +3324,8 @@ CRITICAL RULES:
 
 9. CONVERSATION GATE — NON-RECOMMENDATION INTENTS:
    CUSTOMER_OBJECTION — Competitive statements, quality doubts, value challenges:
+   - Competitor mention WITHOUT a discovery request ("Is this better than Dior?", "I already use Bleu de Chanel.", "Are these just copies?") is NOT a recommendation. Use CUSTOMER_OBJECTION or PREFERENCE_UPDATE. Do not call the recommendation engine. Do not attack competitors or invent superiority claims.
+   - "What is similar to Dior Sauvage?" / "Give me something similar to Dior Sauvage" IS a recommendation / SIMILAR_TO_REFERENCE.
    - Pure objection without stated preference (e.g. "other brands have better scents", "TM Perfume House has better scents", "these perfumes smell cheap"):
      -> intent: "CUSTOMER_OBJECTION", needs_recommendations: false.
    - Objection COMBINED with a stated preference (e.g. "Other brands are better. Show me something woody."):
@@ -2953,7 +3359,7 @@ Active Consultation: ${JSON.stringify(currentState?.activeRequest || currentStat
 Background Preferences: ${JSON.stringify(currentState?.backgroundContext || currentState?.backgroundPreferences || {})}
 Pending Clarification: ${JSON.stringify(currentState?.pendingClarification || null)}
 Pending Cart Action (if present, yes/go ahead/everything confirms it; no/cancel/keep them cancels it): ${JSON.stringify(currentState?.pendingCartAction || null)}
-
+${brand.slug === 'scentira' ? SCENTIRA_GROQ_NOTE : ''}
 Return ONLY valid JSON matching the schema.`;
 
   const messagesPayload = [
@@ -3002,7 +3408,10 @@ Return ONLY valid JSON matching the schema.`;
       normBudget.min = typeof parsed.budget.min === 'number' ? parsed.budget.min : (parsed.budget.min ? parseInt(String(parsed.budget.min).replace(/[^\d]/g, ''), 10) || null : null);
       normBudget.max = typeof parsed.budget.max === 'number' ? parsed.budget.max : (parsed.budget.max ? parseInt(String(parsed.budget.max).replace(/[^\d]/g, ''), 10) || null : null);
     }
-    if (normBudget.max === null && budgetInfo.max !== null) {
+    if (budgetInfo.isBudgetPhrase) {
+      if (budgetInfo.max !== null) normBudget.max = budgetInfo.max;
+      if (budgetInfo.min !== null) normBudget.min = budgetInfo.min;
+    } else if (normBudget.max === null && budgetInfo.max !== null) {
       normBudget.max = budgetInfo.max;
     }
     const removeBudget = Boolean(parsed.remove_budget || budgetInfo.remove);
@@ -3253,6 +3662,28 @@ export function fallbackIntentClassifier(
     };
   }
 
+  if (brand.slug === 'scentira' && detectScentiraFormatEducation(clean)) {
+    return {
+      intent: 'PRODUCT_INFO',
+      request_type: 'other',
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: false,
+      requires_product_data: false,
+      preferences: {},
+    };
+  }
+
+  const fallbackOpenEndedEarly = routeOpenEndedDiscovery(clean, currentState);
+  if (fallbackOpenEndedEarly) {
+    return brand.slug === 'scentira'
+      ? finalizeBrandStage1(fallbackOpenEndedEarly, clean, brand, products)
+      : fallbackOpenEndedEarly;
+  }
+
   const productFollowUpEarly = detectProductFollowUp(lower, products, currentState);
   if (productFollowUpEarly) {
     return buildNamedProductInfoStage1(productFollowUpEarly);
@@ -3261,6 +3692,13 @@ export function fallbackIntentClassifier(
   const compareFollowUpVeryEarly = detectCompareFollowUp(lower, currentState, products);
   if (compareFollowUpVeryEarly) {
     return buildNamedCompareStage1(compareFollowUpVeryEarly);
+  }
+
+  const competitorFallback = routeCompetitorWithoutDiscovery(clean, products);
+  if (competitorFallback) {
+    return brand.slug === 'scentira'
+      ? finalizeBrandStage1(competitorFallback, clean, brand, products)
+      : competitorFallback;
   }
 
   const unusualConcept = analyzeScentConcept(clean, products);
@@ -3413,8 +3851,8 @@ export function fallbackIntentClassifier(
 
   // 0c. CONVERSATION GATE — CUSTOMER OBJECTIONS (must come before OUT_OF_SCOPE)
   const isCustomerObjection =
-    /\b(other\s+brands|competitors|better\s+(scents?|perfumes?|fragrances?)|smell\s+cheap|smells?\s+cheap|too\s+expensive\s+for|don'?t\s+last\s+long|doesn'?t\s+last|lasts?\s+long\s+enough|nothing\s+here\s+matches|why\s+should\s+i\s+buy|what\s+makes\s+(this|your)\s+better|overpriced|not\s+worth|waste\s+of\s+money|i'?ve\s+smelled\s+better|cheap\s+quality|low\s+quality|poor\s+quality|rip\s*off|knockoff|fake|copy\s+of)\b/i.test(lower) ||
-    (lower.includes('better than') && (lower.includes('brand') || lower.includes('fragrance') || lower.includes('perfume') || lower.includes('scent'))) ||
+    /\b(other\s+brands|competitors|better\s+(scents?|perfumes?|fragrances?)|smell\s+cheap|smells?\s+cheap|too\s+expensive\s+for|don'?t\s+last\s+long|doesn'?t\s+last|lasts?\s+long\s+enough|nothing\s+here\s+matches|why\s+should\s+i\s+buy|what\s+makes\s+(this|your)\s+better|overpriced|not\s+worth|waste\s+of\s+money|i'?ve\s+smelled\s+better|cheap\s+quality|low\s+quality|poor\s+quality|rip\s*off|knockoff|fake|copy\s+of|just\s+copies|copies\??)\b/i.test(lower) ||
+    (lower.includes('better than') && (lower.includes('brand') || lower.includes('fragrance') || lower.includes('perfume') || lower.includes('scent') || COMPETITOR_MENTION.test(lower))) ||
     (lower.includes('has better') && (lower.includes('brand') || lower.includes('scent') || lower.includes('perfume') || lower.includes('fragrance') || lower.includes('house'))) ||
     (lower.includes('why not') && (lower.includes('zara') || lower.includes('designer') || lower.includes('niche')));
 
@@ -3486,9 +3924,9 @@ export function fallbackIntentClassifier(
   // 0c1. CART ASSISTANCE (add to cart, view cart, remove from cart, clear cart)
   if (
     !isDiscoveryOnlyRequest(message) &&
-    (isExplicitCartActionQuery(lower, products) || isExplicitCartActionQuery(message, products))
+    (isExplicitCartActionQuery(lower, products, currentState) || isExplicitCartActionQuery(message, products, currentState))
   ) {
-    const action = inferCartActionType(message, products);
+    const action = inferCartActionType(message, products, currentState);
     const references = action === 'CLEAR_CART' || action === 'VIEW_CART'
       ? []
       : collectCartActionReferences(message, products).references;
@@ -3637,23 +4075,6 @@ export function fallbackIntentClassifier(
     };
   }
 
-  // 5. CAPABILITY (TEST 3)
-  if (lower.includes('what can you help me with') || lower.includes('what can you do') || lower.includes('what do you do')) {
-    return {
-      intent: 'CAPABILITY',
-      request_type: 'other',
-      is_new_request: false,
-      is_refinement: false,
-      fragrance_families: [],
-      preferred_notes: [],
-      excluded_notes: [],
-      excluded_families: [],
-      needs_recommendations: false,
-      needs_clarification: false,
-      preferences: {},
-    };
-  }
-
   // 6. PRODUCT COMPARISON (TEST 27)
   if (
     lower.startsWith('compare ') ||
@@ -3697,8 +4118,9 @@ export function fallbackIntentClassifier(
     /\b(how\s+long\s+does\b.*last|what\s+(?:are\s+the\s+)?notes\b|does\b.*contain|what\s+is\s+the\s+projection\b|how\s+strong\s+is\b|how\s+much\s+(?:does\b.*cost|is\b)|what\s+size\s+is\b|longevity\s+of\b|ingredients\s+of\b|notes\s+in\b|price\s+of\b)/i.test(lower);
 
   if (!isSimilarity && (isProductQuestion || lower.includes('tell me about') || lower.includes('what is ') || lower.includes('describe '))) {
-    for (const p of products) {
-      if (lower.includes(p.name.toLowerCase())) {
+    const resolvedNamed = findNamedProductsInText(message, products);
+    for (const p of resolvedNamed.length > 0 ? resolvedNamed : products) {
+      if (resolvedNamed.length > 0 || lower.includes(p.name.toLowerCase())) {
         return {
           intent: 'PRODUCT_INFO',
           request_type: 'other',
@@ -3831,7 +4253,7 @@ export function fallbackIntentClassifier(
     };
   }
 
-  if (budgetInfo.isBudgetPhrase && budgetInfo.max !== null) {
+  if (budgetInfo.isBudgetPhrase && (budgetInfo.max !== null || budgetInfo.min !== null)) {
     const isBudgetOnly =
       !lower.includes('office') &&
       !lower.includes('date') &&
@@ -3859,15 +4281,18 @@ export function fallbackIntentClassifier(
         request_type: activeConsultationExists ? 'refinement' : 'new_consultation',
         is_new_request: !activeConsultationExists,
         is_refinement: activeConsultationExists,
-        budget: { min: null, max: budgetInfo.max },
-        updates: [{ field: 'budget.max', operation: 'SET', value: budgetInfo.max }],
+        budget: { min: budgetInfo.min, max: budgetInfo.max },
+        updates: [
+          ...(budgetInfo.max !== null ? [{ field: 'budget.max' as const, operation: 'SET' as const, value: budgetInfo.max }] : []),
+          ...(budgetInfo.min !== null ? [{ field: 'budget.min' as const, operation: 'SET' as const, value: budgetInfo.min }] : []),
+        ],
         fragrance_families: [],
         preferred_notes: [],
         excluded_notes: [],
         excluded_families: [],
         needs_recommendations: true,
         needs_clarification: false,
-        preferences: { budget_max: budgetInfo.max },
+        preferences: { budget_max: budgetInfo.max, budget_min: budgetInfo.min },
       };
     }
   }
@@ -4232,7 +4657,13 @@ export function fallbackIntentClassifier(
   }
 
   // 14. REFERENCE PERFUMES (TEST 21, 22, 23)
-  const isWearingReference = lower.includes('usually wear') || lower.includes('currently wear') || lower.includes('i wear');
+  const isWearingReference =
+    lower.includes('usually wear') ||
+    lower.includes('currently wear') ||
+    lower.includes('already use') ||
+    lower.includes('already wear') ||
+    /\bi use\b/.test(lower) ||
+    /\bi wear\b/.test(lower);
   const droppedReference = isReferenceDropRequest(clean);
   const referencePerfume = droppedReference ? null : extractKnownReferencePerfume(clean, products);
 

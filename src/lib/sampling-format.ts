@@ -29,16 +29,16 @@ export function parseSamplingContext(message: string): {
 
   let formatPreference: FormatIntent | null = null;
   if (
-    /\b(full\s+(size|bottle)|retail\s+pack|already\s+(own|have|tried)\s+the\s+sample|love\s+(the\s+)?sample|want\s+the\s+full)\b/.test(
+    /\b(full[- ]size|full[- ]bottle|normal\s+bottle|retail\s+pack|already\s+(own|have|tried)\s+the\s+sample|love\s+(the\s+)?sample|want\s+the\s+full)\b/.test(
       t
     )
   ) {
     formatPreference = 'FULL_SIZE';
   } else if (/\b(discovery\s+set|several\s+fragrances|few\s+fragrances|try\s+several|explore\s+several)\b/.test(t)) {
     formatPreference = 'DISCOVERY_SET';
-  } else if (/\b(pocket|travel\s+size|tiny\s+for\s+travel|small\s+for\s+travel|something\s+small)\b/.test(t)) {
+  } else if (/\b(pocket|travel\s+size|tiny\s+for\s+travel|small\s+for\s+travel)\b/.test(t)) {
     formatPreference = 'POCKET_SIZE';
-  } else if (/\bminiatures?\b/.test(t)) {
+  } else if (/\b(miniatures?|travel\s+miniature|small\s+miniature|mini)\b/.test(t)) {
     formatPreference = 'MINIATURE';
   } else if (/\btesters?\b/.test(t) && !/\btest(ing| it)?\b/.test(t)) {
     formatPreference = 'TESTER';
@@ -83,7 +83,7 @@ export function applySamplingContextToStage1(
   const parsed = parseSamplingContext(message);
   return {
     ...stage1,
-    format_preference: parsed.formatPreference ?? null,
+    format_preference: parsed.formatPreference ?? stage1.format_preference ?? null,
     exploration_intent: parsed.explorationIntent ?? stage1.exploration_intent ?? null,
     experience_level: parsed.experienceLevel ?? stage1.experience_level ?? null,
     travel_intent: parsed.travelIntent || Boolean(stage1.travel_intent),
@@ -188,9 +188,23 @@ export function isHairBodyMistProduct(product: Product): boolean {
 
 export function userRequestsBodyMist(message?: string | null): boolean {
   if (!message) return false;
-  return /\b(mist|body spray|hair fragrance|body fragrance|hair\s*&\s*body|hair and body|non-perfume)\b/i.test(
+  return /\b(mist|body spray|hair fragrance|body fragrance|hair\s*&\s*body|hair and body|non-perfume|hair perfume|perfume for (?:my |the )?hair)\b/i.test(
     message
   );
+}
+
+export function userRequestsSmallFormat(message?: string | null): boolean {
+  if (!message) return false;
+  if (/\b(miniatures?|\bmini\b|pocket|sample|full[- ]size|full[- ]bottle|hair mist|discovery set)\b/i.test(message)) {
+    return false;
+  }
+  return /\b(something small|something compact|a small (?:one|bottle|perfume|fragrance)|small format)\b/i.test(
+    message
+  );
+}
+
+export function isSmallFormatProduct(product: Product): boolean {
+  return product.format === 'pocket' || product.format === 'miniature' || product.format === 'sample';
 }
 
 export function formatLabel(format?: ProductFormat): string {

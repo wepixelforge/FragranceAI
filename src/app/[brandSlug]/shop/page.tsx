@@ -45,6 +45,8 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
             ? 'Perfumery Lab Catalog'
             : brand.designVariant === 'sampling-concierge'
             ? 'The collection'
+            : brand.designVariant === 'decant-finder'
+            ? 'Shop fragrances'
             : 'The Extrait Collection'}
         </h1>
         <p className="mt-3 text-sm sm:text-base text-brand-text-muted max-w-2xl leading-relaxed">

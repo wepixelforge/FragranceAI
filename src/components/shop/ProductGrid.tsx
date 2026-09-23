@@ -155,9 +155,11 @@ export default function ProductGrid({ products, brand, initialFormat }: ProductG
                     ? 'Olfactory Discovery Guidance'
                     : brand.slug === 'thescentstories'
                     ? "Can't decide?"
+                    : brand.slug === 'scentira'
+                    ? "Can't decide?"
                     : 'Personal Fragrance Consultation'}
                 </span>
-                {brand.slug !== 'thescentstories' && (
+                {brand.slug !== 'thescentstories' && brand.slug !== 'scentira' && (
                 <span className="text-[9px] tracking-widest uppercase px-1.5 py-0.5 rounded border border-brand-accent/30 text-brand-accent">
                   AI
                 </span>
@@ -172,12 +174,14 @@ export default function ProductGrid({ products, brand, initialFormat }: ProductG
                   ? 'Identify creations engineered for your climate and explore low-risk 10ml trials before choosing a full bottle.'
                   : brand.slug === 'thescentstories'
                   ? "Tell me what you're looking for — a scent, an occasion, or a budget."
+                  : brand.slug === 'scentira'
+                  ? "Tell us a mood, an occasion, a budget, or a fragrance you already wear."
                   : 'Describe your occasion, budget, or preferred notes in natural language for a bespoke recommendation.'}
               </p>
             </div>
           </div>
           <Link
-            href={`/${brand.slug}/finder`}
+            href={brand.slug === 'scentira' ? '/Scentira/finder' : `/${brand.slug}/finder`}
             className="hairline-border rounded-full px-5 py-2.5 text-xs font-medium tracking-wide uppercase whitespace-nowrap self-end sm:self-auto hover:border-brand-accent hover:text-brand-accent transition-all duration-300"
             style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: brand.colors.accent }}
           >
@@ -189,6 +193,8 @@ export default function ProductGrid({ products, brand, initialFormat }: ProductG
               ? 'Find My Formula →'
               : brand.slug === 'thescentstories'
               ? 'Ask us →'
+              : brand.slug === 'scentira'
+              ? 'Find a fragrance →'
               : 'Open Concierge →'}
           </Link>
         </div>
@@ -300,7 +306,11 @@ export default function ProductGrid({ products, brand, initialFormat }: ProductG
         </div>
       ) : (
         <div className="py-24 text-center hairline-border rounded-2xl bg-brand-surface/40">
-          <p className="font-serif text-lg text-brand-text-muted">No flacons match your selected criteria.</p>
+          <p className="font-serif text-lg text-brand-text-muted">
+            {brand.slug === 'scentira'
+              ? 'No fragrances to show yet.'
+              : 'No flacons match your selected criteria.'}
+          </p>
           <button
             onClick={() =>
               setFilters({ gender: 'all', fragranceFamily: 'all', priceRange: 'all', format: 'all' })

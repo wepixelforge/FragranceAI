@@ -22,8 +22,16 @@ import {
   isMeaningfulPartialMatch,
   isUnsupportedScentConcept,
 } from './request-match-quality';
-import { productMatchesFormat, samplingScoreBonus, isHairBodyMistProduct, userRequestsBodyMist } from './sampling-format';
+import {
+  productMatchesFormat,
+  samplingScoreBonus,
+  isHairBodyMistProduct,
+  isSmallFormatProduct,
+  userRequestsBodyMist,
+  userRequestsSmallFormat,
+} from './sampling-format';
 import { productMatchesRequestedFamily } from './fragrance-vocabulary';
+import { scentiraHardFormatFilter, scentiraViolatesExcludedFamily } from './scentira-format';
 
 /**
  * Score weights for deterministic soft ranking.
@@ -308,8 +316,16 @@ export function isHardCandidateValid(
     }
   }
 
-  // 10. Explicit format (The Scent Stories). Products without format are unaffected.
-  if (
+  // 10. Explicit format. Scentira uses its own decant/size ladder; other brands keep the shared map.
+  if (product.brandSlug === 'scentira') {
+    const scentiraCheck = scentiraHardFormatFilter(product, preferences);
+    if (!scentiraCheck.valid) return scentiraCheck;
+    const excludedFamilyCheck = scentiraViolatesExcludedFamily(
+      product,
+      preferences.exclusions?.fragranceFamilies
+    );
+    if (!excludedFamilyCheck.valid) return excludedFamilyCheck;
+  } else if (
     preferences.formatPreference &&
     preferences.formatPreference !== 'NO_FORMAT_PREFERENCE' &&
     product.format
@@ -585,12 +601,20 @@ export function getRecommendations(
   if (similarityAsk && referenceProducts.length > 0 && referenceNames.length === 0) {
     preferences.referencePerfumes = referenceProducts.map((product) => product.name);
   }
-  const sameLineExcludeIds = similarityAsk
+  let sameLineExcludeIds = similarityAsk
     ? sameScentLineIds(products, referenceProducts, [
         ...referenceNames,
         ...referenceProducts.map((product) => product.name),
       ])
     : [];
+  const isScentiraCatalogue = products.length > 0 && products.every((product) => product.brandSlug === 'scentira');
+  if (
+    isScentiraCatalogue &&
+    similarityAsk &&
+    referenceNames.some((ref) => products.some((product) => product.name.toLowerCase().includes(ref.toLowerCase())))
+  ) {
+    sameLineExcludeIds = [];
+  }
   excludeProductIds = Array.from(new Set([...excludeProductIds, ...sameLineExcludeIds]));
   if (sameLineExcludeIds.length > 0) {
     preferences.excludedProductIds = Array.from(
@@ -603,22 +627,45 @@ export function getRecommendations(
 
   // ── SURPRISE ME DIVERSE SELECTION ──────────────────────────────────────────
   if (isSurpriseMe) {
-    const candidateProducts = products.filter((p) => !excludeProductIds.includes(p.id));
-    const freshPick = candidateProducts.find((p) =>
-      p.fragranceFamily.includes('fresh') || p.fragranceFamily.includes('aquatic') || p.fragranceFamily.includes('citrus')
+    const allowMist = userRequestsBodyMist(preferences.rawQuery);
+    const pool = products.filter((p) => !excludeProductIds.includes(p.id));
+    const conventional = allowMist ? pool : pool.filter((p) => !isHairBodyMistProduct(p));
+    const candidateProducts = conventional.length > 0 ? conventional : pool;
+    const used = new Set<string>();
+    const take = (predicate: (product: Product) => boolean) => {
+      const hit = candidateProducts.find((product) => !used.has(product.id) && predicate(product));
+      if (hit) used.add(hit.id);
+      return hit;
+    };
+    const freshPick = take(
+      (p) =>
+        p.fragranceFamily.includes('fresh') ||
+        p.fragranceFamily.includes('aquatic') ||
+        p.fragranceFamily.includes('citrus')
     );
-    const woodyPick = candidateProducts.find((p) =>
-      (p.fragranceFamily.includes('woody') || p.fragranceFamily.includes('spicy') || p.fragranceFamily.includes('oud')) &&
-      p.id !== freshPick?.id
+    const woodyPick = take(
+      (p) =>
+        p.fragranceFamily.includes('woody') ||
+        p.fragranceFamily.includes('spicy') ||
+        p.fragranceFamily.includes('oud')
     );
-    const sweetPick = candidateProducts.find((p) =>
-      (p.fragranceFamily.includes('sweet') || p.fragranceFamily.includes('oriental') || p.fragranceFamily.includes('floral')) &&
-      p.id !== freshPick?.id &&
-      p.id !== woodyPick?.id
+    const sweetPick = take(
+      (p) =>
+        p.fragranceFamily.includes('sweet') ||
+        p.fragranceFamily.includes('oriental') ||
+        p.fragranceFamily.includes('gourmand')
+    );
+    const floralPick = take(
+      (p) =>
+        p.fragranceFamily.includes('floral') ||
+        p.fragranceFamily.includes('fruity') ||
+        p.fragranceFamily.includes('musky')
     );
 
-    const surprisePicks = [freshPick, woodyPick, sweetPick].filter(Boolean) as Product[];
-    const directions = ['Fresh Direction', 'Woody Direction', 'Sweet / Oriental Direction'];
+    const surprisePicks = [freshPick, woodyPick, sweetPick, floralPick]
+      .filter(Boolean)
+      .slice(0, Math.min(Math.max(topN, 3), 4)) as Product[];
+    const directions = ['Fresh Direction', 'Woody Direction', 'Sweet / Oriental Direction', 'Floral Direction'];
 
     const surpriseResults: RecommendationResult[] = surprisePicks.map((product, idx) => {
       const dir = directions[idx] || 'Diverse Direction';
@@ -794,7 +841,19 @@ export function getRecommendations(
     }
   }
 
-  if (!userRequestsBodyMist(queryText)) {
+  if (userRequestsBodyMist(queryText)) {
+    const mists = hardValidProducts.filter((product) => isHairBodyMistProduct(product));
+    if (mists.length > 0) {
+      for (const conventional of hardValidProducts.filter((product) => !isHairBodyMistProduct(product))) {
+        candidatesRemoved.push({
+          id: conventional.id,
+          name: conventional.name,
+          reason: 'Conventional perfume held back because the request asked for a hair/body mist',
+        });
+      }
+      hardValidProducts = mists;
+    }
+  } else {
     const conventional = hardValidProducts.filter((product) => !isHairBodyMistProduct(product));
     if (conventional.length > 0) {
       for (const mist of hardValidProducts.filter((product) => isHairBodyMistProduct(product))) {
@@ -805,6 +864,23 @@ export function getRecommendations(
         });
       }
       hardValidProducts = conventional;
+    }
+  }
+
+  if (
+    userRequestsSmallFormat(queryText) &&
+    (!preferences.formatPreference || preferences.formatPreference === 'NO_FORMAT_PREFERENCE')
+  ) {
+    const small = hardValidProducts.filter((product) => isSmallFormatProduct(product));
+    if (small.length > 0) {
+      for (const other of hardValidProducts.filter((product) => !isSmallFormatProduct(product))) {
+        candidatesRemoved.push({
+          id: other.id,
+          name: other.name,
+          reason: 'Larger format held back because the request asked for something small',
+        });
+      }
+      hardValidProducts = small;
     }
   }
 
@@ -900,8 +976,14 @@ export function getRecommendations(
     preferences.intensity === 'strong' &&
     (preferences.sillageMax === 'moderate' || preferences.sillageMax === 'intimate');
 
+  const formatConstrained = Boolean(
+    (preferences.formatPreference && preferences.formatPreference !== 'NO_FORMAT_PREFERENCE') ||
+      userRequestsBodyMist(queryText) ||
+      userRequestsSmallFormat(queryText)
+  );
+
   const eligibleExactScored = scoredExact.filter((r) => {
-    if (r.score < 8) return false;
+    if (r.score < 8 && !formatConstrained) return false;
     if (similarityAsk) return true;
     if (preferences.notes && preferences.notes.length > 0) {
       const haystack = [...r.product.topNotes, ...r.product.heartNotes, ...r.product.baseNotes, ...r.product.tags]

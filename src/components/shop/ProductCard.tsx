@@ -17,6 +17,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
   const isOriental = brand.designVariant === 'oriental-artisanal';
   const isLuxury = brand.designVariant === 'luxury-editorial';
   const isSampling = brand.designVariant === 'sampling-concierge';
+  const isDecantFinder = brand.designVariant === 'decant-finder';
 
   const getDescriptor = () => {
     if (product.character) return product.character;
@@ -31,6 +32,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
     if (isOriental) return 'View Attar →';
     if (isLuxury) return 'View Extrait →';
     if (isSampling) return 'View format →';
+    if (isDecantFinder) return 'View →';
     return 'Explore Scent →';
   };
 
@@ -62,7 +64,9 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
         <div>
           {/* Scent Family / Character */}
           <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
-            {isSampling && product.format
+            {isDecantFinder
+              ? `${product.houseBrand ? `${product.houseBrand} · ` : ''}${product.size}`
+              : isSampling && product.format
               ? `${formatLabel(product.format)} · ${product.fragranceFamily.slice(0, 2).join(' · ')}`
               : product.fragranceFamily.slice(0, 2).join(' · ')}
           </span>
@@ -92,7 +96,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
                 10ml trial from ₹149
               </span>
             )}
-            {isSampling && (
+            {(isSampling || isDecantFinder) && (
               <span className="text-[10px] text-brand-text-muted block mt-0.5 font-light">
                 {product.size}
               </span>

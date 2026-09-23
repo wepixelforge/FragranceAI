@@ -85,6 +85,8 @@ export function createInitialActiveRequest(): ActiveRequest {
     experienceLevel: null,
     travelIntent: false,
     giftingIntent: false,
+    scentiraDecantOnly: false,
+    requestedSizeMl: null,
   };
 }
 
@@ -143,6 +145,7 @@ export function createInitialConversationState(): ConversationState {
     lastRecommendationIds: [],
     lastCanonicalProductSet: [],
     lastDiscussedProductSet: [],
+    lastSelectedProductSet: [],
     currentConsultation,
     backgroundPreferences,
     preferences: buildUnifiedPreferences(currentConsultation, backgroundPreferences),
@@ -276,6 +279,7 @@ export function updateConversationState(
       lastRecommendationIds: [],
       lastCanonicalProductSet: [],
       lastDiscussedProductSet: [],
+      lastSelectedProductSet: [],
       turnCount: (base.turnCount || 0) + 1,
       pendingClarification: null,
       lastTurnWasGreeting: false,
@@ -308,6 +312,7 @@ export function updateConversationState(
             lastRecommendationIds: [],
             lastCanonicalProductSet: [],
             lastDiscussedProductSet: [],
+            lastSelectedProductSet: [],
             backgroundContext: {
               ...createInitialBackgroundContext(),
               persistentExclusions: base.backgroundContext?.persistentExclusions || createInitialBackgroundContext().persistentExclusions,
@@ -963,8 +968,16 @@ export function updateConversationState(
   if (stage1.gifting_intent || sampled.giftingIntent) {
     activeRequest.giftingIntent = true;
   }
+  if (stage1.scentira_decant_only) {
+    activeRequest.scentiraDecantOnly = true;
+  }
+  if (stage1.requested_size_ml) {
+    activeRequest.requestedSizeMl = stage1.requested_size_ml;
+  }
   if (/\bforget\s+the\s+format\b/.test(rawUserText) || /\bno\s+format\s+preference\b/.test(rawUserText)) {
     activeRequest.formatPreference = 'NO_FORMAT_PREFERENCE';
+    activeRequest.scentiraDecantOnly = false;
+    activeRequest.requestedSizeMl = null;
   }
 
   // Strict Contradiction Resolution (Section 14)
@@ -1034,6 +1047,7 @@ export function updateConversationState(
       : isNewConsultation
         ? []
         : (base.lastDiscussedProductSet || []),
+    lastSelectedProductSet: isNewConsultation ? [] : (base.lastSelectedProductSet || []),
     currentConsultation,
     backgroundPreferences,
     preferences: buildUnifiedPreferences(currentConsultation, backgroundPreferences, stage1.target_product_names),
@@ -1328,6 +1342,8 @@ export function toStructuredPreferences(
   }
   structured.travelIntent = Boolean(activeReq.travelIntent);
   structured.giftingIntent = Boolean(activeReq.giftingIntent);
+  structured.scentiraDecantOnly = Boolean(activeReq.scentiraDecantOnly);
+  structured.requestedSizeMl = activeReq.requestedSizeMl ?? null;
 
   return structured;
 }

@@ -35,6 +35,12 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
           subtitle: 'A few pieces from the collection — official samples and travel sizes you can try first.',
           cta: 'Shop the catalogue',
         };
+      case 'decant-finder':
+        return {
+          title: 'Featured',
+          subtitle: 'A few pieces from the collection — discovery sizes, decants and full bottles.',
+          cta: 'Shop fragrances',
+        };
       default:
         return {
           title: 'Featured Fragrances',

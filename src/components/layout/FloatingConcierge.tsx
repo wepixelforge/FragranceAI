@@ -32,8 +32,10 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
 
   const isDedicatedFinderPage = pathname.endsWith('/finder');
   const isScentStories = brand.slug === 'thescentstories';
+  const isScentira = brand.slug === 'scentira';
   const isTssCart = isScentStories && pathname.includes('/cart');
   const contextualPrompt = (() => {
+    if (isScentira) return brand.finder.welcomeMessage || 'Need help finding a fragrance?';
     if (!isScentStories) return getBrandWelcomeMessage(brand);
     if (pathname.includes('/cart')) return 'Need help choosing between these?';
     if (pathname.includes('/product/')) return 'Looking for something similar?';
@@ -85,12 +87,14 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
               <span className="h-1.5 w-1.5 rounded-full bg-brand-accent" />
               <div>
                 <h4 className="text-xs font-serif text-brand-text tracking-wide">
-                  {isScentStories
+                  {isScentira
+                    ? brand.finder?.assistantName || 'Fragrance Finder'
+                    : isScentStories
                     ? brand.finder?.assistantName || 'Fragrance advisor'
                     : brand.finder?.assistantName || 'Scent Concierge'}
                 </h4>
                 <p className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted font-light">
-                  {isScentStories ? 'Shopping help' : 'Private Consultation'}
+                  {isScentira ? 'Catalogue help' : isScentStories ? 'Shopping help' : 'Private Consultation'}
                 </p>
               </div>
             </div>
@@ -107,11 +111,11 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
                 </button>
               )}
               <Link
-                href={`/${brand.slug}/finder`}
+                href={isScentira ? '/Scentira/finder' : `/${brand.slug}/finder`}
                 className="text-[10px] tracking-[0.18em] uppercase text-brand-accent hover:underline px-2 py-1"
                 onClick={closeConsultant}
               >
-                {isScentStories ? 'Open page ↗' : 'Full Studio ↗'}
+                {isScentira || isScentStories ? 'Open page ↗' : 'Full Studio ↗'}
               </Link>
               <button
                 onClick={closeConsultant}
@@ -131,17 +135,17 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
                   {brand.monogram}
                 </div>
                 <h5 className="font-serif text-sm font-normal text-brand-text">
-                  {isScentStories ? brand.finder.title : 'What presence do you seek?'}
+                  {isScentira || isScentStories ? brand.finder.title : 'What presence do you seek?'}
                 </h5>
                 <p className="text-xs text-brand-text-muted mt-1 max-w-xs mx-auto font-light leading-relaxed">
-                  {isScentStories
+                  {isScentira || isScentStories
                     ? brand.finder.subtitle
                     : 'Describe an occasion, mood, favorite notes, or budget in natural language.'}
                 </p>
 
                 {/* Starters */}
                 <div className="mt-5 space-y-2 text-left">
-                  {(isScentStories ? brand.finder.examplePrompts : brand.finder.examplePrompts.slice(0, 3)).map((prompt, i) => (
+                  {(isScentira || isScentStories ? brand.finder.examplePrompts : brand.finder.examplePrompts.slice(0, 3)).map((prompt, i) => (
                     <button
                       key={i}
                       onClick={() => handleSend(prompt)}
@@ -257,7 +261,11 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isScentStories ? "Tell me what you're looking for..." : 'Ask the scent consultant...'}
+              placeholder={
+                isScentira || isScentStories
+                  ? "Tell me what you're looking for..."
+                  : 'Ask the scent consultant...'
+              }
               className="flex-1 bg-brand-input-bg border border-brand-input-border px-3 py-2 text-xs text-brand-text placeholder-brand-text-muted/60 outline-none focus:border-brand-accent transition-colors"
             />
             <button
@@ -324,7 +332,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
             </div>
 
             {/* Subtle Notification Badge: Gold circle with "1" */}
-            {!isScentStories && !hasOpenedConsultant && !messages.some((m) => m.type === 'user') && (
+            {!isScentStories && !isScentira && !hasOpenedConsultant && !messages.some((m) => m.type === 'user') && (
               <div
                 aria-label="1 unread notification"
                 className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full bg-brand-accent text-brand-primary-fg font-sans font-semibold text-[10px] sm:text-[11px] flex items-center justify-center shadow-md border-2 border-brand-bg transition-transform duration-300 group-hover:scale-110"

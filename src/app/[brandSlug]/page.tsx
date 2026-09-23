@@ -12,6 +12,10 @@ import ScentStoriesFormatsSection from '@/components/home/ScentStoriesFormatsSec
 import ScentStoriesPurposesSection from '@/components/home/ScentStoriesPurposesSection';
 import ScentStoriesHowItWorks from '@/components/home/ScentStoriesHowItWorks';
 import ScentStoriesCollectionRow from '@/components/home/ScentStoriesCollectionRow';
+import ScentiraHero from '@/components/home/ScentiraHero';
+import ScentiraHelpStrip from '@/components/home/ScentiraHelpStrip';
+import ScentiraFormatsSection from '@/components/home/ScentiraFormatsSection';
+import ScentiraHowItWorks from '@/components/home/ScentiraHowItWorks';
 
 interface PageProps {
   params: Promise<{ brandSlug: string }>;
@@ -48,7 +52,11 @@ export default async function BrandHomePage({ params }: PageProps) {
       {sectionsOrder.map((sectionKey, idx) => {
         switch (sectionKey) {
           case 'hero':
-            return <HeroSection key={`hero-${idx}`} brand={brand} heroProduct={heroProduct} />;
+            return brand.slug === 'scentira' ? (
+              <ScentiraHero key={`hero-${idx}`} brand={brand} />
+            ) : (
+              <HeroSection key={`hero-${idx}`} brand={brand} heroProduct={heroProduct} />
+            );
           case 'featured':
             return (
               <FeaturedProducts
@@ -67,13 +75,25 @@ export default async function BrandHomePage({ params }: PageProps) {
             return <BusinessValueSection key={`value-${idx}`} brand={brand} />;
           case 'concierge':
           case 'help':
-            return <ScentStoriesHelpStrip key={`help-${idx}`} brand={brand} />;
+            return brand.slug === 'scentira' ? (
+              <ScentiraHelpStrip key={`help-${idx}`} brand={brand} />
+            ) : (
+              <ScentStoriesHelpStrip key={`help-${idx}`} brand={brand} />
+            );
           case 'formats':
-            return <ScentStoriesFormatsSection key={`formats-${idx}`} brand={brand} />;
+            return brand.slug === 'scentira' ? (
+              <ScentiraFormatsSection key={`formats-${idx}`} />
+            ) : (
+              <ScentStoriesFormatsSection key={`formats-${idx}`} brand={brand} />
+            );
           case 'purposes':
             return <ScentStoriesPurposesSection key={`purposes-${idx}`} brand={brand} />;
           case 'how-it-works':
-            return <ScentStoriesHowItWorks key={`how-${idx}`} />;
+            return brand.slug === 'scentira' ? (
+              <ScentiraHowItWorks key={`how-${idx}`} />
+            ) : (
+              <ScentStoriesHowItWorks key={`how-${idx}`} />
+            );
           case 'samples':
             return (
               <ScentStoriesCollectionRow

@@ -8,6 +8,7 @@ import { BrandConfig } from '@/types/brand';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/brand-utils';
 import { formatLabel } from '@/lib/sampling-format';
+import { scentiraFormatLabel } from '@/lib/scentira-format';
 import BottleVisual from '@/components/shop/BottleVisual';
 import ProductCard from '@/components/shop/ProductCard';
 
@@ -29,6 +30,7 @@ export default function ProductDetail({ product, brand, similarProducts, related
   const isLuxury = brand.designVariant === 'luxury-editorial';
   const isDiscovery = brand.designVariant === 'discovery-niche';
   const isSampling = brand.designVariant === 'sampling-concierge';
+  const isScentira = brand.slug === 'scentira';
 
   const formatLongevity = (l: string) => {
     const map: Record<string, string> = {
@@ -45,6 +47,7 @@ export default function ProductDetail({ product, brand, similarProducts, related
     if (isLuxury) return '35% Haute Parfumerie Pure Extrait';
     if (isDiscovery) return 'EDP Concentrate · Indian Heat Tested';
     if (isSampling) return product.concentration || formatLabel(product.format);
+    if (isScentira) return product.concentration || scentiraFormatLabel(product);
     return '30% Extrait de Parfum Strength';
   };
 
@@ -95,6 +98,8 @@ export default function ProductDetail({ product, brand, similarProducts, related
                   ? [product.size, product.concentration || formatLabel(product.format)]
                       .filter(Boolean)
                       .join(' — ')
+                  : isScentira
+                  ? scentiraFormatLabel(product)
                   : `${product.size} — Artisanal Batch`}
               </div>
             </div>
@@ -123,9 +128,35 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     ? '10ml Pocket Discovery Spray'
                     : isSampling
                     ? `${product.size}${product.format ? ` · ${formatLabel(product.format)}` : ''}`
+                    : isScentira
+                    ? scentiraFormatLabel(product)
                     : `${product.size} Full Bottle`}
                 </span>
               </div>
+
+              {isScentira && relatedFormats.length > 0 && (
+                <div className="mt-6 border border-brand-border p-4 bg-brand-surface">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-brand-text-muted block mb-3 font-medium">
+                    Other listed formats
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {relatedFormats.map((alt) => (
+                      <Link
+                        key={alt.id}
+                        href={`/${brand.slug}/product/${alt.slug}`}
+                        className="p-3 text-left border border-brand-border hover:border-brand-accent/40 transition-all"
+                      >
+                        <span className="block text-xs font-normal text-brand-text">
+                          {scentiraFormatLabel(alt)}
+                        </span>
+                        <span className="block text-[11px] text-brand-accent font-serif mt-0.5">
+                          {formatPrice(alt.price)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {isSampling && relatedFormats.length > 0 && (
                 <div className="mt-6 border border-brand-border p-4 bg-brand-surface">
@@ -267,6 +298,8 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     ? 'Acquire 10ml Pocket Trial (₹149)'
                     : isSampling
                     ? `Add ${formatLabel(product.format)} — ${formatPrice(product.price)}`
+                    : isScentira
+                    ? `Add ${scentiraFormatLabel(product)} — ${formatPrice(product.price)}`
                     : 'Acquire Full Bottle'}
                 </button>
 

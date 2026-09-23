@@ -30,8 +30,17 @@ import {
   detectFormatEducationQuestion,
   formatEducationReply,
   formatLabel,
+  isHairBodyMistProduct,
   relatedFormatProducts,
 } from './sampling-format';
+import {
+  detectScentiraFormatEducation,
+  isScentiraDecant,
+  scentiraAsksOriginalKhamrah,
+  scentiraFormatEducationReply,
+  scentiraFormatLabel,
+  scentiraOriginalKhamrahReply,
+} from './scentira-format';
 
 export { sanitizeUserFacingResponse } from './sanitize-user-text';
 
@@ -309,6 +318,15 @@ export function rewriteStaleAlternativesWording(
  * Explains strictly the products already selected and ranked by the deterministic recommendation engine.
  * Never independently selects products, never swaps order, and never hallucinates attributes.
  */
+export function shouldUseLlmConversationalReply(stage1: Stage1IntentOutput): boolean {
+  return (
+    stage1.intent === 'CAPABILITY' ||
+    Boolean(stage1.is_discovery_start) ||
+    Boolean(stage1.is_broad_recommendation) ||
+    Boolean(stage1.is_surprise_me)
+  );
+}
+
 export async function generateConversationalResponse(
   message: string,
   brand: BrandConfig,
@@ -322,7 +340,6 @@ export async function generateConversationalResponse(
   if (
     stage1.intent === 'GREETING' ||
     stage1.intent === 'IDENTITY' ||
-    stage1.intent === 'CAPABILITY' ||
     stage1.intent === 'RESET_CONSULTATION' ||
     stage1.intent === 'GENERAL_CONVERSATION' ||
     stage1.intent === 'BRAND_CONVERSATION' ||
@@ -369,7 +386,10 @@ export async function generateConversationalResponse(
       status: options.status,
     });
 
-  if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification || stage1.intent === 'PRODUCT_INFO') {
+  if (
+    (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification || stage1.intent === 'PRODUCT_INFO') &&
+    !shouldUseLlmConversationalReply(stage1)
+  ) {
     return finalize(
       fallbackResponseGenerator(
         message,
@@ -535,6 +555,9 @@ async function callGroqStage2(
     case 'thescentstories':
       brandVoicePrompt = `You are "${assistantName}", fragrance and sampling concierge for The Scent Stories. Tone: Calm, consultative, concise, premium. Guide on BOTH fragrance direction and the sensible format (sample, pocket, miniature, tester, discovery set, full size). Never push samples when the customer already knows the scent. Never invent formats or prices. Do not sound chatty or salesy.`;
       break;
+    case 'scentira':
+      brandVoicePrompt = `You are "${assistantName}", fragrance shopping assistant for Scentira. Tone: Helpful, commercial but not pushy, fragrance-knowledgeable, concise, practical, discovery-oriented. Recommend both the fragrance and a sensible listed format (discovery vial, 5/10/20ml decant, or full bottle). Call decants decants — never official samples, factory-sealed samples, or official minis. Never invent products, prices, formats, or availability. Never claim Scentira is better than a competitor. Do not sound luxury-editorial or use SaaS/AI wording.`;
+      break;
     default:
       brandVoicePrompt = `You are "${assistantName}", artisanal fragrance advisor. Tone: Warm, authentic, and knowledgeable.`;
       break;
@@ -650,11 +673,24 @@ CRITICAL RULES:
      * If ask_clarification is true, ask which products they mean. Do not claim anything was added.
      * Direct the customer to the cart icon in the header (or View Cart). NEVER print a URL or route such as /tmperfumehouse/cart.
      * Mention prices only with ₹ / INR using supplied formatted values.
-   - GREETING/IDENTITY/CAPABILITY: Respond politely without presenting any products.
+   - GREETING/IDENTITY: Respond politely without presenting any products.
+   - CAPABILITY:
+      * The user asked what you can help with. Answer naturally from ASSISTANT CAPABILITIES CONTEXT.
+      * Mention fragrance discovery, preferences, occasion, budget, notes, intensity, reference perfumes, comparisons, and sampling/formats where relevant to this brand.
+      * Do NOT recommend or name specific products. Do NOT say you cannot help. Do NOT use a canned script.
+      * Keep it concise (2–3 sentences). Write in your own words each time.
+   - DISCOVERY_START / open-ended clarification (is_discovery_start):
+      * The user asked for a personalized recommendation but has no usable preference state.
+      * Do NOT search, do NOT say you couldn't find a match, do NOT present products.
+      * In your own words, ask ONE useful preference question (family, occasion, or mood). Do not ask a questionnaire.
    - CLARIFICATION:
       * Ask a thoughtful, friendly fragrance clarification question.
       * E.g. "When you say '[word]', what kind of feeling do you mean? Something creamy and soft, warm and comforting, or something else?"
       * Do NOT present any products. Keep it to 1 to 2 short sentences.
+   - BROAD_RECOMMENDATION / surprise_me with products present:
+      * The user asked for suggestions without naming a family. Explain the canonical products from their actual metadata.
+      * Do not claim bestsellers, "most popular", or "best" unless that fact is in the supplied product data.
+      * Do not ask a preference question first. Name the recommended products naturally.
    - PRODUCT_INFO: Give a factual overview of the requested product. Always use the exact product name in the first sentence. Do NOT call it "Best Match".
    - COMPARE_PRODUCTS: Provide a factual side-by-side comparison of the two products. Always name both products. Follow-ups like "which is sweeter/fresher/better for office" still compare those same two products — do NOT start a new recommendation. Do NOT call either "Best Match".
    - SHOW_ALTERNATIVES: Present the alternative products provided in CANONICAL RANKED PRODUCTS. Describe this set using ONLY CURRENT ALTERNATIVES DIRECTION (from the current canonical consultation state and the families of the canonical ranked products). Keep the wording natural. Do not reuse leftover family words from earlier turns unless they appear in CURRENT ALTERNATIVES DIRECTION. Never call them fresh/woody/floral alternatives unless that word is in CURRENT ALTERNATIVES DIRECTION. If no alternatives exist (STATUS: NO_ALTERNATIVES), explain gracefully.
@@ -706,6 +742,28 @@ ${JSON.stringify(canonicalAlternativesDirection(currentState, results))}
 STATUS: "${options.status || (options.hardConstraintFailed ? 'HARD_CONSTRAINT_FAILED' : 'SUCCESS')}"
 HARD CONSTRAINT FAILED: ${Boolean(options.hardConstraintFailed)}
 USER INTENT: "${stage1.intent}"
+DISCOVERY FLAGS: ${JSON.stringify({
+  is_discovery_start: Boolean(stage1.is_discovery_start),
+  is_broad_recommendation: Boolean(stage1.is_broad_recommendation),
+  is_surprise_me: Boolean(stage1.is_surprise_me),
+  needs_recommendations: Boolean(stage1.needs_recommendations),
+  needs_clarification: Boolean(stage1.needs_clarification),
+})}
+ASSISTANT CAPABILITIES CONTEXT: ${JSON.stringify({
+  brand: brand.name,
+  assistantName,
+  purpose: `Help customers discover, compare, understand, and purchase fragrances from ${brand.name}.`,
+  specialty: brand.specialty || brand.finder?.assistantName || null,
+  can_help_with: [
+    'preference-based fragrance discovery',
+    'occasion and season',
+    'budget in INR',
+    'notes and intensity',
+    'reference-perfume similarity',
+    'product information and comparisons',
+    'samples, pocket sizes, and other formats',
+  ],
+})}
 STOREFRONT CURRENCY: ${JSON.stringify(options.actionContext?.currency || STOREFRONT_CURRENCY)}
 LIVE CART CONTEXT (AUTHORITATIVE — IGNORE CART CONTENTS FROM PREVIOUS MESSAGES):
 ${JSON.stringify(options.actionContext?.cart || { isEmpty: true, itemCount: 0, items: [], subtotal: 0, subtotalFormatted: formatPrice(0), currency: STOREFRONT_CURRENCY }, null, 2)}
@@ -854,6 +912,14 @@ export function fallbackResponseGenerator(
     return formatEducationReply(message);
   }
 
+  if (brand.slug === 'scentira' && detectScentiraFormatEducation(message)) {
+    return scentiraFormatEducationReply(message);
+  }
+
+  if (brand.slug === 'scentira' && scentiraAsksOriginalKhamrah(message)) {
+    return scentiraOriginalKhamrahReply(options.catalogueProducts || retrievedProducts);
+  }
+
   // 1. OUT OF SCOPE
   if (stage1.intent === 'OUT_OF_SCOPE') {
     return (
@@ -979,14 +1045,9 @@ export function fallbackResponseGenerator(
     return `I'm your fragrance consultant for ${brand.name}. I help you discover perfumes based on your preferred scent profile, occasion, budget, and favorite notes without forcing you through complicated filters.`;
   }
 
-  // 4. CAPABILITY (TEST 3)
+  // 4. CAPABILITY — last-resort only when the LLM reply is unavailable
   if (stage1.intent === 'CAPABILITY') {
-    return `I can help you with:
-• Fragrance recommendations based on notes, family, or mood
-• Finding alternatives or similar scents to perfumes you already wear
-• Budget-based and occasion-based discovery (office, date night, weddings)
-• Factual product notes and side-by-side comparisons
-• Fine-tuning scents (making suggestions warmer, lighter, stronger, or cheaper)`;
+    return `I'm your ${brand.name} fragrance consultant. I can help you explore this collection by preference, occasion, budget, notes, intensity, a perfume you already wear, or a side-by-side comparison. What would you like to start with?`;
   }
 
   // 5. RESET
@@ -1081,6 +1142,9 @@ export function fallbackResponseGenerator(
 
   // 5a. CLARIFICATION (Ambiguous or unknown language)
   if (stage1.intent === 'CLARIFICATION' || stage1.needs_clarification) {
+    if (stage1.is_discovery_start && !stage1.ambiguous_term) {
+      return `I can help you find a fragrance. What family, occasion, or budget do you usually enjoy?`;
+    }
     const question =
       stage1.clarification_question ||
       (stage1.ambiguous_term
@@ -1146,6 +1210,34 @@ export function fallbackResponseGenerator(
     if (/\b(how much|price|cost|₹)\b/.test(q)) {
       return `${p.name} is priced at ₹${p.price} for ${p.size}.`;
     }
+    if (/\b(edp|edt|extrait|concentration)\b/.test(q)) {
+      if (isHairBodyMistProduct(p)) {
+        return `${p.name} is a hair & body mist, not an ${q.includes('edt') ? 'EDT' : 'EDP'} perfume. It is listed as ${p.size} at ₹${p.price}.`;
+      }
+      return p.concentration
+        ? `${p.name} is listed as ${p.concentration} (${p.size}) at ₹${p.price}.`
+        : `${p.name} does not list a concentration in this catalogue. It is ${p.size} at ₹${p.price}.`;
+    }
+    if (/\bis\b.+\b(a\s+)?perfume\b/.test(q) || /\bperfume\b/.test(q)) {
+      if (isHairBodyMistProduct(p)) {
+        return `${p.name} is a hair & body mist, not a conventional perfume. It is ${p.size} at ₹${p.price}.`;
+      }
+    }
+    if (brand.slug === 'scentira' && /\b(format|decant|full bottle|sample|size|vial)\b/.test(q)) {
+      const siblings = relatedFormatProducts(p, options.catalogueProducts || retrievedProducts);
+      const formats = [p, ...siblings]
+        .filter((item) => item.format || item.size)
+        .map((item) => `${scentiraFormatLabel(item)} (${item.size}, ${formatPrice(item.price)})`);
+      if (/\bdecant\b/.test(q)) {
+        return isScentiraDecant(p)
+          ? `${p.name} is a ${scentiraFormatLabel(p)} at ${formatPrice(p.price)}.`
+          : `${p.name} is listed as ${scentiraFormatLabel(p)} — ${p.size} at ${formatPrice(p.price)}. It is not a decant.`;
+      }
+      if (formats.length > 0) {
+        return `${p.name} is listed as ${scentiraFormatLabel(p)} — ${p.size} at ${formatPrice(p.price)}. Related listed formats: ${formats.join('; ')}.`;
+      }
+      return `${p.name} is listed as ${scentiraFormatLabel(p)} — ${p.size} at ${formatPrice(p.price)}.`;
+    }
     if (brand.slug === 'thescentstories' && /\b(format|sample|full bottle|tester|miniature|pocket|vial|size)\b/.test(q)) {
       const siblings = relatedFormatProducts(p, options.catalogueProducts || retrievedProducts);
       const formats = [p, ...siblings]
@@ -1176,6 +1268,9 @@ export function fallbackResponseGenerator(
       return inspired.length > 0
         ? `${p.name} is inspired by ${inspired.slice(0, 2).join(' and ')}.`
         : `${p.name} is part of the ${p.fragranceFamily.join('/')} collection at ₹${p.price}; no designer inspiration is listed.`;
+    }
+    if (isHairBodyMistProduct(p)) {
+      return `${p.name} is a ${p.size} hair & body mist priced at ₹${p.price}. It is not a conventional EDP/EDT perfume. Key notes: ${p.topNotes.slice(0, 3).join(', ')}.`;
     }
     return `${p.name} is a ${p.size} ${p.fragranceFamily.join('/')} fragrance priced at ₹${p.price}. Key top notes: ${p.topNotes.slice(0, 3).join(', ')}, heart: ${p.heartNotes.slice(0, 2).join(', ')}, base: ${p.baseNotes.slice(0, 2).join(', ')}. Performance is ${p.intensity} intensity with ${p.longevity.replace('-', ' ')} longevity, well suited for ${p.occasion.slice(0, 2).map((o) => o.replace('-', ' ')).join(' and ')}.`;
   }
@@ -1210,6 +1305,16 @@ export function fallbackResponseGenerator(
 
   // HARD CONSTRAINT FAILURE / NO_VALID_MATCH
   if (options.hardConstraintFailed || (results.length === 0 && stage1.needs_recommendations)) {
+    if (
+      brand.slug === 'scentira' &&
+      (stage1.is_similarity_request || currentState.activeRequest?.isSimilarityRequest)
+    ) {
+      const ref =
+        stage1.reference_perfume ||
+        currentState.backgroundContext?.referencePerfume ||
+        'that fragrance';
+      return `I don't have enough catalogue evidence to recommend a close match for ${ref}. If you tell me a direction — fresh, woody, citrus, aquatic, office, or date night — I can suggest listed Scentira products from that.`;
+    }
     const isStrongControlledSillage =
       (activeReq.intensity === 'strong' || currentState.activeRequest?.intensity === 'strong') &&
       (activeReq.sillageMax === 'moderate' || currentState.activeRequest?.sillageMax === 'moderate' || activeReq.sillage === 'moderate');
@@ -1364,7 +1469,23 @@ export function fallbackResponseGenerator(
     }
 
     let formatWhy = '';
-    if (brand.slug === 'thescentstories' && primary.product.format) {
+    if (brand.slug === 'scentira') {
+      const label = scentiraFormatLabel(primary.product);
+      const exploration = currentState.activeRequest?.explorationIntent;
+      const experience = currentState.activeRequest?.experienceLevel;
+      if (isScentiraDecant(primary.product) && (experience === 'beginner' || exploration === 'sampling')) {
+        formatWhy = ` ${label} is the safer listed way to try it first.`;
+      } else if (primary.product.format === 'discovery-set') {
+        formatWhy = ` This is a listed discovery set, so you can explore a few scents before committing.`;
+      } else if (isScentiraDecant(primary.product)) {
+        formatWhy = ` This is the listed ${label}.`;
+      } else if (primary.product.format === 'full-size') {
+        formatWhy =
+          exploration === 'full-bottle-confidence'
+            ? ` This is the full bottle listed for that fragrance.`
+            : ` This is the full-size option listed in the catalogue.`;
+      }
+    } else if (brand.slug === 'thescentstories' && primary.product.format) {
       const format = primary.product.format;
       const exploration = currentState.activeRequest?.explorationIntent;
       const experience = currentState.activeRequest?.experienceLevel;

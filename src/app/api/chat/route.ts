@@ -38,6 +38,7 @@ import {
   buildRecommendationPresentation,
   previousProductsFromState,
 } from '@/lib/response-grounding';
+import { applyScentiraCartFollowUp, scentiraResolvedCartMessage } from '@/lib/scentira-format';
 import {
   loadLangChainSession,
   sessionHistoryAsChat,
@@ -320,12 +321,17 @@ export async function POST(req: NextRequest) {
           excludeIds = [];
         }
 
-        const isSurpriseMe = Boolean(stage1.is_surprise_me || stage1.intent === 'surprise_me');
+        const isSurpriseMe = Boolean(
+          stage1.is_surprise_me ||
+          stage1.is_broad_recommendation ||
+          stage1.intent === 'surprise_me'
+        );
+        const recLimit = stage1.is_broad_recommendation ? 4 : 3;
 
         let recResponse = getRecommendations(
           structuredPrefs,
           products,
-          3,
+          recLimit,
           excludeIds,
           isSurpriseMe
         );
@@ -337,7 +343,9 @@ export async function POST(req: NextRequest) {
         const userStatedHardConstraint =
           /₹|rs\.?|under|below|budget|cheaper|full[- ]size|sample|pocket|not |don't |dont |avoid|except/i.test(
             cleanMessage
-          );
+          ) ||
+          (brand.slug === 'scentira' &&
+            /\b(decant|5\s*ml|10\s*ml|20\s*ml|full[- ]bottle|discovery\s+set)\b/i.test(cleanMessage));
         const falseEmptyFamilyMatch =
           recResponse.results.length === 0 &&
           !isShowAlternatives &&
@@ -497,18 +505,33 @@ export async function POST(req: NextRequest) {
         },
       };
     } else if (stage1.intent === 'CART_ASSISTANCE') {
+      const cartStage1 =
+        brandSlug === 'scentira'
+          ? applyScentiraCartFollowUp(stage1, cleanMessage, updatedState)
+          : stage1;
       const planned = planCartAssistance({
-        message: cleanMessage,
-        stage1,
+        message:
+          brandSlug === 'scentira'
+            ? scentiraResolvedCartMessage(cleanMessage, updatedState)
+            : cleanMessage,
+        stage1: cartStage1,
         brandSlug,
         brandProducts,
         state: updatedState,
         liveCart,
         contextProductSlug,
       });
+      const selectedFromAdd =
+        brandSlug === 'scentira' && planned.success && planned.added?.length
+          ? brandProducts.filter((product) => planned.added!.includes(product.name))
+          : [];
       updatedState = {
         ...updatedState,
         pendingCartAction: planned.pendingCartAction,
+        lastSelectedProductSet:
+          selectedFromAdd.length > 0
+            ? toCanonicalProductSet(selectedFromAdd, brandSlug)
+            : updatedState.lastSelectedProductSet,
       };
       const first = planned.product;
       actionContext = {

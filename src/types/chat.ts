@@ -75,6 +75,8 @@ export interface ActiveRequest {
   experienceLevel?: ExperienceLevel;
   travelIntent?: boolean;
   giftingIntent?: boolean;
+  scentiraDecantOnly?: boolean;
+  requestedSizeMl?: 5 | 10 | 20 | null;
 }
 
 export interface BackgroundContext {
@@ -152,6 +154,7 @@ export interface ConversationState {
   lastRecommendationIds: string[];
   lastCanonicalProductSet?: CanonicalProductRef[];
   lastDiscussedProductSet?: CanonicalProductRef[];
+  lastSelectedProductSet?: CanonicalProductRef[];
   currentConsultation: ActiveConsultation;
   backgroundPreferences: BackgroundPreferences;
   preferences: ConversationPreferences;
@@ -393,11 +396,15 @@ export interface Stage1IntentOutput {
   suggested_chips?: string[];
   preferences: Partial<ConversationPreferences>;
   is_surprise_me?: boolean;
+  is_discovery_start?: boolean;
+  is_broad_recommendation?: boolean;
   format_preference?: FormatIntent | null;
   exploration_intent?: ExplorationIntent;
   experience_level?: ExperienceLevel;
   travel_intent?: boolean;
   gifting_intent?: boolean;
+  scentira_decant_only?: boolean;
+  requested_size_ml?: 5 | 10 | 20 | null;
 }
 
 export interface GroundedProductContext {

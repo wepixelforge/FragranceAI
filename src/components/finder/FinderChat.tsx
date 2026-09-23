@@ -11,6 +11,7 @@ import {
 import { BrandConfig } from '@/types/brand';
 import { formatPrice } from '@/lib/brand-utils';
 import { formatLabel, relatedFormatProducts } from '@/lib/sampling-format';
+import { scentiraFormatLabel } from '@/lib/scentira-format';
 import { sanitizeUserFacingResponse } from '@/lib/sanitize-user-text';
 import BottleVisual from '@/components/shop/BottleVisual';
 import { useCart } from '@/context/CartContext';
@@ -142,7 +143,9 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
               {brand.finder.assistantName}
             </span>
             <span className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted hidden sm:inline font-light">
-              {brand.slug === 'thescentstories'
+              {brand.slug === 'scentira'
+                ? `Catalogue help · ${brand.name}`
+                : brand.slug === 'thescentstories'
                 ? `Shopping help · ${brand.name}`
                 : `Personal Fragrance Consultation · ${brand.name}`}
             </span>
@@ -188,7 +191,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
             {/* Suggested Consultation Starter Prompts */}
             <div className="w-full space-y-3 text-left">
               <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent block font-medium">
-                {brand.slug === 'thescentstories' ? 'Quick starts' : 'Example Inquiries:'}
+                {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Quick starts' : 'Example Inquiries:'}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {starterPrompts.map((prompt, i) => (
@@ -345,6 +348,7 @@ function CuratedRecommendationGroup({
   const alternatives = results.slice(1);
   const isDiscovery = brand.designVariant === 'discovery-niche';
   const isSampling = brand.designVariant === 'sampling-concierge';
+  const isScentira = brand.slug === 'scentira';
   const { addItem, isInCart } = useCart(brand.slug);
   const siblings = primary ? relatedFormatProducts(primary.product, catalogue) : [];
   const tryFirst = siblings.find((item) => item.format === 'sample' || item.format === 'vial')
@@ -414,6 +418,8 @@ function CuratedRecommendationGroup({
                   ? '10ml trial from ₹149'
                   : isSampling
                   ? `${formatLabel(primary.product.format)} · ${primary.product.size}`
+                  : isScentira
+                  ? scentiraFormatLabel(primary.product)
                   : `${primary.product.size} Extrait`}
               </div>
 
