@@ -313,6 +313,10 @@ export function applyScentiraContextToStage1(
     next.is_broad_recommendation = true;
     next.is_surprise_me = true;
     next.needs_clarification = false;
+    next.requires_product_data = true;
+    if (next.request_type === 'other' || !next.request_type) {
+      next.request_type = 'new_consultation';
+    }
   }
 
   if (wearingOnly && next.intent !== 'OUT_OF_SCOPE' && next.intent !== 'CART_ASSISTANCE') {

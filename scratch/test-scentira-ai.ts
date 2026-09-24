@@ -6,9 +6,11 @@
 import { getBrand, getProducts } from '../src/data';
 import {
   applyExplicitReference,
+  doesIntentRequireProducts,
   fallbackIntentClassifier,
   finalizeBrandStage1,
 } from '../src/lib/intent-classifier';
+import { Stage1IntentOutput } from '../src/types/chat';
 import {
   createInitialConversationState,
   updateConversationState,
@@ -634,6 +636,114 @@ async function main() {
         !invented &&
         !/official sample/i.test(t.reply),
       t.reply.slice(0, 220)
+    );
+  }
+
+  // K. Live-path open-ended discovery (doesIntentRequireProducts)
+  {
+    const liveLike = (message: string, groqLike: Stage1IntentOutput) => {
+      const stage1 = finalizeBrandStage1(groqLike, message, brand!, products);
+      return { stage1, retrieve: doesIntentRequireProducts(stage1.intent, stage1) };
+    };
+    const skippedDiscovery: Stage1IntentOutput = {
+      intent: 'RECOMMENDATION',
+      request_type: 'other',
+      is_new_request: false,
+      is_refinement: false,
+      fragrance_families: [],
+      preferred_notes: [],
+      excluded_notes: [],
+      excluded_families: [],
+      needs_recommendations: false,
+      needs_clarification: true,
+      requires_product_data: false,
+      preferences: {},
+    };
+
+    const tryAsk = liveLike('What should I try?', skippedDiscovery);
+    const tryTurn = turn('What should I try?');
+    record(
+      '31',
+      'Live path',
+      'What should I try? requires retrieval',
+      tryAsk.retrieve === true &&
+        tryAsk.stage1.needs_recommendations === true &&
+        tryAsk.stage1.requires_product_data === true &&
+        tryAsk.stage1.needs_clarification !== true &&
+        tryTurn.recs.results.length >= 3 &&
+        tryTurn.recs.results.length <= 4 &&
+        allScentira(tryTurn.recs),
+      `retrieve=${tryAsk.retrieve} n=${tryTurn.recs.results.length} ids=${tryTurn.recs.results.map((r) => r.product.id).join(',')}`
+    );
+
+    const noLike = liveLike("I don't know what I like.", skippedDiscovery);
+    const noLikeTurn = turn("I don't know what I like.");
+    record(
+      '32',
+      'Live path',
+      "I don't know what I like. requires retrieval",
+      noLike.retrieve === true &&
+        noLike.stage1.needs_recommendations === true &&
+        noLikeTurn.recs.results.length >= 3 &&
+        allScentira(noLikeTurn.recs),
+      `retrieve=${noLike.retrieve} n=${noLikeTurn.recs.results.length}`
+    );
+
+    const noPref = liveLike('No preference.', skippedDiscovery);
+    const noPrefTurn = turn('No preference.');
+    record(
+      '33',
+      'Live path',
+      'No preference. requires retrieval',
+      noPref.retrieve === true &&
+        noPref.stage1.needs_recommendations === true &&
+        noPrefTurn.recs.results.length >= 3 &&
+        allScentira(noPrefTurn.recs),
+      `retrieve=${noPref.retrieve} n=${noPrefTurn.recs.results.length}`
+    );
+
+    const khamrah = turn('Something like Khamrah.');
+    const lessSweet = turn('Make it less sweet.', khamrah.state);
+    const reset = turn('Start over.', lessSweet.state);
+    const afterReset = turn('What should I try?', reset.state);
+    const afterResetLive = liveLike('What should I try?', skippedDiscovery);
+    record(
+      '34',
+      'Live path',
+      'Reset → What should I try?',
+      reset.stage1.intent === 'RESET_CONSULTATION' &&
+        reset.state.backgroundContext.referencePerfume == null &&
+        (reset.state.activeRequest.excludedFamilies || []).length === 0 &&
+        afterResetLive.retrieve === true &&
+        afterReset.recs.results.length >= 3 &&
+        afterReset.recs.results.length <= 4 &&
+        allScentira(afterReset.recs),
+      `ref=${reset.state.backgroundContext.referencePerfume} n=${afterReset.recs.results.length} ids=${afterReset.recs.results.map((r) => r.product.id).join(',')}`
+    );
+
+    const hello = turn('Hello');
+    record(
+      '35',
+      'Live path',
+      'Hello does not force recommendation',
+      hello.stage1.intent === 'GREETING' &&
+        hello.stage1.needs_recommendations !== true &&
+        hello.stage1.is_broad_recommendation !== true &&
+        doesIntentRequireProducts(hello.stage1.intent, hello.stage1) === false,
+      `${hello.stage1.intent} retrieve=${doesIntentRequireProducts(hello.stage1.intent, hello.stage1)}`
+    );
+
+    const price = turn('How much is Khamrah Waha?');
+    record(
+      '36',
+      'Live path',
+      'Khamrah Waha price is product information',
+      price.stage1.intent === 'PRODUCT_INFO' &&
+        price.stage1.needs_recommendations !== true &&
+        price.stage1.is_broad_recommendation !== true &&
+        doesIntentRequireProducts(price.stage1.intent, price.stage1) === true &&
+        /₹595|₹355/.test(price.reply),
+      `${price.stage1.intent} ${price.reply.slice(0, 120)}`
     );
   }
 
