@@ -14,11 +14,20 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'fragrance_theme';
 
+function isLightDefaultPath(path: string): boolean {
+  const normalized = path.toLowerCase();
+  return (
+    normalized === '/thescentstories' ||
+    normalized.startsWith('/thescentstories/') ||
+    normalized === '/scentira' ||
+    normalized.startsWith('/scentira/')
+  );
+}
+
 function brandDefaultTheme(): Theme {
   if (typeof window === 'undefined') return 'dark';
   try {
-    const path = window.location.pathname || '';
-    if (path === '/thescentstories' || path.startsWith('/thescentstories/')) {
+    if (isLightDefaultPath(window.location.pathname || '')) {
       return 'light';
     }
   } catch {
