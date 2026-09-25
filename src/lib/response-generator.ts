@@ -36,10 +36,12 @@ import {
 import {
   detectScentiraFormatEducation,
   isScentiraDecant,
+  isScentiraProductInfoAsk,
   scentiraAsksOriginalKhamrah,
   scentiraFormatEducationReply,
   scentiraFormatLabel,
   scentiraOriginalKhamrahReply,
+  scentiraUnknownProductReply,
 } from './scentira-format';
 
 export { sanitizeUserFacingResponse } from './sanitize-user-text';
@@ -337,6 +339,16 @@ export async function generateConversationalResponse(
   history: ChatMessage[] = [],
   options: ResponseGeneratorOptions = {}
 ): Promise<string> {
+  if (
+    brand.slug === 'scentira' &&
+    stage1.intent === 'PRODUCT_INFO' &&
+    retrievedProducts.length === 0 &&
+    isScentiraProductInfoAsk(message) &&
+    !/\b(something like|similar to)\b/i.test(message)
+  ) {
+    return scentiraUnknownProductReply();
+  }
+
   if (
     stage1.intent === 'GREETING' ||
     stage1.intent === 'IDENTITY' ||
@@ -1191,6 +1203,15 @@ export function fallbackResponseGenerator(
       return `The closest match I found is ${closest.product.name} because it shares ${matched}. ${grounded} I've also included ${others}.`;
     }
     return `The closest match I found is ${closest.product.name} because it shares ${matched}. ${grounded}`;
+  }
+
+  if (
+    brand.slug === 'scentira' &&
+    stage1.intent === 'PRODUCT_INFO' &&
+    retrievedProducts.length === 0 &&
+    isScentiraProductInfoAsk(message)
+  ) {
+    return scentiraUnknownProductReply();
   }
 
   // PRODUCT INFO - No "Best Match" language; never treat as a recommendation set

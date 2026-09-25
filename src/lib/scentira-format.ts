@@ -3,6 +3,7 @@ import type { FormatIntent, Product, StructuredPreferences } from '@/types/produ
 import { extractKnownReferencePerfume, messageHasReferenceCue, POPULAR_REFERENCE_PERFUMES } from '@/lib/query-parser';
 
 export type ScentiraSizeMl = 5 | 10 | 20;
+export type ScentiraExcludedFormat = 'full-size' | 'decant';
 
 const SCENTIRA_NAME_STOP = new Set([
   'lattafa',
@@ -90,6 +91,75 @@ function scentiraNameTokens(name: string): string[] {
     .filter((token) => token.length >= 4 && !SCENTIRA_NAME_STOP.has(token) && !/^\d/.test(token));
 }
 
+const SCENTIRA_QUERY_STOP = new Set([
+  ...SCENTIRA_NAME_STOP,
+  'tell',
+  'about',
+  'what',
+  'whats',
+  'price',
+  'much',
+  'size',
+  'have',
+  'does',
+  'come',
+  'available',
+  'notes',
+  'describe',
+  'this',
+  'that',
+  'from',
+  'with',
+  'your',
+  'just',
+  'only',
+  'also',
+  'some',
+  'more',
+  'please',
+  'which',
+  'when',
+  'where',
+  'give',
+  'show',
+  'want',
+  'like',
+  'something',
+  'similar',
+  'scentira',
+]);
+
+function scentiraMessageIdentityTokens(message: string): string[] {
+  return message
+    .toLowerCase()
+    .replace(/[—–']/g, ' ')
+    .split(/[^a-z0-9]+/)
+    .filter(
+      (token) =>
+        token.length >= 4 &&
+        !SCENTIRA_QUERY_STOP.has(token) &&
+        !/^\d/.test(token) &&
+        !/^\d+ml$/.test(token)
+    );
+}
+
+export function isHighConfidenceScentiraIdentity(message: string, product: Product): boolean {
+  if (!isScentiraProduct(product)) return false;
+  const nameTokens = scentiraNameTokens(product.name);
+  const messageTokens = scentiraMessageIdentityTokens(message);
+  const hits = nameTokens.filter((token) => hasBoundedToken(message, token));
+  const leftovers = messageTokens.filter(
+    (token) => !nameTokens.includes(token) && !hasBoundedToken(product.name, token)
+  );
+  if (hits.length >= 2) return true;
+  return hits.length === 1 && leftovers.length === 0;
+}
+
+export function scentiraCanUseListedProductInfo(message: string, product: Product): boolean {
+  if (isHighConfidenceScentiraIdentity(message, product)) return true;
+  return scentiraMessageIdentityTokens(message).length === 0;
+}
+
 export function extractScentiraPopularReference(message: string): string | null {
   const lower = message.toLowerCase();
   const hits = POPULAR_REFERENCE_PERFUMES.filter((ref) => hasBoundedToken(lower, ref)).sort(
@@ -161,13 +231,20 @@ export function resolveScentiraNamedProduct(message: string, products: Product[]
     if (sized.length > 0) candidates = sized;
   }
 
+  const confident = candidates.filter((product) => isHighConfidenceScentiraIdentity(message, product));
+  if (confident.length === 0) return null;
+
   return (
-    candidates.find((product) => product.featured) ||
-    candidates.find((product) => scentiraSizeMl(product) === 10 && isScentiraDecant(product)) ||
-    candidates.find((product) => scentiraSizeMl(product) === 5) ||
-    candidates[0] ||
+    confident.find((product) => product.featured) ||
+    confident.find((product) => scentiraSizeMl(product) === 10 && isScentiraDecant(product)) ||
+    confident.find((product) => scentiraSizeMl(product) === 5) ||
+    confident[0] ||
     null
   );
+}
+
+export function scentiraProductInfoHasUnresolvedIdentity(message: string, products: Product[]): boolean {
+  return scentiraMessageIdentityTokens(message).length > 0 && !resolveScentiraNamedProduct(message, products);
 }
 
 export function isScentiraProductInfoAsk(message: string): boolean {
@@ -178,33 +255,62 @@ export function isScentiraProductInfoAsk(message: string): boolean {
   );
 }
 
+export function isScentiraNamedProductInfoAsk(message: string): boolean {
+  const t = message.toLowerCase();
+  if (/\b(something like|similar to|recommend|show me something|i want something)\b/.test(t)) return false;
+  return /\b(tell me about|how much|what size|describe|price of|notes of|do you have)\b/.test(t);
+}
+
+const SCENTIRA_FULL_BOTTLE_SUBJECT =
+  '(?:full[- ]size(?:\\s+(?:bottle|version))?|full[- ]bottles?|retail\\s+bottles?)';
+const SCENTIRA_FIVE_ML_SUBJECT = '(?:5\\s*ml(?:\\s+decants?)?)';
+
+function scentiraFormatIsNegated(message: string, subject: string): boolean {
+  const t = message.toLowerCase();
+  return (
+    new RegExp(`\\b(?:don'?t|do\\s+not|never)\\b(?:\\s+\\w+){0,7}\\s+${subject}\\b`, 'i').test(t) ||
+    new RegExp(`\\b(?:no|not)\\s+(?:a\\s+|the\\s+)?${subject}\\b`, 'i').test(t) ||
+    new RegExp(`\\bwithout\\s+${subject}\\b`, 'i').test(t)
+  );
+}
+
 export function parseScentiraFormatContext(message: string): {
   formatPreference: FormatIntent | null;
   scentiraDecantOnly: boolean;
   requestedSizeMl: ScentiraSizeMl | null;
+  excludedFormats: ScentiraExcludedFormat[];
+  excludedSizeMl: number[];
   explorationIntent: Stage1IntentOutput['exploration_intent'];
   experienceLevel: Stage1IntentOutput['experience_level'];
 } {
   const t = message.toLowerCase();
-  const requestedSizeMl: ScentiraSizeMl | null = /\b20\s*ml\b/.test(t)
-    ? 20
-    : /\b10\s*ml\b/.test(t)
-      ? 10
-      : /\b5\s*ml\b/.test(t)
-        ? 5
-        : null;
+  const excludeFullBottle = scentiraFormatIsNegated(message, SCENTIRA_FULL_BOTTLE_SUBJECT);
+  const excludeFiveMlDecant = scentiraFormatIsNegated(message, SCENTIRA_FIVE_ML_SUBJECT);
+  const excludedFormats: ScentiraExcludedFormat[] = excludeFullBottle ? ['full-size'] : [];
+  const excludedSizeMl: number[] = excludeFiveMlDecant ? [5] : [];
 
-  const wantsDecant = /\bdecants?\b/.test(t);
+  const requestedSizeMl: ScentiraSizeMl | null = excludeFiveMlDecant
+    ? null
+    : /\b20\s*ml\b/.test(t)
+      ? 20
+      : /\b10\s*ml\b/.test(t)
+        ? 10
+        : /\b5\s*ml\b/.test(t)
+          ? 5
+          : null;
+
+  const wantsDecant = /\bdecants?\b/.test(t) && !excludeFiveMlDecant;
   const wantsDiscoverySet =
     /\bdiscovery\s+sets?\b/.test(t) ||
     /\b(i want to explore|help me explore|let me explore)\b/.test(t) ||
     /\bexplore\s+(a\s+)?(few|several)\b/.test(t);
   const wantsFullBottle =
-    /\b(full[- ]size|full[- ]bottles?|retail\s+bottles?)\b/.test(t) ||
-    (/\bbottles?\b/.test(t) &&
-      !wantsDecant &&
-      !wantsDiscoverySet &&
-      !/\b(sample|vial|decant|5\s*ml|10\s*ml|20\s*ml)\b/.test(t));
+    !excludeFullBottle &&
+    (/\b(full[- ]size|full[- ]bottles?|retail\s+bottles?)\b/.test(t) ||
+      (/\bbottles?\b/.test(t) &&
+        !wantsDecant &&
+        !wantsDiscoverySet &&
+        !/\b(sample|vial|decant|5\s*ml|10\s*ml|20\s*ml)\b/.test(t)));
   const wantsTryFirst =
     /\b(try\s+(it\s+)?(first|before)|before\s+buy|don'?t\s+want\s+to\s+commit|never\s+tried|safer\s+way\s+to\s+try)\b/.test(
       t
@@ -250,7 +356,15 @@ export function parseScentiraFormatContext(message: string): {
           ? 'travel'
           : null;
 
-  return { formatPreference, scentiraDecantOnly, requestedSizeMl, explorationIntent, experienceLevel };
+  return {
+    formatPreference,
+    scentiraDecantOnly,
+    requestedSizeMl,
+    excludedFormats,
+    excludedSizeMl,
+    explorationIntent,
+    experienceLevel,
+  };
 }
 
 export function applyScentiraContextToStage1(
@@ -259,7 +373,13 @@ export function applyScentiraContextToStage1(
   products: Product[] = []
 ): Stage1IntentOutput {
   const parsed = parseScentiraFormatContext(message);
-  const hasScentiraFormat = Boolean(parsed.formatPreference || parsed.scentiraDecantOnly || parsed.requestedSizeMl);
+  const hasScentiraFormat = Boolean(
+    parsed.formatPreference ||
+      parsed.scentiraDecantOnly ||
+      parsed.requestedSizeMl ||
+      parsed.excludedFormats.length ||
+      parsed.excludedSizeMl.length
+  );
   const isBroadScentira =
     /\b(i don'?t know what i like|i don'?t have anything specific|show me something good|what should i try|no preference)\b/i.test(
       message
@@ -277,7 +397,40 @@ export function applyScentiraContextToStage1(
     experience_level: parsed.experienceLevel ?? stage1.experience_level ?? null,
     scentira_decant_only: parsed.scentiraDecantOnly || Boolean(stage1.scentira_decant_only),
     requested_size_ml: parsed.requestedSizeMl ?? stage1.requested_size_ml ?? null,
+    scentira_excluded_formats: parsed.excludedFormats.length
+      ? parsed.excludedFormats
+      : stage1.scentira_excluded_formats ?? [],
+    scentira_excluded_size_ml: parsed.excludedSizeMl.length
+      ? parsed.excludedSizeMl
+      : stage1.scentira_excluded_size_ml ?? [],
   };
+
+  if (parsed.excludedFormats.includes('full-size')) {
+    next.format_preference = 'NO_FORMAT_PREFERENCE';
+  }
+  if (parsed.excludedSizeMl.includes(5)) {
+    if (next.requested_size_ml === 5) next.requested_size_ml = null;
+    if (next.format_preference === 'MINIATURE') next.format_preference = 'NO_FORMAT_PREFERENCE';
+    next.scentira_decant_only = false;
+  }
+  if (
+    (parsed.excludedFormats.length > 0 || parsed.excludedSizeMl.length > 0) &&
+    next.intent !== 'OUT_OF_SCOPE' &&
+    next.intent !== 'CART_ASSISTANCE' &&
+    next.intent !== 'PRODUCT_INFO' &&
+    next.intent !== 'GREETING'
+  ) {
+    next.needs_recommendations = true;
+    next.requires_product_data = true;
+    next.needs_clarification = false;
+    if (
+      next.intent === 'CLARIFICATION' ||
+      next.intent === 'CUSTOMER_OBJECTION' ||
+      next.intent === 'PREFERENCE_UPDATE'
+    ) {
+      next.intent = 'RECOMMENDATION';
+    }
+  }
 
   if (/\bless\s+sweet\b/i.test(message)) {
     const excluded = new Set([...(next.excluded_families || []), 'sweet', 'gourmand']);
@@ -437,11 +590,39 @@ export function scentiraFormatEducationReply(message: string): string {
   return 'Scentira formats are listed SKUs: discovery/sample options, 5ml / 10ml / 20ml decants, and full bottles. I only recommend a format when that exact product is in stock.';
 }
 
+export function scentiraUnknownProductReply(): string {
+  return "I don't have that exact fragrance in the current Scentira catalogue. If you tell me a listed name, or a direction — fresh, woody, sweet, or a size — I can look within what we actually stock.";
+}
+
 export function scentiraHardFormatFilter(
   product: Product,
   preferences: StructuredPreferences
 ): { valid: boolean; reason?: string } {
   if (!isScentiraProduct(product)) return { valid: true };
+
+  const fromQuery = preferences.rawQuery ? parseScentiraFormatContext(preferences.rawQuery) : null;
+  const excludedFormats = new Set<ScentiraExcludedFormat>([
+    ...(preferences.scentiraExcludedFormats || []),
+    ...(fromQuery?.excludedFormats || []),
+  ]);
+  const excludedSizeMl = new Set<number>([
+    ...(preferences.scentiraExcludedSizeMl || []),
+    ...(fromQuery?.excludedSizeMl || []),
+  ]);
+
+  if (excludedFormats.has('full-size') && isScentiraFullBottle(product)) {
+    return { valid: false, reason: 'Full bottles are excluded' };
+  }
+  if (excludedFormats.has('decant') && isScentiraDecant(product)) {
+    return { valid: false, reason: 'Decants are excluded' };
+  }
+  if (
+    [...excludedSizeMl].some(
+      (ml) => scentiraSizeMl(product) === ml && (ml !== 5 || isScentiraDecant(product))
+    )
+  ) {
+    return { valid: false, reason: `Excluded ${scentiraSizeMl(product)}ml format` };
+  }
 
   const sizeMl = preferences.requestedSizeMl;
   if (sizeMl && scentiraSizeMl(product) !== sizeMl) {
@@ -453,6 +634,9 @@ export function scentiraHardFormatFilter(
   }
 
   const intent = preferences.formatPreference;
+  if (excludedFormats.has('full-size') && intent === 'FULL_SIZE') {
+    return { valid: true };
+  }
   if (!intent || intent === 'NO_FORMAT_PREFERENCE') return { valid: true };
 
   if (intent === 'FULL_SIZE') {

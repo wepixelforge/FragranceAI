@@ -54,9 +54,6 @@ export default function Header({ brand }: HeaderProps) {
       case 'decant-finder':
         return [
           { key: 'shop', label: 'Shop', href: '/Scentira/shop' },
-          { key: 'men', label: 'Men', href: '/Scentira/shop?gender=men' },
-          { key: 'women', label: 'Women', href: '/Scentira/shop?gender=women' },
-          { key: 'unisex', label: 'Unisex', href: '/Scentira/shop?gender=unisex' },
           { key: 'decants', label: 'Decants', href: '/Scentira/shop' },
           { key: 'sets', label: 'Discovery Sets', href: '/Scentira/shop?format=discovery-set' },
         ];

@@ -978,6 +978,8 @@ export function getRecommendations(
 
   const formatConstrained = Boolean(
     (preferences.formatPreference && preferences.formatPreference !== 'NO_FORMAT_PREFERENCE') ||
+      (preferences.scentiraExcludedFormats && preferences.scentiraExcludedFormats.length > 0) ||
+      (preferences.scentiraExcludedSizeMl && preferences.scentiraExcludedSizeMl.length > 0) ||
       userRequestsBodyMist(queryText) ||
       userRequestsSmallFormat(queryText)
   );

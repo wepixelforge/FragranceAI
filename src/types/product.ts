@@ -149,6 +149,8 @@ export interface StructuredPreferences {
   giftingIntent?: boolean;
   scentiraDecantOnly?: boolean;
   requestedSizeMl?: 5 | 10 | 20 | null;
+  scentiraExcludedFormats?: Array<'full-size' | 'decant'>;
+  scentiraExcludedSizeMl?: number[];
 }
 
 export interface MatchReasonDetail {

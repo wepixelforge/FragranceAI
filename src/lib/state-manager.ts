@@ -87,6 +87,8 @@ export function createInitialActiveRequest(): ActiveRequest {
     giftingIntent: false,
     scentiraDecantOnly: false,
     requestedSizeMl: null,
+    scentiraExcludedFormats: [],
+    scentiraExcludedSizeMl: [],
   };
 }
 
@@ -389,6 +391,10 @@ export function updateConversationState(
     experienceLevel: base.activeRequest?.experienceLevel ?? null,
     travelIntent: Boolean(base.activeRequest?.travelIntent),
     giftingIntent: Boolean(base.activeRequest?.giftingIntent),
+    scentiraDecantOnly: Boolean(base.activeRequest?.scentiraDecantOnly),
+    requestedSizeMl: base.activeRequest?.requestedSizeMl ?? null,
+    scentiraExcludedFormats: [...(base.activeRequest?.scentiraExcludedFormats || [])],
+    scentiraExcludedSizeMl: [...(base.activeRequest?.scentiraExcludedSizeMl || [])],
   };
 
   const backgroundContext: BackgroundContext = {
@@ -974,10 +980,30 @@ export function updateConversationState(
   if (stage1.requested_size_ml) {
     activeRequest.requestedSizeMl = stage1.requested_size_ml;
   }
+  if (stage1.scentira_excluded_formats?.length) {
+    activeRequest.scentiraExcludedFormats = Array.from(
+      new Set([...(activeRequest.scentiraExcludedFormats || []), ...stage1.scentira_excluded_formats])
+    );
+  }
+  if (stage1.scentira_excluded_size_ml?.length) {
+    activeRequest.scentiraExcludedSizeMl = Array.from(
+      new Set([...(activeRequest.scentiraExcludedSizeMl || []), ...stage1.scentira_excluded_size_ml])
+    );
+  }
+  if (stage1.format_preference === 'FULL_SIZE') {
+    activeRequest.scentiraExcludedFormats = (activeRequest.scentiraExcludedFormats || []).filter(
+      (format) => format !== 'full-size'
+    );
+  }
+  if (stage1.requested_size_ml === 5) {
+    activeRequest.scentiraExcludedSizeMl = (activeRequest.scentiraExcludedSizeMl || []).filter((ml) => ml !== 5);
+  }
   if (/\bforget\s+the\s+format\b/.test(rawUserText) || /\bno\s+format\s+preference\b/.test(rawUserText)) {
     activeRequest.formatPreference = 'NO_FORMAT_PREFERENCE';
     activeRequest.scentiraDecantOnly = false;
     activeRequest.requestedSizeMl = null;
+    activeRequest.scentiraExcludedFormats = [];
+    activeRequest.scentiraExcludedSizeMl = [];
   }
 
   // Strict Contradiction Resolution (Section 14)
@@ -1344,6 +1370,8 @@ export function toStructuredPreferences(
   structured.giftingIntent = Boolean(activeReq.giftingIntent);
   structured.scentiraDecantOnly = Boolean(activeReq.scentiraDecantOnly);
   structured.requestedSizeMl = activeReq.requestedSizeMl ?? null;
+  structured.scentiraExcludedFormats = [...(activeReq.scentiraExcludedFormats || [])];
+  structured.scentiraExcludedSizeMl = [...(activeReq.scentiraExcludedSizeMl || [])];
 
   return structured;
 }

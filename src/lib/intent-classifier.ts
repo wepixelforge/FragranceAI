@@ -51,6 +51,8 @@ import {
   resolveScentiraNamedProduct,
   scentiraAsksOriginalKhamrah,
   isScentiraProductInfoAsk,
+  isScentiraNamedProductInfoAsk,
+  scentiraProductInfoHasUnresolvedIdentity,
   SCENTIRA_GROQ_NOTE,
 } from './scentira-format';
 import {
@@ -3108,7 +3110,7 @@ export function finalizeBrandStage1(
         requires_product_data: Boolean(next.target_product_names?.length),
       };
     }
-    if (isScentiraProductInfoAsk(message) && next.intent !== 'OUT_OF_SCOPE' && next.intent !== 'CART_ASSISTANCE') {
+    if (isScentiraProductInfoAsk(message) && next.intent !== 'CART_ASSISTANCE') {
       const named = resolveScentiraNamedProduct(message, products);
       if (named) {
         return {
@@ -3117,6 +3119,20 @@ export function finalizeBrandStage1(
           target_product_names: [named.name],
           needs_recommendations: false,
           requires_product_data: true,
+        };
+      }
+      if (
+        isScentiraNamedProductInfoAsk(message) &&
+        scentiraProductInfoHasUnresolvedIdentity(message, products)
+      ) {
+        return {
+          ...next,
+          intent: 'PRODUCT_INFO',
+          target_product_names: [],
+          product_reference: null,
+          needs_recommendations: false,
+          requires_product_data: false,
+          needs_clarification: false,
         };
       }
     }

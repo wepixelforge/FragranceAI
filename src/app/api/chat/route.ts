@@ -38,7 +38,12 @@ import {
   buildRecommendationPresentation,
   previousProductsFromState,
 } from '@/lib/response-grounding';
-import { applyScentiraCartFollowUp, scentiraResolvedCartMessage } from '@/lib/scentira-format';
+import {
+  applyScentiraCartFollowUp,
+  resolveScentiraNamedProduct,
+  scentiraCanUseListedProductInfo,
+  scentiraResolvedCartMessage,
+} from '@/lib/scentira-format';
 import {
   loadLangChainSession,
   sessionHistoryAsChat,
@@ -182,7 +187,14 @@ export async function POST(req: NextRequest) {
       // 1. SPECIFIC PRODUCT QUESTION (e.g. "tell me about Royal Oud")
       if (stage1.intent === 'PRODUCT_INFO' && stage1.target_product_names && stage1.target_product_names.length > 0) {
         const targetName = stage1.target_product_names[0];
-        const targetProduct = findProductByNameOrFuzzy(targetName, products);
+        const targetProduct =
+          brand.slug === 'scentira'
+            ? resolveScentiraNamedProduct(cleanMessage, products) ||
+              (() => {
+                const listed = products.find((product) => product.name === targetName);
+                return listed && scentiraCanUseListedProductInfo(cleanMessage, listed) ? listed : null;
+              })()
+            : findProductByNameOrFuzzy(targetName, products);
         if (targetProduct) {
           retrievedProducts = [targetProduct];
           discussedProductIds = [targetProduct.id];

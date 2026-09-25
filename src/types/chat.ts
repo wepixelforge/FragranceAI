@@ -77,6 +77,8 @@ export interface ActiveRequest {
   giftingIntent?: boolean;
   scentiraDecantOnly?: boolean;
   requestedSizeMl?: 5 | 10 | 20 | null;
+  scentiraExcludedFormats?: Array<'full-size' | 'decant'>;
+  scentiraExcludedSizeMl?: number[];
 }
 
 export interface BackgroundContext {
@@ -405,6 +407,8 @@ export interface Stage1IntentOutput {
   gifting_intent?: boolean;
   scentira_decant_only?: boolean;
   requested_size_ml?: 5 | 10 | 20 | null;
+  scentira_excluded_formats?: Array<'full-size' | 'decant'>;
+  scentira_excluded_size_ml?: number[];
 }
 
 export interface GroundedProductContext {
