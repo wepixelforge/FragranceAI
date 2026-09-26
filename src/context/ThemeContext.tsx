@@ -20,7 +20,9 @@ function isLightDefaultPath(path: string): boolean {
     normalized === '/thescentstories' ||
     normalized.startsWith('/thescentstories/') ||
     normalized === '/scentira' ||
-    normalized.startsWith('/scentira/')
+    normalized.startsWith('/scentira/') ||
+    normalized === '/souqscent' ||
+    normalized.startsWith('/souqscent/')
   );
 }
 

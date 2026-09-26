@@ -45,6 +45,12 @@ import {
   scentiraResolvedCartMessage,
 } from '@/lib/scentira-format';
 import {
+  isSouqScentBrand,
+  resolveSouqScentCompareProducts,
+  resolveSouqScentNamedProduct,
+  souqscentExplanation,
+} from '@/lib/souqscent-policy';
+import {
   loadLangChainSession,
   sessionHistoryAsChat,
   appendSessionTurn,
@@ -194,6 +200,9 @@ export async function POST(req: NextRequest) {
                 const listed = products.find((product) => product.name === targetName);
                 return listed && scentiraCanUseListedProductInfo(cleanMessage, listed) ? listed : null;
               })()
+            : isSouqScentBrand(brand)
+            ? resolveSouqScentNamedProduct(cleanMessage, products) ||
+              resolveSouqScentNamedProduct(targetName, products)
             : findProductByNameOrFuzzy(targetName, products);
         if (targetProduct) {
           retrievedProducts = [targetProduct];
@@ -213,14 +222,30 @@ export async function POST(req: NextRequest) {
               detailedReasons: [
                 {
                   category: 'Profile',
-                  text: `${targetProduct.fragranceFamily.join(' · ')} accord with ${targetProduct.topNotes.slice(0, 2).join(', ')}.`,
+                  text: isSouqScentBrand(brand)
+                    ? `Listed families: ${targetProduct.fragranceFamily.join(', ')}.`
+                    : `${targetProduct.fragranceFamily.join(' · ')} accord with ${targetProduct.topNotes.slice(0, 2).join(', ')}.`,
                 },
                 {
                   category: 'Performance',
-                  text: `${targetProduct.longevity.replace('-', ' ')} wear with ${targetProduct.intensity} projection.`,
+                  text: isSouqScentBrand(brand)
+                    ? `Listed longevity ${targetProduct.longevity.replace('-', ' ')}; listed projection ${targetProduct.projection || targetProduct.intensity}. Hours are not published.`
+                    : `${targetProduct.longevity.replace('-', ' ')} wear with ${targetProduct.intensity} projection.`,
                 },
               ],
-              explanation: `${targetProduct.name} is featured in our ${brand.name} collection at ₹${targetProduct.price}.`,
+              explanation: isSouqScentBrand(brand)
+                ? souqscentExplanation(
+                    {
+                      product: targetProduct,
+                      score: 95,
+                      matchTier: 'Spotlight',
+                      matchReasons: [],
+                      detailedReasons: [],
+                      explanation: '',
+                    },
+                    {}
+                  )
+                : `${targetProduct.name} is featured in our ${brand.name} collection at ₹${targetProduct.price}.`,
             },
           ];
           canonicalResult = {
@@ -246,8 +271,15 @@ export async function POST(req: NextRequest) {
       // 2. SPECIFIC PRODUCT COMPARISON (e.g. "compare Royal Oud and Cedar Noir")
       else if (stage1.intent === 'COMPARE_PRODUCTS' && stage1.target_product_names && stage1.target_product_names.length >= 2) {
         const [name1, name2] = stage1.target_product_names;
-        const p1 = findProductByNameOrFuzzy(name1, products);
-        const p2 = findProductByNameOrFuzzy(name2, products);
+        const compared = isSouqScentBrand(brand)
+          ? resolveSouqScentCompareProducts(cleanMessage, products)
+          : [];
+        const p1 = isSouqScentBrand(brand)
+          ? compared[0] || resolveSouqScentNamedProduct(name1, products)
+          : findProductByNameOrFuzzy(name1, products);
+        const p2 = isSouqScentBrand(brand)
+          ? compared[1] || resolveSouqScentNamedProduct(name2, products)
+          : findProductByNameOrFuzzy(name2, products);
         const matched = [p1, p2].filter(Boolean) as Product[];
         if (matched.length > 0) {
           retrievedProducts = matched;
@@ -449,6 +481,9 @@ export async function POST(req: NextRequest) {
 
     const matchProduct = (query: string): Product | undefined => {
       if (!query) return undefined;
+      if (isSouqScentBrand(brand)) {
+        return resolveSouqScentNamedProduct(query, brandProducts) || undefined;
+      }
       const clean = query.toLowerCase().trim();
       const exact = brandProducts.find(
         (p) => p.name.toLowerCase() === clean || p.slug.toLowerCase() === clean

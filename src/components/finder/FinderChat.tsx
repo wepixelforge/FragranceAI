@@ -9,7 +9,7 @@ import {
   StructuredPreferences,
 } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
-import { formatPrice } from '@/lib/brand-utils';
+import { formatPrice, getBrandPublicPath } from '@/lib/brand-utils';
 import { formatLabel, relatedFormatProducts } from '@/lib/sampling-format';
 import { scentiraFormatLabel } from '@/lib/scentira-format';
 import { sanitizeUserFacingResponse } from '@/lib/sanitize-user-text';
@@ -131,7 +131,7 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
       <div className="border-b border-brand-border bg-brand-bg/95 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
-            href={`/${brand.slug}`}
+            href={getBrandPublicPath(brand)}
             className="text-[10px] tracking-[0.2em] uppercase text-brand-text-muted hover:text-brand-text transition-colors font-medium mr-2"
             title="Return to Store"
           >
@@ -144,6 +144,8 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
             </span>
             <span className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted hidden sm:inline font-light">
               {brand.slug === 'scentira'
+                ? `Catalogue help · ${brand.name}`
+                : brand.slug === 'souqscent'
                 ? `Catalogue help · ${brand.name}`
                 : brand.slug === 'thescentstories'
                 ? `Shopping help · ${brand.name}`
@@ -191,7 +193,9 @@ function FinderChatInner({ brand, products }: FinderChatProps) {
             {/* Suggested Consultation Starter Prompts */}
             <div className="w-full space-y-3 text-left">
               <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent block font-medium">
-                {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Quick starts' : 'Example Inquiries:'}
+                {brand.slug === 'scentira' || brand.slug === 'souqscent' || brand.slug === 'thescentstories'
+                  ? 'Quick starts'
+                  : 'Example Inquiries:'}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {starterPrompts.map((prompt, i) => (

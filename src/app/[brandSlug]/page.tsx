@@ -16,6 +16,9 @@ import ScentiraHero from '@/components/home/ScentiraHero';
 import ScentiraHelpStrip from '@/components/home/ScentiraHelpStrip';
 import ScentiraFormatsSection from '@/components/home/ScentiraFormatsSection';
 import ScentiraHowItWorks from '@/components/home/ScentiraHowItWorks';
+import SouqScentHero from '@/components/home/SouqScentHero';
+import SouqScentHelpStrip from '@/components/home/SouqScentHelpStrip';
+import SouqScentOccasions from '@/components/home/SouqScentOccasions';
 
 interface PageProps {
   params: Promise<{ brandSlug: string }>;
@@ -54,6 +57,8 @@ export default async function BrandHomePage({ params }: PageProps) {
           case 'hero':
             return brand.slug === 'scentira' ? (
               <ScentiraHero key={`hero-${idx}`} brand={brand} />
+            ) : brand.slug === 'souqscent' ? (
+              <SouqScentHero key={`hero-${idx}`} brand={brand} />
             ) : (
               <HeroSection key={`hero-${idx}`} brand={brand} heroProduct={heroProduct} />
             );
@@ -77,6 +82,8 @@ export default async function BrandHomePage({ params }: PageProps) {
           case 'help':
             return brand.slug === 'scentira' ? (
               <ScentiraHelpStrip key={`help-${idx}`} brand={brand} />
+            ) : brand.slug === 'souqscent' ? (
+              <SouqScentHelpStrip key={`help-${idx}`} brand={brand} />
             ) : (
               <ScentStoriesHelpStrip key={`help-${idx}`} brand={brand} />
             );
@@ -87,7 +94,11 @@ export default async function BrandHomePage({ params }: PageProps) {
               <ScentStoriesFormatsSection key={`formats-${idx}`} brand={brand} />
             );
           case 'purposes':
-            return <ScentStoriesPurposesSection key={`purposes-${idx}`} brand={brand} />;
+            return brand.slug === 'souqscent' ? (
+              <SouqScentOccasions key={`purposes-${idx}`} />
+            ) : (
+              <ScentStoriesPurposesSection key={`purposes-${idx}`} brand={brand} />
+            );
           case 'how-it-works':
             return brand.slug === 'scentira' ? (
               <ScentiraHowItWorks key={`how-${idx}`} />

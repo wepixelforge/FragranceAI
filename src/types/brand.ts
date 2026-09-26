@@ -4,7 +4,8 @@ export type DesignVariant =
   | 'luxury-editorial'     // Al-Maham: High-fashion atelier, generous whitespace, bespoke consultation
   | 'discovery-niche'      // World of Perfumers: Modern discovery lab, trial sizes, climate-tested formulas
   | 'sampling-concierge'  // The Scent Stories: fragrance discovery + try-before-you-commit formats
-  | 'decant-finder';      // Scentira: commercial decant marketplace + catalogue discovery
+  | 'decant-finder'      // Scentira: commercial decant marketplace + catalogue discovery
+  | 'souq-marketplace';   // SouqScent: Arabic perfume retail + catalogue consultant
 
 export interface BrandConfig {
   slug: string;

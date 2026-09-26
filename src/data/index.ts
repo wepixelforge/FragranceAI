@@ -6,6 +6,7 @@ import { almaham } from './brands/almaham';
 import { worldofperfumers } from './brands/worldofperfumers';
 import { thescentstories } from './brands/thescentstories';
 import { scentira } from './brands/scentira';
+import { souqscent } from './brands/souqscent';
 import { tmperfumehouseProducts } from './products/tmperfumehouse-products';
 import { arabianaromaProducts } from './products/arabianaroma-products';
 import { almahamProducts } from './products/almaham-products';
@@ -15,6 +16,7 @@ import { applyWopCanonicalImages } from './products/worldofperfumers-images';
 import { applyTssCanonicalImages } from './products/thescentstories-images';
 import { applyScentiraCanonicalImages } from './products/scentira-images';
 import { scentiraProducts } from './products/scentira-products';
+import { souqscentProducts } from './products/souqscent-products';
 import { enrichProducts } from '@/lib/product-enricher';
 
 function resolveBrandSlug(slug: string): string {
@@ -29,6 +31,7 @@ export const brands: Record<string, BrandConfig> = {
   worldofperfumers,
   thescentstories,
   scentira,
+  souqscent,
 };
 
 // ── Product Registry ────────────────────────────────────────────────────────
@@ -39,6 +42,7 @@ const productsByBrand: Record<string, Product[]> = {
   worldofperfumers: applyWopCanonicalImages(enrichProducts(worldofperfumersProducts)),
   thescentstories: applyTssCanonicalImages(enrichProducts(thescentstoriesProducts)),
   scentira: applyScentiraCanonicalImages(enrichProducts(scentiraProducts)),
+  souqscent: enrichProducts(souqscentProducts),
 };
 
 // ── Public API ──────────────────────────────────────────────────────────────

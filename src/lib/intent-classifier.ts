@@ -55,6 +55,7 @@ import {
   scentiraProductInfoHasUnresolvedIdentity,
   SCENTIRA_GROQ_NOTE,
 } from './scentira-format';
+import { applySouqScentContextToStage1, isSouqScentBrand, SOUQSCENT_GROQ_NOTE } from './souqscent-policy';
 import {
   extractCanonicalFamilies,
   FAMILY_ALTERNATION,
@@ -2873,25 +2874,31 @@ export async function classifyIntentAndExtractPreferences(
 
   const earlyOpenEnded = routeOpenEndedDiscovery(trimmed, currentState);
   if (earlyOpenEnded) {
-    return brand.slug === 'scentira'
-      ? finalizeBrandStage1(earlyOpenEnded, trimmed, brand, products)
+    return brand.slug === 'scentira' || brand.slug === 'souqscent'
+      ? finalizeBrandStage1(earlyOpenEnded, trimmed, brand, products, currentState)
       : earlyOpenEnded;
   }
 
   const productFollowUp = detectProductFollowUp(trimmed, products, currentState);
   if (productFollowUp) {
-    return buildNamedProductInfoStage1(productFollowUp);
+    const named = buildNamedProductInfoStage1(productFollowUp);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(named, trimmed, brand, products, currentState)
+      : named;
   }
 
   const compareFollowUpEarly = detectCompareFollowUp(trimmed, currentState, products);
   if (compareFollowUpEarly) {
-    return buildNamedCompareStage1(compareFollowUpEarly);
+    const compared = buildNamedCompareStage1(compareFollowUpEarly);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(compared, trimmed, brand, products, currentState)
+      : compared;
   }
 
   const competitorEarly = routeCompetitorWithoutDiscovery(trimmed, products);
   if (competitorEarly) {
-    return brand.slug === 'scentira'
-      ? finalizeBrandStage1(competitorEarly, trimmed, brand, products)
+    return brand.slug === 'scentira' || brand.slug === 'souqscent'
+      ? finalizeBrandStage1(competitorEarly, trimmed, brand, products, currentState)
       : competitorEarly;
   }
 
@@ -2943,12 +2950,18 @@ export async function classifyIntentAndExtractPreferences(
 
   const namedProductQuestion = detectProductFollowUp(effectiveQuery, products, currentState);
   if (namedProductQuestion) {
-    return buildNamedProductInfoStage1(namedProductQuestion);
+    const named = buildNamedProductInfoStage1(namedProductQuestion);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(named, effectiveQuery, brand, products, currentState)
+      : named;
   }
 
   const compareFollowUp = detectCompareFollowUp(effectiveQuery, currentState, products);
   if (compareFollowUp) {
-    return buildNamedCompareStage1(compareFollowUp);
+    const compared = buildNamedCompareStage1(compareFollowUp);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(compared, effectiveQuery, brand, products, currentState)
+      : compared;
   }
 
   // 0. Deterministic CART_ASSISTANCE gate for explicit cart actions
@@ -3014,11 +3027,17 @@ export async function classifyIntentAndExtractPreferences(
     }
     const namedProductQuestion = detectProductFollowUp(effectiveQuery, products, currentState);
     if (namedProductQuestion) {
-      return buildNamedProductInfoStage1(namedProductQuestion);
+      const named = buildNamedProductInfoStage1(namedProductQuestion);
+      return isSouqScentBrand(brand)
+        ? finalizeBrandStage1(named, effectiveQuery, brand, products, currentState)
+        : named;
     }
     const compareFollowUp = detectCompareFollowUp(effectiveQuery, currentState, products);
     if (compareFollowUp) {
-      return buildNamedCompareStage1(compareFollowUp);
+      const compared = buildNamedCompareStage1(compareFollowUp);
+      return isSouqScentBrand(brand)
+        ? finalizeBrandStage1(compared, effectiveQuery, brand, products, currentState)
+        : compared;
     }
     const validated = applyCartRoutingOverride(
       sanitizeInferredFragranceAttributes(
@@ -3038,7 +3057,8 @@ export async function classifyIntentAndExtractPreferences(
       applyExplicitReference(grounded, effectiveQuery, products, currentState),
       effectiveQuery,
       brand,
-      products
+      products,
+      currentState
     );
   }
 
@@ -3069,7 +3089,8 @@ export async function classifyIntentAndExtractPreferences(
     ),
     effectiveQuery,
     brand,
-    products
+    products,
+    currentState
   );
 }
 
@@ -3077,7 +3098,8 @@ export function finalizeBrandStage1(
   stage1: Stage1IntentOutput,
   message: string,
   brand: BrandConfig,
-  products: Product[] = []
+  products: Product[] = [],
+  currentState?: ConversationState
 ): Stage1IntentOutput {
   if (brand.slug === 'thescentstories') {
     if (detectFormatEducationQuestion(message) && !stage1.needs_recommendations) {
@@ -3137,6 +3159,10 @@ export function finalizeBrandStage1(
       }
     }
     return next;
+  }
+
+  if (isSouqScentBrand(brand)) {
+    return applySouqScentContextToStage1(stage1, message, products, currentState);
   }
 
   return stage1;
@@ -3375,7 +3401,7 @@ Active Consultation: ${JSON.stringify(currentState?.activeRequest || currentStat
 Background Preferences: ${JSON.stringify(currentState?.backgroundContext || currentState?.backgroundPreferences || {})}
 Pending Clarification: ${JSON.stringify(currentState?.pendingClarification || null)}
 Pending Cart Action (if present, yes/go ahead/everything confirms it; no/cancel/keep them cancels it): ${JSON.stringify(currentState?.pendingCartAction || null)}
-${brand.slug === 'scentira' ? SCENTIRA_GROQ_NOTE : ''}
+${brand.slug === 'scentira' ? SCENTIRA_GROQ_NOTE : brand.slug === 'souqscent' ? SOUQSCENT_GROQ_NOTE : ''}
 Return ONLY valid JSON matching the schema.`;
 
   const messagesPayload = [
@@ -3695,14 +3721,17 @@ export function fallbackIntentClassifier(
 
   const fallbackOpenEndedEarly = routeOpenEndedDiscovery(clean, currentState);
   if (fallbackOpenEndedEarly) {
-    return brand.slug === 'scentira'
-      ? finalizeBrandStage1(fallbackOpenEndedEarly, clean, brand, products)
+    return brand.slug === 'scentira' || brand.slug === 'souqscent'
+      ? finalizeBrandStage1(fallbackOpenEndedEarly, clean, brand, products, currentState)
       : fallbackOpenEndedEarly;
   }
 
   const productFollowUpEarly = detectProductFollowUp(lower, products, currentState);
   if (productFollowUpEarly) {
-    return buildNamedProductInfoStage1(productFollowUpEarly);
+    const named = buildNamedProductInfoStage1(productFollowUpEarly);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(named, clean, brand, products, currentState)
+      : named;
   }
 
   const compareFollowUpVeryEarly = detectCompareFollowUp(lower, currentState, products);
@@ -3712,8 +3741,8 @@ export function fallbackIntentClassifier(
 
   const competitorFallback = routeCompetitorWithoutDiscovery(clean, products);
   if (competitorFallback) {
-    return brand.slug === 'scentira'
-      ? finalizeBrandStage1(competitorFallback, clean, brand, products)
+    return brand.slug === 'scentira' || brand.slug === 'souqscent'
+      ? finalizeBrandStage1(competitorFallback, clean, brand, products, currentState)
       : competitorFallback;
   }
 
@@ -4004,12 +4033,18 @@ export function fallbackIntentClassifier(
 
   const productFollowUp = detectProductFollowUp(lower, products, currentState);
   if (productFollowUp) {
-    return buildNamedProductInfoStage1(productFollowUp);
+    const named = buildNamedProductInfoStage1(productFollowUp);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(named, message, brand, products, currentState)
+      : named;
   }
 
   const compareFollowUpEarly = detectCompareFollowUp(lower, currentState, products);
   if (compareFollowUpEarly) {
-    return buildNamedCompareStage1(compareFollowUpEarly);
+    const compared = buildNamedCompareStage1(compareFollowUpEarly);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(compared, message, brand, products, currentState)
+      : compared;
   }
 
   // 1. OUT OF SCOPE
@@ -4042,12 +4077,18 @@ export function fallbackIntentClassifier(
 
   const namedProductQuestion = detectProductFollowUp(lower, products, currentState);
   if (namedProductQuestion) {
-    return buildNamedProductInfoStage1(namedProductQuestion);
+    const named = buildNamedProductInfoStage1(namedProductQuestion);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(named, message, brand, products, currentState)
+      : named;
   }
 
   const compareFollowUp = detectCompareFollowUp(lower, currentState, products);
   if (compareFollowUp) {
-    return buildNamedCompareStage1(compareFollowUp);
+    const compared = buildNamedCompareStage1(compareFollowUp);
+    return isSouqScentBrand(brand)
+      ? finalizeBrandStage1(compared, message, brand, products, currentState)
+      : compared;
   }
 
   // 3. GREETING (TEST 1, 4)

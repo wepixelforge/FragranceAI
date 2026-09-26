@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
     return [
       { source: '/Scentira', destination: '/scentira' },
       { source: '/Scentira/:path*', destination: '/scentira/:path*' },
+      { source: '/SouqScent', destination: '/souqscent' },
+      { source: '/SouqScent/:path*', destination: '/souqscent/:path*' },
     ];
   },
   images: {
@@ -20,6 +22,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'thescentstories.com',
         pathname: '/web/image/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'souqscent.in',
       },
     ],
   },

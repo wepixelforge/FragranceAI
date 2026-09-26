@@ -39,7 +39,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var saved = localStorage.getItem('fragrance_theme');
                   var path = (location.pathname || '').toLowerCase();
                   var lightDefault = path === '/thescentstories' || path.indexOf('/thescentstories/') === 0
-                    || path === '/scentira' || path.indexOf('/scentira/') === 0;
+                    || path === '/scentira' || path.indexOf('/scentira/') === 0
+                    || path === '/souqscent' || path.indexOf('/souqscent/') === 0;
                   if (saved === 'light' || saved === 'dark') {
                     document.documentElement.setAttribute('data-theme', saved);
                     if (saved === 'light') document.documentElement.classList.add('light');

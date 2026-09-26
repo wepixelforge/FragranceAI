@@ -108,7 +108,10 @@ export function detectComparativeRefinement(
   stage1: Stage1IntentOutput
 ): { type: string; dimension: ComparativeDimension } | null {
   const lower = message.toLowerCase();
-  if (/\b(loud(er)?|more\s+noticeable|more\s+projection|stronger\s+(trail|sillage)|more\s+sillage)\b/.test(lower)) {
+  if (
+    /\b(loud(er)?|more\s+noticeable|more\s+projection|stronger\s+(trail|sillage)|more\s+sillage)\b/.test(lower) &&
+    !/\b(not too loud|not loud|less loud|don'?t want.{0,32}loud|nothing too loud)\b/.test(lower)
+  ) {
     return { type: 'louder', dimension: 'sillage' };
   }
   if (/\b(quiet(er)?|softer\s+trail|less\s+projection|less\s+loud)\b/.test(lower)) {

@@ -43,6 +43,16 @@ import {
   scentiraOriginalKhamrahReply,
   scentiraUnknownProductReply,
 } from './scentira-format';
+import {
+  isSouqScentBrand,
+  isSouqScentConcentrationQuestion,
+  souqscentCompareReply,
+  souqscentConcentrationReply,
+  souqscentMissingReferenceReply,
+  souqscentNoMatchReply,
+  souqscentProductInfoReply,
+  souqscentUnknownProductReply,
+} from './souqscent-policy';
 
 export { sanitizeUserFacingResponse } from './sanitize-user-text';
 
@@ -349,6 +359,27 @@ export async function generateConversationalResponse(
     return scentiraUnknownProductReply();
   }
 
+  if (isSouqScentBrand(brand) && isSouqScentConcentrationQuestion(message)) {
+    return souqscentConcentrationReply();
+  }
+
+  if (
+    isSouqScentBrand(brand) &&
+    stage1.intent === 'PRODUCT_INFO' &&
+    retrievedProducts.length === 0 &&
+    /\b(tell me about|how much is)\b/i.test(message)
+  ) {
+    return souqscentUnknownProductReply();
+  }
+
+  if (isSouqScentBrand(brand) && stage1.intent === 'COMPARE_PRODUCTS' && retrievedProducts.length >= 2) {
+    return souqscentCompareReply(retrievedProducts);
+  }
+
+  if (isSouqScentBrand(brand) && stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
+    return souqscentProductInfoReply(retrievedProducts[0], message);
+  }
+
   if (
     stage1.intent === 'GREETING' ||
     stage1.intent === 'IDENTITY' ||
@@ -569,6 +600,9 @@ async function callGroqStage2(
       break;
     case 'scentira':
       brandVoicePrompt = `You are "${assistantName}", fragrance shopping assistant for Scentira. Tone: Helpful, commercial but not pushy, fragrance-knowledgeable, concise, practical, discovery-oriented. Recommend both the fragrance and a sensible listed format (discovery vial, 5/10/20ml decant, or full bottle). Call decants decants — never official samples, factory-sealed samples, or official minis. Never invent products, prices, formats, or availability. Never claim Scentira is better than a competitor. Do not sound luxury-editorial or use SaaS/AI wording.`;
+      break;
+    case 'souqscent':
+      brandVoicePrompt = `You are "${assistantName}", fragrance consultant for SouqScent. Tone: Knowledgeable retail consultant, concise, natural. Never call yourself an AI chatbot, agent, or LLM. Never invent products, prices, notes, hour-based longevity, or projection. If a note pyramid or hour rating is unpublished, say it is not specified in the available catalogue data.`;
       break;
     default:
       brandVoicePrompt = `You are "${assistantName}", artisanal fragrance advisor. Tone: Warm, authentic, and knowledgeable.`;
@@ -932,6 +966,27 @@ export function fallbackResponseGenerator(
     return scentiraOriginalKhamrahReply(options.catalogueProducts || retrievedProducts);
   }
 
+  if (isSouqScentBrand(brand) && isSouqScentConcentrationQuestion(message)) {
+    return souqscentConcentrationReply();
+  }
+
+  if (
+    isSouqScentBrand(brand) &&
+    stage1.intent === 'PRODUCT_INFO' &&
+    retrievedProducts.length === 0 &&
+    /\b(tell me about|how much is)\b/i.test(message)
+  ) {
+    return souqscentUnknownProductReply();
+  }
+
+  if (isSouqScentBrand(brand) && stage1.intent === 'COMPARE_PRODUCTS' && retrievedProducts.length >= 2) {
+    return souqscentCompareReply(retrievedProducts);
+  }
+
+  if (isSouqScentBrand(brand) && stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
+    return souqscentProductInfoReply(retrievedProducts[0], message);
+  }
+
   // 1. OUT OF SCOPE
   if (stage1.intent === 'OUT_OF_SCOPE') {
     return (
@@ -1214,8 +1269,19 @@ export function fallbackResponseGenerator(
     return scentiraUnknownProductReply();
   }
 
+  if (
+    isSouqScentBrand(brand) &&
+    stage1.intent === 'PRODUCT_INFO' &&
+    retrievedProducts.length === 0
+  ) {
+    return souqscentUnknownProductReply();
+  }
+
   // PRODUCT INFO - No "Best Match" language; never treat as a recommendation set
   if (stage1.intent === 'PRODUCT_INFO' && retrievedProducts.length > 0) {
+    if (isSouqScentBrand(brand)) {
+      return souqscentProductInfoReply(retrievedProducts[0], message);
+    }
     const p = retrievedProducts[0];
     const q = message.toLowerCase();
     const joinNotes = (notes: string[]) => {
@@ -1298,6 +1364,9 @@ export function fallbackResponseGenerator(
 
   // COMPARE PRODUCTS - No "Best Match" language!
   if (stage1.intent === 'COMPARE_PRODUCTS' && retrievedProducts.length >= 2) {
+    if (isSouqScentBrand(brand)) {
+      return souqscentCompareReply(retrievedProducts);
+    }
     const [p1, p2] = retrievedProducts;
     const q = message.toLowerCase();
     if (/\bfresher\b/.test(q)) {
@@ -1326,6 +1395,12 @@ export function fallbackResponseGenerator(
 
   // HARD CONSTRAINT FAILURE / NO_VALID_MATCH
   if (options.hardConstraintFailed || (results.length === 0 && stage1.needs_recommendations)) {
+    if (isSouqScentBrand(brand) && stage1.is_similarity_request && !stage1.reference_perfume) {
+      return souqscentMissingReferenceReply(stage1.product_reference || 'that fragrance');
+    }
+    if (isSouqScentBrand(brand)) {
+      return souqscentNoMatchReply();
+    }
     if (
       brand.slug === 'scentira' &&
       (stage1.is_similarity_request || currentState.activeRequest?.isSimilarityRequest)
@@ -1525,6 +1600,19 @@ export function fallbackResponseGenerator(
             ? ` Since you already know the scent, this is the full-size option listed in the catalogue.`
             : ` This is the larger format listed for that fragrance.`;
       }
+    }
+
+    if (isSouqScentBrand(brand)) {
+      const lines = results.slice(0, 4).map((result, index) => {
+        const why = (result.explanation || '').replace(/^Why this matches:\s*/i, '') ||
+          `${result.product.fragranceFamily.slice(0, 2).join(' / ')} profile at ${formatPrice(result.product.price)}.`;
+        return `${index + 1}. ${result.product.name} — ${formatPrice(result.product.price)}\nWhy it matches:\n${why}`;
+      });
+      const followUp =
+        stage1.is_broad_recommendation || stage1.is_surprise_me
+          ? '\n\nIf you tell me the occasion, budget or scent style you prefer, I can narrow these down.'
+          : '';
+      return `${intro}.\n\n${lines.join('\n\n')}${followUp}`;
     }
 
     if (alts.length > 0) {

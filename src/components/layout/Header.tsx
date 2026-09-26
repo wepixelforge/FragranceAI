@@ -57,6 +57,13 @@ export default function Header({ brand }: HeaderProps) {
           { key: 'decants', label: 'Decants', href: '/Scentira/shop' },
           { key: 'sets', label: 'Discovery Sets', href: '/Scentira/shop?format=discovery-set' },
         ];
+      case 'souq-marketplace':
+        return [
+          { key: 'shop', label: 'Shop', href: '/SouqScent/shop' },
+          { key: 'men', label: 'Men', href: '/SouqScent/shop?gender=men' },
+          { key: 'women', label: 'Women', href: '/SouqScent/shop?gender=women' },
+          { key: 'unisex', label: 'Unisex', href: '/SouqScent/shop?gender=unisex' },
+        ];
       case 'catalogue-modern':
       default:
         return [
@@ -81,6 +88,8 @@ export default function Header({ brand }: HeaderProps) {
         return 'Need help?';
       case 'decant-finder':
         return 'Find Your Fragrance';
+      case 'souq-marketplace':
+        return 'Find Your Fragrance';
       default:
         return '✦ Find My Fragrance';
     }
@@ -98,6 +107,8 @@ export default function Header({ brand }: HeaderProps) {
         return 'Samples · Pocket · Full size';
       case 'decant-finder':
         return 'Decants · Discovery · Full bottles';
+      case 'souq-marketplace':
+        return 'Arabic Perfumes · India';
       default:
         return 'Recreated Extraits';
     }
@@ -113,7 +124,7 @@ export default function Header({ brand }: HeaderProps) {
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-8">
         {/* Brand Logo / Monogram on Left */}
-        <Link href={variant === 'decant-finder' ? '/Scentira' : `/${brand.slug}`} className="group flex items-center gap-3">
+        <Link href={variant === 'decant-finder' ? '/Scentira' : variant === 'souq-marketplace' ? '/SouqScent' : `/${brand.slug}`} className="group flex items-center gap-3">
           <div className="h-8 w-8 rounded-none border border-brand-border flex items-center justify-center bg-brand-surface text-brand-text text-xs font-serif group-hover:border-brand-accent transition-colors">
             {brand.monogram}
           </div>
@@ -143,7 +154,7 @@ export default function Header({ brand }: HeaderProps) {
         {/* Right CTA, Theme Toggle & Mobile Trigger */}
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            href={variant === 'decant-finder' ? '/Scentira/finder' : `/${brand.slug}/finder`}
+            href={variant === 'decant-finder' ? '/Scentira/finder' : variant === 'souq-marketplace' ? '/SouqScent/finder' : `/${brand.slug}/finder`}
             className="hidden sm:inline-flex items-center gap-2 border border-brand-accent/40 bg-brand-surface/80 hover:bg-brand-accent/15 hover:border-brand-accent px-4 lg:px-5 py-2 text-[10px] font-medium tracking-[0.22em] uppercase text-brand-text transition-all duration-300 shadow-xs"
           >
             <span>{getCtaLabel()}</span>
@@ -154,7 +165,7 @@ export default function Header({ brand }: HeaderProps) {
 
           {/* Cart Icon & Item Badge */}
           <Link
-            href={variant === 'decant-finder' ? '/Scentira/cart' : `/${brand.slug}/cart`}
+            href={variant === 'decant-finder' ? '/Scentira/cart' : variant === 'souq-marketplace' ? '/SouqScent/cart' : `/${brand.slug}/cart`}
             className="relative p-2 text-brand-text hover:text-brand-accent transition-colors flex items-center justify-center"
             aria-label={`Shopping Cart with ${itemCount} items`}
           >
@@ -212,7 +223,7 @@ export default function Header({ brand }: HeaderProps) {
             ))}
             <Link
               key="m-cart"
-              href={variant === 'decant-finder' ? '/Scentira/cart' : `/${brand.slug}/cart`}
+              href={variant === 'decant-finder' ? '/Scentira/cart' : variant === 'souq-marketplace' ? '/SouqScent/cart' : `/${brand.slug}/cart`}
               onClick={() => setIsMenuOpen(false)}
               className="text-xs uppercase tracking-[0.25em] text-brand-text-muted hover:text-brand-text transition-colors flex items-center justify-between"
             >
@@ -225,7 +236,7 @@ export default function Header({ brand }: HeaderProps) {
             </Link>
             <div className="pt-4 border-t border-brand-border">
               <Link
-                href={variant === 'decant-finder' ? '/Scentira/finder' : `/${brand.slug}/finder`}
+                href={variant === 'decant-finder' ? '/Scentira/finder' : variant === 'souq-marketplace' ? '/SouqScent/finder' : `/${brand.slug}/finder`}
                 onClick={() => setIsMenuOpen(false)}
                 className="w-full text-center block border border-brand-accent/50 py-3 text-[11px] font-medium tracking-[0.22em] uppercase text-brand-text hover:bg-brand-accent/10 transition-colors"
               >

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { formatPrice } from '@/lib/brand-utils';
+import { formatPrice, getBrandPublicPath } from '@/lib/brand-utils';
 import { formatLabel } from '@/lib/sampling-format';
 import { scentiraFormatLabel } from '@/lib/scentira-format';
 import BottleVisual from '@/components/shop/BottleVisual';
@@ -18,6 +18,8 @@ function cartConcentrationOrFormat(product: Product): string {
 
 export default function CartPageClient({ brand }: { brand: BrandConfig }) {
   const brandSlug = brand.slug;
+  const publicPath = getBrandPublicPath(brand);
+  const isRetailBag = brand.slug === 'scentira' || brand.slug === 'thescentstories' || brand.slug === 'souqscent';
 
   const { items, getCartDetails, updateQuantity, removeItem, clearCart, subtotal, itemCount } = useCart(brandSlug);
   const detailedItems = getCartDetails(brandSlug);
@@ -32,10 +34,10 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
         <div className="border-b border-brand-border pb-6 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
           <div>
             <span className="text-[10px] uppercase tracking-[0.25em] text-brand-accent font-medium block">
-              {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Shopping bag' : 'Shopping Cart — Client Allocation'}
+              {isRetailBag ? 'Shopping bag' : 'Shopping Cart — Client Allocation'}
             </span>
             <h1 className="font-serif text-3xl sm:text-4xl font-normal text-brand-text mt-1">
-              {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Your bag' : 'Your Allocation'}
+              {isRetailBag ? 'Your bag' : 'Your Allocation'}
             </h1>
           </div>
           <p className="text-xs text-brand-text-muted font-light">
@@ -50,27 +52,29 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
               ✦
             </div>
             <h2 className="font-serif text-xl sm:text-2xl text-brand-text font-normal">
-              {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Your bag is empty' : 'Your Allocation is Empty'}
+              {isRetailBag ? 'Your bag is empty' : 'Your Allocation is Empty'}
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-brand-text-muted font-light leading-relaxed">
               {brand.slug === 'scentira'
                 ? 'You have not added anything yet. Browse the collection when products are available.'
+                : brand.slug === 'souqscent'
+                ? 'You have not added anything yet. Browse the catalogue or describe what you need to the fragrance consultant.'
                 : brand.slug === 'thescentstories'
                 ? 'You have not added anything yet. Browse samples, pocket sizes and full bottles from the collection.'
                 : 'You have not added any fragrances to your allocation yet. Discover artisanal blends formulated with lasting sillage.'}
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href={`/${brand.slug}/shop`}
+                href={`${publicPath}/shop`}
                 className="w-full sm:w-auto border border-brand-accent bg-brand-accent px-6 py-3 text-[10px] font-medium tracking-[0.22em] uppercase text-brand-primary-fg hover:bg-transparent hover:text-brand-text transition-all duration-300"
               >
                 Explore Collection
               </Link>
               <Link
-                href={`/${brand.slug}/finder`}
+                href={`${publicPath}/finder`}
                 className="w-full sm:w-auto border border-brand-border px-6 py-3 text-[10px] font-medium tracking-[0.22em] uppercase text-brand-text hover:border-brand-accent/50 hover:bg-brand-surface transition-all duration-300"
               >
-                {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Need help? →' : 'Consult Scent Advisor →'}
+                {isRetailBag ? 'Need help? →' : 'Consult Scent Advisor →'}
               </Link>
             </div>
           </div>
@@ -106,6 +110,8 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
                       <span className="text-xs text-brand-text-muted font-light block mt-1">
                         {brand.slug === 'thescentstories'
                           ? `${product.size} \u00b7 ${cartConcentrationOrFormat(product)}`
+                          : brand.slug === 'souqscent'
+                          ? [product.size, product.houseBrand, product.concentration].filter(Boolean).join(' · ')
                           : `${product.size} \u00b7 ${product.concentration || 'Extrait Concentration'}`}
                       </span>
                       <span className="text-xs font-serif text-brand-text mt-1 block sm:hidden">
@@ -167,7 +173,7 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
 
               <div className="flex items-center justify-between pt-4">
                 <Link
-                  href={`/${brand.slug}/shop`}
+                  href={`${publicPath}/shop`}
                   className="text-[10px] uppercase tracking-[0.2em] text-brand-text-muted hover:text-brand-text transition-colors flex items-center gap-1"
                 >
                   ← Continue Exploring
@@ -237,7 +243,7 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
                 Proceed to Checkout →
               </button>
 
-              {brand.slug !== 'thescentstories' && brand.slug !== 'scentira' && (
+              {brand.slug !== 'thescentstories' && brand.slug !== 'scentira' && brand.slug !== 'souqscent' && (
               <div className="mt-6 text-[10px] text-brand-text-muted font-light leading-relaxed border-t border-brand-border-light pt-4 text-center">
                 ✦ Demonstration Portfolio Mode &mdash; No payment is captured.
               </div>
@@ -258,11 +264,11 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
             </div>
 
             <h3 className="font-serif text-xl sm:text-2xl text-brand-text font-normal">
-              {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Checkout unavailable' : 'Portfolio Demonstration'}
+              {isRetailBag ? 'Checkout unavailable' : 'Portfolio Demonstration'}
             </h3>
 
             <p className="mt-3 text-xs sm:text-sm text-brand-text-muted font-light leading-relaxed">
-              {brand.slug === 'scentira' || brand.slug === 'thescentstories'
+              {isRetailBag
                 ? 'Online checkout is not connected on this preview. Your bag is saved on this device.'
                 : 'This ecommerce and AI consultation platform is a demonstration project. Real payment gateways (such as Stripe/Razorpay) are not connected.'}
             </p>
@@ -276,7 +282,7 @@ export default function CartPageClient({ brand }: { brand: BrandConfig }) {
                 <span>Order Total:</span>
                 <span className="font-serif font-normal text-brand-text">{formatPrice(subtotal)}</span>
               </div>
-              {brand.slug !== 'thescentstories' && brand.slug !== 'scentira' && (
+              {brand.slug !== 'thescentstories' && brand.slug !== 'scentira' && brand.slug !== 'souqscent' && (
               <div className="flex justify-between">
                 <span>Persistence:</span>
                 <span className="text-brand-accent">Saved in localStorage</span>

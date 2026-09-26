@@ -5,7 +5,7 @@ import ProductGrid from '@/components/shop/ProductGrid';
 
 interface PageProps {
   params: Promise<{ brandSlug: string }>;
-  searchParams: Promise<{ format?: string }>;
+  searchParams: Promise<{ format?: string; gender?: string; family?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -47,14 +47,24 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
             ? 'The collection'
             : brand.designVariant === 'decant-finder'
             ? 'Shop fragrances'
+            : brand.designVariant === 'souq-marketplace'
+            ? 'Shop Arabic perfumes'
             : 'The Extrait Collection'}
         </h1>
         <p className="mt-3 text-sm sm:text-base text-brand-text-muted max-w-2xl leading-relaxed">
-          {brand.specialty || `Explore the complete olfactory repertoire of ${brand.name}.`}
+          {brand.designVariant === 'souq-marketplace'
+            ? 'Browse in-stock Arabic and Middle Eastern bottles, or skip the filters and describe what you need.'
+            : brand.specialty || `Explore the complete olfactory repertoire of ${brand.name}.`}
         </p>
       </div>
 
-      <ProductGrid products={products} brand={brand} initialFormat={query.format} />
+      <ProductGrid
+        products={products}
+        brand={brand}
+        initialFormat={query.format}
+        initialGender={query.gender}
+        initialFamily={query.family}
+      />
     </div>
   );
 }

@@ -58,6 +58,12 @@ export function getProductPlaceholderGradient(productName: string): string {
 /**
  * Return canonical welcome message for a brand's fragrance consultant.
  */
+export function getBrandPublicPath(brand: BrandConfig | { slug: string }): string {
+  if (brand.slug === 'scentira') return '/Scentira';
+  if (brand.slug === 'souqscent') return '/SouqScent';
+  return `/${brand.slug}`;
+}
+
 export function getBrandWelcomeMessage(brand: BrandConfig): string {
   if (brand.finder?.welcomeMessage) {
     return brand.finder.welcomeMessage;
@@ -71,6 +77,8 @@ export function getBrandWelcomeMessage(brand: BrandConfig): string {
       return 'Let me help you discover your next signature fragrance.';
     case 'arabianaroma':
       return 'Hi, let me help you find your signature attar.';
+    case 'souqscent':
+      return 'Tell me what you are looking for.';
     default:
       return 'Hi, I can help you find the fragrance you like.';
   }

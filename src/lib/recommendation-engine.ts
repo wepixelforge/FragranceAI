@@ -32,6 +32,13 @@ import {
 } from './sampling-format';
 import { productMatchesRequestedFamily } from './fragrance-vocabulary';
 import { scentiraHardFormatFilter, scentiraViolatesExcludedFamily } from './scentira-format';
+import {
+  applySouqScentResultHonesty,
+  isSouqScentCatalogue,
+  souqscentDetailedReasons,
+  souqscentExplanation,
+  souqscentHardGenderFilter,
+} from './souqscent-policy';
 
 /**
  * Score weights for deterministic soft ranking.
@@ -325,6 +332,9 @@ export function isHardCandidateValid(
       preferences.exclusions?.fragranceFamilies
     );
     if (!excludedFamilyCheck.valid) return excludedFamilyCheck;
+  } else if (product.brandSlug === 'souqscent') {
+    const genderCheck = souqscentHardGenderFilter(product, preferences);
+    if (!genderCheck.valid) return genderCheck;
   } else if (
     preferences.formatPreference &&
     preferences.formatPreference !== 'NO_FORMAT_PREFERENCE' &&
@@ -626,11 +636,31 @@ export function getRecommendations(
   const unsupportedConcept = isUnsupportedScentConcept(scentConcept);
 
   // ── SURPRISE ME DIVERSE SELECTION ──────────────────────────────────────────
-  if (isSurpriseMe) {
+  const souqHardPool = isSouqScentCatalogue(products)
+    ? products.filter(
+        (product) =>
+          !excludeProductIds.includes(product.id) && isHardCandidateValid(product, preferences).valid
+      )
+    : [];
+  const souqHasHardConstraint = Boolean(
+    preferences.budget?.max != null ||
+      preferences.budget?.min != null ||
+      preferences.gender ||
+      preferences.sillageMax ||
+      (preferences.exclusions?.fragranceFamilies && preferences.exclusions.fragranceFamilies.length > 0) ||
+      (preferences.exclusions?.notes && preferences.exclusions.notes.length > 0)
+  );
+  const skipSouqSurprise = isSouqScentCatalogue(products) && souqHasHardConstraint && souqHardPool.length === 0;
+
+  if (isSurpriseMe && !skipSouqSurprise) {
     const allowMist = userRequestsBodyMist(preferences.rawQuery);
     const pool = products.filter((p) => !excludeProductIds.includes(p.id));
     const conventional = allowMist ? pool : pool.filter((p) => !isHairBodyMistProduct(p));
-    const candidateProducts = conventional.length > 0 ? conventional : pool;
+    const candidateProducts = isSouqScentCatalogue(products)
+      ? (souqHardPool.length > 0 ? souqHardPool : conventional.length > 0 ? conventional : pool)
+      : conventional.length > 0
+        ? conventional
+        : pool;
     const used = new Set<string>();
     const take = (predicate: (product: Product) => boolean) => {
       const hit = candidateProducts.find((product) => !used.has(product.id) && predicate(product));
@@ -667,7 +697,7 @@ export function getRecommendations(
       .slice(0, Math.min(Math.max(topN, 3), 4)) as Product[];
     const directions = ['Fresh Direction', 'Woody Direction', 'Sweet / Oriental Direction', 'Floral Direction'];
 
-    const surpriseResults: RecommendationResult[] = surprisePicks.map((product, idx) => {
+    const surpriseDraft: RecommendationResult[] = surprisePicks.map((product, idx) => {
       const dir = directions[idx] || 'Diverse Direction';
       return {
         product,
@@ -697,6 +727,9 @@ export function getRecommendations(
         explanation: `${product.name} represents our ${dir.toLowerCase()} (${product.fragranceFamily.join('/')}).`,
       };
     });
+    const surpriseResults = isSouqScentCatalogue(products)
+      ? applySouqScentResultHonesty(surpriseDraft, preferences)
+      : surpriseDraft;
 
     const rankedProducts: RankedProductResult[] = surpriseResults.map((r, idx) => ({
       productId: r.product.id,
@@ -1145,7 +1178,10 @@ export function getRecommendations(
   const tradeOffData = buildPartialMatchTradeOff(closest.product, preferences);
 
   closest.matchTier = 'Closest Match';
-  closest.explanation = `${closest.product.name} is the closest match in this collection: ${tradeOffData.tradeOff}`;
+  closest.explanation =
+    closest.product.brandSlug === 'souqscent'
+      ? souqscentExplanation(closest, preferences)
+      : `${closest.product.name} is the closest match in this collection: ${tradeOffData.tradeOff}`;
   const mlPercent = mlSimilarityScore(closest.product, preferences).percent;
   if (mlPercent > 0) {
     closest.detailedReasons = [
@@ -1705,6 +1741,9 @@ function scoreProduct(
  * Grounded natural explanation generator (strictly grounded in metadata & match reasons).
  */
 function generateNaturalExplanation(result: RecommendationResult, prefs: StructuredPreferences): string {
+  if (result.product.brandSlug === 'souqscent') {
+    return souqscentExplanation(result, prefs);
+  }
   const p = result.product;
   const topNotes = p.topNotes.slice(0, 2).join(' and ');
   const baseNotes = p.baseNotes.slice(0, 2).join(' and ');
@@ -1726,6 +1765,9 @@ function generateNaturalExplanation(result: RecommendationResult, prefs: Structu
  * Factual reason breakdown for product cards.
  */
 function generateDetailedReasons(result: RecommendationResult, prefs: StructuredPreferences): MatchReasonDetail[] {
+  if (result.product.brandSlug === 'souqscent') {
+    return souqscentDetailedReasons(result, prefs);
+  }
   const p = result.product;
   const details: MatchReasonDetail[] = [];
 

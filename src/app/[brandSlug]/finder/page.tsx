@@ -15,12 +15,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title:
       brand.slug === 'scentira'
         ? `Find a fragrance — ${brand.name}`
+        : brand.slug === 'souqscent'
+        ? `Find Your Fragrance — ${brand.name}`
         : brand.slug === 'thescentstories'
         ? `Need help? — ${brand.name}`
         : `Fragrance Finder — ${brand.name}`,
     description:
       brand.slug === 'scentira'
         ? `Tell us what you are looking for and we will help you navigate the ${brand.name} catalogue.`
+        : brand.slug === 'souqscent'
+        ? `Tell us what you are looking for — occasion, style, budget or a fragrance you already know.`
         : brand.slug === 'thescentstories'
         ? `Tell us what you are looking for and we will suggest fragrances from the ${brand.name} collection.`
         : `Find your perfect fragrance from ${brand.name}. Describe what you love and our AI assistant will recommend the best matches.`,

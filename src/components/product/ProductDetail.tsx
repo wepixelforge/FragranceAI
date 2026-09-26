@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
 import { useCart } from '@/context/CartContext';
-import { formatPrice } from '@/lib/brand-utils';
+import { formatPrice, getBrandPublicPath } from '@/lib/brand-utils';
 import { formatLabel } from '@/lib/sampling-format';
 import { scentiraFormatLabel } from '@/lib/scentira-format';
 import BottleVisual from '@/components/shop/BottleVisual';
@@ -31,6 +31,10 @@ export default function ProductDetail({ product, brand, similarProducts, related
   const isDiscovery = brand.designVariant === 'discovery-niche';
   const isSampling = brand.designVariant === 'sampling-concierge';
   const isScentira = brand.slug === 'scentira';
+  const isSouq = brand.slug === 'souqscent';
+  const publicPath = getBrandPublicPath(brand);
+  const hasNotes =
+    product.topNotes.length > 0 || product.heartNotes.length > 0 || product.baseNotes.length > 0;
 
   const formatLongevity = (l: string) => {
     const map: Record<string, string> = {
@@ -48,7 +52,13 @@ export default function ProductDetail({ product, brand, similarProducts, related
     if (isDiscovery) return 'EDP Concentrate · Indian Heat Tested';
     if (isSampling) return product.concentration || formatLabel(product.format);
     if (isScentira) return product.concentration || scentiraFormatLabel(product);
+    if (isSouq) return product.concentration || product.size;
     return '30% Extrait de Parfum Strength';
+  };
+
+  const formatSouqAttribute = (value?: string | null) => {
+    if (!value) return 'Based on the available product information';
+    return value.replace(/-/g, ' ');
   };
 
   const currentPrice = isDiscovery && selectedFormat === 'trial' ? 149 : product.price;
@@ -59,12 +69,12 @@ export default function ProductDetail({ product, brand, similarProducts, related
         
         {/* Editorial Breadcrumbs */}
         <nav className="mb-8 flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-brand-text-muted font-light">
-          <Link href={`/${brand.slug}`} className="hover:text-brand-text transition-colors">
+          <Link href={publicPath} className="hover:text-brand-text transition-colors">
             Home
           </Link>
           <span className="text-brand-border">/</span>
-          <Link href={`/${brand.slug}/shop`} className="hover:text-brand-text transition-colors">
-            Collection
+          <Link href={`${publicPath}/shop`} className="hover:text-brand-text transition-colors">
+            {isSouq ? 'Shop' : 'Collection'}
           </Link>
           <span className="text-brand-border">/</span>
           <span className="text-brand-text">{product.name}</span>
@@ -100,6 +110,8 @@ export default function ProductDetail({ product, brand, similarProducts, related
                       .join(' — ')
                   : isScentira
                   ? scentiraFormatLabel(product)
+                  : isSouq
+                  ? [product.size, product.houseBrand].filter(Boolean).join(' — ')
                   : `${product.size} — Artisanal Batch`}
               </div>
             </div>
@@ -130,6 +142,8 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     ? `${product.size}${product.format ? ` · ${formatLabel(product.format)}` : ''}`
                     : isScentira
                     ? scentiraFormatLabel(product)
+                    : isSouq
+                    ? product.size
                     : `${product.size} Full Bottle`}
                 </span>
               </div>
@@ -223,7 +237,9 @@ export default function ProductDetail({ product, brand, similarProducts, related
               </p>
 
               {/* ── Olfactory Notes Pyramid (Editorial Visual Hierarchy) ───────── */}
+              {hasNotes && (
               <div className="mt-8 border-y border-brand-border py-6 space-y-5">
+                {product.topNotes.length > 0 && (
                 <div>
                   <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
                     Top Notes &mdash; Opening Impression
@@ -232,7 +248,9 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     {product.topNotes.join(' · ')}
                   </p>
                 </div>
+                )}
 
+                {product.heartNotes.length > 0 && (
                 <div className="border-t border-brand-border-light pt-4">
                   <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
                     Heart Notes &mdash; The Core Character
@@ -241,7 +259,9 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     {product.heartNotes.join(' · ')}
                   </p>
                 </div>
+                )}
 
+                {product.baseNotes.length > 0 && (
                 <div className="border-t border-brand-border-light pt-4">
                   <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
                     Base Notes &mdash; Lasting Resonance
@@ -250,20 +270,24 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     {product.baseNotes.join(' · ')}
                   </p>
                 </div>
+                )}
               </div>
+              )}
 
               {/* Performance Indicators (Restrained Grid) */}
               <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 py-4 border-b border-brand-border">
                 <div>
                   <span className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted block">Longevity</span>
-                  <span className="text-xs text-brand-text font-light block mt-1">
-                    {formatLongevity(product.longevity)}
+                  <span className="text-xs text-brand-text font-light block mt-1 capitalize">
+                    {isSouq ? formatSouqAttribute(product.longevity) : formatLongevity(product.longevity)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted block">Sillage</span>
+                  <span className="text-[9px] uppercase tracking-[0.2em] text-brand-text-muted block">
+                    {isSouq ? 'Projection' : 'Sillage'}
+                  </span>
                   <span className="text-xs text-brand-text font-light block mt-1 capitalize">
-                    {product.intensity}
+                    {isSouq ? formatSouqAttribute(product.projection || product.intensity) : product.intensity}
                   </span>
                 </div>
                 <div>
@@ -285,7 +309,7 @@ export default function ProductDetail({ product, brand, similarProducts, related
                 <button
                   onClick={() => {
                     if (inCart) {
-                      router.push(`/${brand.slug}/cart`);
+                      router.push(`${publicPath}/cart`);
                     } else {
                       addItem(product.id, brand.slug);
                     }
@@ -300,6 +324,8 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     ? `Add ${formatLabel(product.format)} — ${formatPrice(product.price)}`
                     : isScentira
                     ? `Add ${scentiraFormatLabel(product)} — ${formatPrice(product.price)}`
+                    : isSouq
+                    ? `Add to cart — ${formatPrice(product.price)}`
                     : 'Acquire Full Bottle'}
                 </button>
 
@@ -310,18 +336,22 @@ export default function ProductDetail({ product, brand, similarProducts, related
                     <span className="text-xs text-brand-text-muted font-light">
                       {isSampling
                         ? 'Like this style but want something fresher?'
+                        : isSouq
+                        ? 'Not sure if this is right for you? Ask the fragrance consultant.'
                         : 'Wondering how this compares to your favorites?'}
                     </span>
                   </div>
                   <Link
                     href={
-                      isSampling
+                      isSouq
+                        ? `${publicPath}/finder?ref=${product.slug}&q=${encodeURIComponent(`Is ${product.name} a good match for me?`)}`
+                        : isSampling
                         ? `/${brand.slug}/finder?ref=${product.slug}&q=${encodeURIComponent(`I like ${product.name} but want something similar`)}`
                         : `/${brand.slug}/finder?ref=${product.slug}&q=${encodeURIComponent(`Compare ${product.name} with other blends in the collection`)}`
                     }
                     className="text-[10px] uppercase tracking-[0.2em] text-brand-accent hover:underline font-medium shrink-0"
                   >
-                    {isSampling ? 'Ask us →' : 'Consult Concierge →'}
+                    {isSouq ? 'Ask consultant →' : isSampling ? 'Ask us →' : 'Consult Concierge →'}
                   </Link>
                 </div>
               </div>
@@ -337,17 +367,17 @@ export default function ProductDetail({ product, brand, similarProducts, related
             <div className="flex items-baseline justify-between mb-8">
               <div>
                 <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
-                  {isSampling ? 'Related fragrances' : 'Curated Pairings'}
+                  {isSouq ? 'Related perfumes' : isSampling ? 'Related fragrances' : 'Curated Pairings'}
                 </span>
                 <h2 className="font-serif text-2xl sm:text-3xl font-normal text-brand-text mt-1">
-                  {isSampling ? 'You may also like' : 'Complementary Creations'}
+                  {isSouq ? 'You may also like' : isSampling ? 'You may also like' : 'Complementary Creations'}
                 </h2>
               </div>
               <Link
-                href={`/${brand.slug}/shop`}
+                href={`${publicPath}/shop`}
                 className="text-[10px] uppercase tracking-[0.2em] text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                {isSampling ? 'Explore more →' : 'View Full Archives →'}
+                {isSouq ? 'Shop more →' : isSampling ? 'Explore more →' : 'View Full Archives →'}
               </Link>
             </div>
 

@@ -33,8 +33,12 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
   const isDedicatedFinderPage = pathname.endsWith('/finder');
   const isScentStories = brand.slug === 'thescentstories';
   const isScentira = brand.slug === 'scentira';
+  const isSouq = brand.slug === 'souqscent';
   const isTssCart = isScentStories && pathname.includes('/cart');
   const contextualPrompt = (() => {
+    if (isSouq && pathname.includes('/product/')) return 'Not sure if this is right for you?';
+    if (isSouq && pathname.includes('/shop')) return 'Tell me what you are looking for.';
+    if (isSouq) return brand.finder.welcomeMessage || 'Tell me what you are looking for.';
     if (isScentira) return brand.finder.welcomeMessage || 'Need help finding a fragrance?';
     if (!isScentStories) return getBrandWelcomeMessage(brand);
     if (pathname.includes('/cart')) return 'Need help choosing between these?';
@@ -262,7 +266,7 @@ export default function FloatingConcierge({ brand }: FloatingConciergeProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={
-                isScentira || isScentStories
+                isScentira || isSouq || isScentStories
                   ? "Tell me what you're looking for..."
                   : 'Ask the scent consultant...'
               }

@@ -144,6 +144,25 @@ html.light {
   color-scheme: light;
 }
 
+[data-brand="souqscent"] {
+  --brand-primary: #2c2118;
+  --brand-primary-fg: #f6efe4;
+  --brand-accent: #c4842a;
+  --brand-accent-fg: #2c2118;
+  --brand-bg: #f6efe4;
+  --brand-surface: #fff8ee;
+  --brand-surface-hover: #efe4d2;
+  --brand-text: #2c2118;
+  --brand-text-muted: #7a6a58;
+  --brand-border: rgba(44, 33, 24, 0.14);
+  --brand-border-light: rgba(44, 33, 24, 0.07);
+  --brand-stage: #efe4d2;
+  --brand-input-bg: #fff8ee;
+  --brand-input-border: rgba(44, 33, 24, 0.16);
+  --brand-user-bubble: #efe4d2;
+  color-scheme: light;
+}
+
 [data-brand="worldofperfumers"] {
   --brand-primary: #0b0b0a;
   --brand-primary-fg: #ede8df;
@@ -291,6 +310,47 @@ html.light [data-brand="scentira"] {
   --brand-input-border: rgba(23, 23, 23, 0.16);
   --brand-user-bubble: #f3f1ee;
   color-scheme: light;
+}
+
+[data-theme="light"][data-brand="souqscent"],
+[data-theme="light"] [data-brand="souqscent"],
+html.light [data-brand="souqscent"] {
+  --brand-primary: #2c2118;
+  --brand-primary-fg: #f6efe4;
+  --brand-accent: #c4842a;
+  --brand-accent-fg: #2c2118;
+  --brand-bg: #f6efe4;
+  --brand-surface: #fff8ee;
+  --brand-surface-hover: #efe4d2;
+  --brand-text: #2c2118;
+  --brand-text-muted: #7a6a58;
+  --brand-border: rgba(44, 33, 24, 0.14);
+  --brand-border-light: rgba(44, 33, 24, 0.07);
+  --brand-stage: #efe4d2;
+  --brand-input-bg: #fff8ee;
+  --brand-input-border: rgba(44, 33, 24, 0.16);
+  --brand-user-bubble: #efe4d2;
+  color-scheme: light;
+}
+
+[data-theme="dark"][data-brand="souqscent"],
+[data-theme="dark"] [data-brand="souqscent"] {
+  --brand-primary: #1c1612;
+  --brand-primary-fg: #f3e6d4;
+  --brand-accent: #d4a04a;
+  --brand-accent-fg: #1c1612;
+  --brand-bg: #1c1612;
+  --brand-surface: #261e18;
+  --brand-surface-hover: #32271f;
+  --brand-text: #f3e6d4;
+  --brand-text-muted: #b5a28c;
+  --brand-border: rgba(243, 230, 212, 0.12);
+  --brand-border-light: rgba(243, 230, 212, 0.06);
+  --brand-stage: #221b16;
+  --brand-input-bg: #261e18;
+  --brand-input-border: rgba(243, 230, 212, 0.16);
+  --brand-user-bubble: #32271f;
+  color-scheme: dark;
 }
 
 /* Scentira base tokens are light. Dark must win when the shared theme is dark. */

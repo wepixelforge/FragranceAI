@@ -41,6 +41,12 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
           subtitle: 'A few pieces from the collection — discovery sizes, decants and full bottles.',
           cta: 'Shop fragrances',
         };
+      case 'souq-marketplace':
+        return {
+          title: 'From the collection',
+          subtitle: 'A few in-stock Arabic and Middle Eastern bottles from the current SouqScent catalogue.',
+          cta: 'Shop perfumes',
+        };
       default:
         return {
           title: 'Featured Fragrances',
@@ -68,7 +74,7 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
             </p>
           </div>
           <Link
-            href={`/${brand.slug}/shop`}
+            href={brand.slug === 'souqscent' ? '/SouqScent/shop' : `/${brand.slug}/shop`}
             className="group hidden sm:inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium transition-colors hover:text-brand-accent pb-1 border-b border-transparent hover:border-brand-accent"
             style={{ color: brand.colors.accent }}
           >
@@ -85,7 +91,7 @@ export default function FeaturedProducts({ brand, products }: FeaturedProductsPr
 
         <div className="mt-12 text-center sm:hidden">
           <Link
-            href={`/${brand.slug}/shop`}
+            href={brand.slug === 'souqscent' ? '/SouqScent/shop' : `/${brand.slug}/shop`}
             className="inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium py-3 px-6 rounded-full hairline-border"
             style={{ color: brand.colors.accent }}
           >

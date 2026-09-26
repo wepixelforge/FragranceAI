@@ -31,32 +31,56 @@ export default function Footer({ brand }: FooterProps) {
           {/* Navigation Links */}
           <div className="md:col-span-3">
             <h4 className="text-[10px] uppercase tracking-widest font-mono text-brand-accent mb-4">
-              {brand.slug === 'scentira' ? 'Shop' : brand.slug === 'thescentstories' ? 'Shop' : 'Archive & Navigation'}
+              {brand.slug === 'scentira' || brand.slug === 'souqscent'
+                ? 'Shop'
+                : brand.slug === 'thescentstories'
+                ? 'Shop'
+                : 'Archive & Navigation'}
             </h4>
             <nav className="flex flex-col gap-2.5">
               <Link
-                href={brand.slug === 'scentira' ? '/Scentira' : `/${brand.slug}`}
+                href={brand.slug === 'scentira' ? '/Scentira' : brand.slug === 'souqscent' ? '/SouqScent' : `/${brand.slug}`}
                 className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                {brand.slug === 'scentira' || brand.slug === 'thescentstories' ? 'Home' : 'Maison Entrance'}
+                {brand.slug === 'scentira' || brand.slug === 'thescentstories' || brand.slug === 'souqscent'
+                  ? 'Home'
+                  : 'Maison Entrance'}
               </Link>
               <Link
-                href={brand.slug === 'scentira' ? '/Scentira/shop' : `/${brand.slug}/shop`}
+                href={
+                  brand.slug === 'scentira'
+                    ? '/Scentira/shop'
+                    : brand.slug === 'souqscent'
+                    ? '/SouqScent/shop'
+                    : `/${brand.slug}/shop`
+                }
                 className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                {brand.slug === 'scentira' ? 'Shop' : brand.slug === 'thescentstories' ? 'Catalogue' : 'Complete Collection'}
+                {brand.slug === 'scentira' || brand.slug === 'souqscent'
+                  ? 'Shop'
+                  : brand.slug === 'thescentstories'
+                  ? 'Catalogue'
+                  : 'Complete Collection'}
               </Link>
               <Link
                 href={
                   brand.slug === 'scentira'
                     ? '/Scentira/shop?format=discovery-set'
+                    : brand.slug === 'souqscent'
+                    ? '/SouqScent/finder'
                     : brand.slug === 'thescentstories'
                     ? `/${brand.slug}/shop?format=sample`
                     : `/${brand.slug}/finder`
                 }
                 className="text-xs text-brand-text-muted hover:text-brand-text transition-colors"
               >
-                {brand.slug === 'scentira' ? 'Discovery Sets' : brand.slug === 'thescentstories' ? 'Samples' : 'Scent Concierge'}
+                {brand.slug === 'scentira'
+                  ? 'Discovery Sets'
+                  : brand.slug === 'souqscent'
+                  ? 'Find Your Fragrance'
+                  : brand.slug === 'thescentstories'
+                  ? 'Samples'
+                  : 'Scent Concierge'}
               </Link>
             </nav>
           </div>
@@ -66,6 +90,8 @@ export default function Footer({ brand }: FooterProps) {
             <h4 className="text-[10px] uppercase tracking-widest font-mono text-brand-accent mb-4">
               {brand.slug === 'scentira'
                 ? 'Need a hand?'
+                : brand.slug === 'souqscent'
+                ? 'Need a hand?'
                 : brand.slug === 'thescentstories'
                 ? 'Need a hand?'
                 : 'Private Consultation'}
@@ -73,18 +99,28 @@ export default function Footer({ brand }: FooterProps) {
             <p className="text-xs text-brand-text-muted leading-relaxed mb-4 font-light">
               {brand.slug === 'scentira'
                 ? 'Tell us a mood, an occasion, a budget, or a fragrance you already wear.'
+                : brand.slug === 'souqscent'
+                ? 'Not sure what suits you? Describe the occasion, style, budget or fragrance you have in mind.'
                 : brand.slug === 'thescentstories'
                 ? 'Not sure what to choose? Tell us an occasion, a budget, or a fragrance you already love.'
                 : 'Consult with our digital sommelier to explore creations aligned with your preferred accords, longevity, and climate.'}
             </p>
             <Link
-              href={brand.slug === 'scentira' ? '/Scentira/finder' : `/${brand.slug}/finder`}
+              href={
+                brand.slug === 'scentira'
+                  ? '/Scentira/finder'
+                  : brand.slug === 'souqscent'
+                  ? '/SouqScent/finder'
+                  : `/${brand.slug}/finder`
+              }
               className="group inline-flex items-center gap-2 text-xs uppercase tracking-widest font-medium transition-colors hover:text-brand-accent"
               style={{ color: brand.colors.accent }}
             >
               <span>
                 {brand.slug === 'scentira'
                   ? 'Find a fragrance'
+                  : brand.slug === 'souqscent'
+                  ? 'Find Your Fragrance'
                   : brand.slug === 'thescentstories'
                   ? 'Ask us'
                   : 'Begin Scent Session'}
@@ -98,6 +134,8 @@ export default function Footer({ brand }: FooterProps) {
           <p>
             {brand.slug === 'scentira'
               ? `${brand.name} · India`
+              : brand.slug === 'souqscent'
+              ? `${brand.name} · Arabic perfumes in India`
               : brand.slug === 'thescentstories'
               ? `${brand.name} · Mumbai`
               : `Concept demonstration curated for ${brand.name}.`}
@@ -105,6 +143,8 @@ export default function Footer({ brand }: FooterProps) {
           <p>
             {brand.slug === 'scentira'
               ? 'Decants · Discovery sizes · Full bottles'
+              : brand.slug === 'souqscent'
+              ? 'Original Arabic and Middle Eastern bottles'
               : brand.slug === 'thescentstories'
               ? 'Authentic samples · Pocket sizes · Full bottles'
               : 'Independent evaluation prototype · Editorial discovery engine'}

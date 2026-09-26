@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Product } from '@/types/product';
 import { BrandConfig } from '@/types/brand';
-import { formatPrice } from '@/lib/brand-utils';
+import { formatPrice, getBrandPublicPath } from '@/lib/brand-utils';
 import { formatLabel } from '@/lib/sampling-format';
 import BottleVisual from './BottleVisual';
 
@@ -18,6 +18,8 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
   const isLuxury = brand.designVariant === 'luxury-editorial';
   const isSampling = brand.designVariant === 'sampling-concierge';
   const isDecantFinder = brand.designVariant === 'decant-finder';
+  const isSouq = brand.designVariant === 'souq-marketplace';
+  const publicPath = getBrandPublicPath(brand);
 
   const getDescriptor = () => {
     if (product.character) return product.character;
@@ -33,12 +35,13 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
     if (isLuxury) return 'View Extrait →';
     if (isSampling) return 'View format →';
     if (isDecantFinder) return 'View →';
+    if (isSouq) return 'View perfume →';
     return 'Explore Scent →';
   };
 
   return (
     <Link
-      href={`/${brand.slug}/product/${product.slug}`}
+      href={`${publicPath}/product/${product.slug}`}
       className="group block relative flex flex-col h-full bg-brand-surface border border-brand-border hover:border-brand-accent/40 transition-all duration-500 overflow-hidden shadow-xs"
     >
       {/* Product Image Stage */}
@@ -66,6 +69,8 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
           <span className="text-[10px] uppercase tracking-[0.22em] text-brand-accent font-medium block">
             {isDecantFinder
               ? `${product.houseBrand ? `${product.houseBrand} · ` : ''}${product.size}`
+              : isSouq
+              ? `${product.houseBrand ? `${product.houseBrand} · ` : ''}${product.fragranceFamily.slice(0, 2).join(' · ')}`
               : isSampling && product.format
               ? `${formatLabel(product.format)} · ${product.fragranceFamily.slice(0, 2).join(' · ')}`
               : product.fragranceFamily.slice(0, 2).join(' · ')}
@@ -75,7 +80,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
           <h3 className="font-serif text-lg sm:text-xl font-normal text-brand-text group-hover:text-brand-accent transition-colors mt-1.5 leading-snug line-clamp-2">
             {product.name}
           </h3>
-          {isSampling && product.houseBrand && (
+          {(isSampling || isSouq) && product.houseBrand && (
             <p className="mt-1 text-[11px] text-brand-text-muted">{product.houseBrand}</p>
           )}
 
@@ -96,7 +101,7 @@ export default function ProductCard({ product, brand }: ProductCardProps) {
                 10ml trial from ₹149
               </span>
             )}
-            {(isSampling || isDecantFinder) && (
+            {(isSampling || isDecantFinder || isSouq) && (
               <span className="text-[10px] text-brand-text-muted block mt-0.5 font-light">
                 {product.size}
               </span>
